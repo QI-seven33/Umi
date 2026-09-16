@@ -161,7 +161,7 @@ async def chat_sse(req: ChatRequest, request: Request):
             yield "event: close\ndata: 连接已关闭\n\n"
             raise
         except APIException as e:
-            logger.warning("SSE 业务异常: %s", e.message)
+            logger.warning(f"SSE 业务异常: {e.message}")
             yield f"event: error\ndata: {e.message}\n\n"
             yield "event: done\ndata: [DONE]\n\n"
         except Exception:

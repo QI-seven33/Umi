@@ -69,11 +69,13 @@ def evaluate_node(state: OverAllState) -> OverAllState:
             recent_tools.append(msg)
     recent_tools.reverse()
 
+    artifacts = [
+        getattr(tool_message.artifact, "evidence_status", None)
+        for tool_message in recent_tools
+    ]
     logger.debug(
-        "evaluate_node: recent_tools=%d, artifacts=%s, retry_count=%d",
-        len(recent_tools),
-        [getattr(t.artifact, "evidence_status", None) for t in recent_tools],
-        state.get("retry_count", 0),
+        f"evaluate_node: recent_tools={len(recent_tools)}, "
+        f"artifacts={artifacts}, retry_count={state.get('retry_count', 0)}"
     )
 
     if not recent_tools:

@@ -541,8 +541,9 @@ async def get_conversation_messages_paginated(
     next_cursor = start if has_more else None
 
     logger.info(
-        "分页调试: thread_id=%s, active_leaf=%s, raw_len=%d, all_len=%d, before=%s, start=%d, end=%d",
-        thread_id, active_leaf, len(raw_messages), len(all_messages), before, start, end,
+        f"分页调试: thread_id={thread_id}, active_leaf={active_leaf}, "
+        f"raw_len={len(raw_messages)}, all_len={len(all_messages)}, "
+        f"before={before}, start={start}, end={end}"
     )
     return {
         "messages": page,
