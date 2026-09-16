@@ -1,0 +1,30 @@
+# Secrets and local environment
+**/.env
+!**/.env.example
+
+# Python
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/*.py[cod]
+**/.jbeval/
+
+# Node
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/*.tsbuildinfo
+
+# Local databases
+sql/*.db
+sql/*.db-*
+
+# IDE and operating system files
+**/.idea/
+**/.vscode/
+**/*.iml
+**/.DS_Store
+**/Thumbs.db
+
+# Logs
+**/*.log
