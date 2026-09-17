@@ -49,6 +49,7 @@ export type MessageVersion = {
 
 export type Conversation = {
   id: string;
+  workspaceId: string;
   title: string;
   messages: Message[];
   pinned?: boolean;
@@ -56,6 +57,15 @@ export type Conversation = {
   nextCursor?: number | null;
   activeLeafThreadId?: string;
   versions?: Record<string, MessageVersion[]>;
+};
+
+export type Workspace = {
+  workspaceId: string;
+  name: string;
+  path: string | null;
+  mode: Mode;
+  worktreeRoot: string | null;
+  createdAt: string | null;
 };
 
 export type Attachment = {
@@ -88,6 +98,7 @@ type StreamVersionContext = {
 };
 
 export const makeId = () => crypto.randomUUID();
+const DEFAULT_CHAT_WORKSPACE_ID = "default_chat";
 
 export function formatTime(ts: number | null | undefined) {
   if (ts == null) return "";
@@ -1102,8 +1113,7 @@ function MessageList({
 // ─────────────────────────────────────────────────────────────
 
 function Composer(props: {
-  mode: Mode; workspace: string; pickerRef: RefObject<HTMLInputElement | null>;
-  onPickWorkspace: (e: ChangeEvent<HTMLInputElement>) => void;
+  mode: Mode; workspace: string; onCreateWorkspace: () => void;
   prompt: string; onPromptChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
   onDragOver: (e: DragEvent) => void; onDragLeave: () => void; onDrop: (e: DragEvent) => void;
   onPaste: (e: ClipboardEvent) => void;
@@ -1117,7 +1127,7 @@ function Composer(props: {
   onSubmit: (e: FormEvent) => void; onStop: () => void;
   isAtBottom: boolean; onScrollToBottom: () => void;
 }) {
-  const { mode, workspace, pickerRef, onPickWorkspace, prompt, onPromptChange,
+  const { mode, workspace, onCreateWorkspace, prompt, onPromptChange,
     onDragOver, onDragLeave, onDrop, onPaste, attachments, onAddFiles, onRemoveAttachment,
     onPreviewAttachment, permission, onSelectPermission, modelOptions, selectedModel,
     onSelectModel, streaming, onSubmit, onStop, isAtBottom, onScrollToBottom } = props;
@@ -1146,15 +1156,11 @@ function Composer(props: {
           </button>
           {workspaceMenuOpen && (
             <div className="workspace-menu">
-              <button type="button" onClick={() => pickerRef.current?.click()}>
-                <FolderOpen size={16} />从本机选择目录
+              <button type="button" onClick={() => { setWorkspaceMenuOpen(false); onCreateWorkspace(); }}>
+                <Plus size={16} />新建工作区
               </button>
-              <p>目录只用于当前界面展示。</p>
             </div>
           )}
-          <input ref={pickerRef} className="directory-input" type="file"
-            onChange={onPickWorkspace}
-            {...({ webkitdirectory: "" } as { webkitdirectory: string })} multiple />
         </div>
       )}
 
@@ -1166,6 +1172,7 @@ function Composer(props: {
         <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} onPreview={onPreviewAttachment} />
 
         <textarea ref={textareaRef} value={prompt} onChange={onPromptChange}
+          disabled={mode === "work" && !workspace}
           placeholder={mode === "work"
             ? (workspace ? "描述你希望 Umi 完成的任务..." : "选择一个工作区开始...")
             : "发消息给 Umi..."}
@@ -1306,6 +1313,74 @@ function ConfirmDialog({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function WorkspaceDialog({
+  open, onClose, onCreate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (name: string, path: string) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [path, setPath] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(""); setPath(""); setPending(false); setError(null);
+    const timer = window.setTimeout(() => nameRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  if (!open) return null;
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim() || !path.trim() || pending) return;
+    setPending(true); setError(null);
+    try {
+      await onCreate(name.trim(), path.trim());
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "创建工作区失败。");
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="confirm-overlay" onMouseDown={() => { if (!pending) onClose(); }}>
+      <form className="workspace-dialog" onSubmit={(event) => void submit(event)}
+        onMouseDown={(event) => event.stopPropagation()}>
+        <div className="workspace-dialog-header">
+          <div><FolderOpen size={18} /><h2>新建工作区</h2></div>
+          <button type="button" className="icon-button" onClick={onClose}
+            disabled={pending} aria-label="关闭"><X size={17} /></button>
+        </div>
+        <label className="workspace-field">
+          <span>名称</span>
+          <input ref={nameRef} value={name} onChange={(event) => setName(event.target.value)}
+            maxLength={100} placeholder="例如：Umi" />
+        </label>
+        <label className="workspace-field">
+          <span>本机目录</span>
+          <input value={path} onChange={(event) => setPath(event.target.value)}
+            placeholder="E:\\Projects\\Umi" />
+        </label>
+        {error && <p className="confirm-error">{error}</p>}
+        <div className="confirm-actions">
+          <button type="button" className="confirm-button cancel" onClick={onClose}
+            disabled={pending}>取消</button>
+          <button type="submit" className="confirm-button primary"
+            disabled={pending || !name.trim() || !path.trim()}>
+            {pending ? "正在创建…" : "创建"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -1486,9 +1561,10 @@ type SearchResult = {
 };
 
 function SearchDialog({
-  open, onClose, onSelectConversation,
+  open, workspaceId, onClose, onSelectConversation,
 }: {
   open: boolean;
+  workspaceId: string;
   onClose: () => void;
   onSelectConversation: (threadId: string) => void;
 }) {
@@ -1503,7 +1579,7 @@ function SearchDialog({
     setLoading(true);
     try {
       const res = await fetch(
-        `${API_BASE}/api/chat/threads/search?q=${encodeURIComponent(q)}`
+        `${API_BASE}/api/chat/threads/search?workspace_id=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(q)}`
       );
       const json = await res.json();
       if (myReq === reqIdRef.current) {
@@ -1513,7 +1589,7 @@ function SearchDialog({
     finally {
       if (myReq === reqIdRef.current) setLoading(false);
     }
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!open) return;
@@ -1603,8 +1679,8 @@ function SearchDialog({
 }
 
 function DeliveryPanel({
-  panelRef, onOpenWorkspacePicker, onClose,
-}: { panelRef: RefObject<HTMLElement | null>; onOpenWorkspacePicker: () => void; onClose: () => void }) {
+  panelRef, onCreateWorkspace, onClose,
+}: { panelRef: RefObject<HTMLElement | null>; onCreateWorkspace: () => void; onClose: () => void }) {
   return (
     <aside ref={panelRef} className="delivery-panel" aria-label="交付状态">
       <div className="delivery-layers" aria-hidden="true"><span /><span /><span /></div>
@@ -1616,8 +1692,8 @@ function DeliveryPanel({
       </div>
       <div className="work-panel-body">
         <button type="button" className="work-search"><Search size={19} /><span>搜索或输入网址</span></button>
-        <button type="button" className="work-action" onClick={onOpenWorkspacePicker}>
-          <FolderOpen size={19} /><span>打开项目文件夹</span>
+        <button type="button" className="work-action" onClick={onCreateWorkspace}>
+          <FolderOpen size={19} /><span>新建工作区</span>
         </button>
         <button type="button" className="work-action"><MessageSquarePlus size={19} /><span>新聊天窗口</span></button>
         <button type="button" className="work-action"><SquareTerminal size={19} /><span>打开终端</span></button>
@@ -1629,6 +1705,12 @@ function DeliveryPanel({
 function Sidebar(props: {
   mode: Mode; modeMenuOpen: boolean; onToggleModeMenu: () => void;
   onSelectMode: (m: Mode) => void; onCollapse: () => void;
+  workspaces: Workspace[]; selectedWorkspaceId: string;
+  onSelectWorkspace: (id: string) => void;
+  expandedWorkspaceIds: Set<string>;
+  onToggleWorkspace: (id: string) => void;
+  onCreateWorkspace: () => void;
+  onRequestDeleteWorkspace: (workspace: Workspace) => void;
   conversations: Conversation[]; activeId: string;
   onSelectConversation: (id: string) => void;
   conversationMenuId: string | null;
@@ -1648,6 +1730,9 @@ function Sidebar(props: {
 }) {
   const {
     mode, modeMenuOpen, onToggleModeMenu, onSelectMode, onCollapse,
+    workspaces, selectedWorkspaceId, onSelectWorkspace, expandedWorkspaceIds,
+    onToggleWorkspace, onCreateWorkspace,
+    onRequestDeleteWorkspace,
     conversations, activeId, onSelectConversation, conversationMenuId,
     onToggleConversationMenu, deletingId, onNewConversation,
     onRequestDeleteConversation, onRenameConversation, onTogglePin,
@@ -1658,6 +1743,10 @@ function Sidebar(props: {
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [workItemMenu, setWorkItemMenu] = useState<{
+    kind: "workspace" | "conversation";
+    id: string;
+  } | null>(null);
   const cancelRenameRef = useRef(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -1669,6 +1758,23 @@ function Sidebar(props: {
     }, 0);
     return () => window.clearTimeout(t);
   }, [renamingId]);
+
+  useEffect(() => {
+    if (!workItemMenu) return;
+    const handler = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(".workspace-item-menu")
+        || target.closest(".workspace-item-menu-trigger")) return;
+      setWorkItemMenu(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [workItemMenu]);
+
+  useEffect(() => {
+    if (mode !== "work") setWorkItemMenu(null);
+  }, [mode]);
 
   useEffect(() => {
     if (!renamingId) return;
@@ -1709,11 +1815,113 @@ function Sidebar(props: {
       </div>
 
       {!multiSelect && (
-        <button type="button" className="new-chat" onClick={onNewConversation}>
+        <button type="button" className="new-chat" onClick={onNewConversation}
+          disabled={mode === "work" && !selectedWorkspaceId}>
           <MessageSquarePlus size={16} />新对话
         </button>
       )}
 
+      {mode === "work" && (
+        <section className="workspace-section" aria-label="工作区">
+          <div className="workspace-section-heading">
+            <span>工作区</span>
+            <button type="button" className="icon-button"
+              onClick={onCreateWorkspace} aria-label="新建工作区" title="新建工作区">
+              <Plus size={15} />
+            </button>
+          </div>
+          <div className="workspace-list">
+            {workspaces.map((workspace) => {
+              const isExpanded = expandedWorkspaceIds.has(workspace.workspaceId);
+              const workspaceConversations = conversations.filter(
+                (conversation) => conversation.workspaceId === workspace.workspaceId,
+              );
+              return (
+                <section className={`workspace-group ${workspace.workspaceId === selectedWorkspaceId ? "active" : ""}`}
+                  key={workspace.workspaceId}>
+                  <div className="workspace-row">
+                    <button type="button" className="workspace-select"
+                      onClick={() => {
+                        onSelectWorkspace(workspace.workspaceId);
+                        onToggleWorkspace(workspace.workspaceId);
+                      }}
+                      title={workspace.path ?? workspace.name}
+                      aria-expanded={isExpanded}>
+                      <ChevronRight className={isExpanded ? "workspace-chevron expanded" : "workspace-chevron"} size={14} />
+                      <Folder size={15} />
+                      <span>{workspace.name}</span>
+                    </button>
+                    <button type="button" className="conversation-more workspace-item-menu-trigger"
+                      data-menu-trigger="workspace"
+                      onClick={() => setWorkItemMenu((current) => (
+                        current?.kind === "workspace" && current.id === workspace.workspaceId
+                          ? null
+                          : { kind: "workspace", id: workspace.workspaceId }
+                      ))}
+                      aria-label={`管理工作区：${workspace.name}`}>
+                      <MoreHorizontal size={15} />
+                    </button>
+                    {workItemMenu?.kind === "workspace" && workItemMenu.id === workspace.workspaceId && (
+                      <div className="conversation-menu workspace-item-menu">
+                        <button type="button" className="delete-conversation"
+                          onClick={() => {
+                            setWorkItemMenu(null);
+                            onRequestDeleteWorkspace(workspace);
+                          }}>
+                          <Trash2 size={16} />删除工作区
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <div className="workspace-conversation-list">
+                      {workspaceConversations.length === 0 ? (
+                        <span className="workspace-no-conversations">暂无会话</span>
+                      ) : workspaceConversations.map((conversation) => (
+                        <div className={`workspace-conversation-wrap ${conversation.id === activeId ? "active" : ""}`}
+                          key={conversation.id}>
+                          <button type="button" className="workspace-conversation"
+                            onClick={() => {
+                              onSelectWorkspace(workspace.workspaceId);
+                              onSelectConversation(conversation.id);
+                            }}>
+                            <span>{conversation.title}</span>
+                          </button>
+                          <button type="button" className="conversation-more workspace-item-menu-trigger"
+                            data-menu-trigger="workspace-conversation"
+                            onClick={() => setWorkItemMenu((current) => (
+                              current?.kind === "conversation" && current.id === conversation.id
+                                ? null
+                                : { kind: "conversation", id: conversation.id }
+                            ))}
+                            aria-label={`管理会话：${conversation.title}`}>
+                            <MoreHorizontal size={15} />
+                          </button>
+                          {workItemMenu?.kind === "conversation" && workItemMenu.id === conversation.id && (
+                            <div className="conversation-menu workspace-item-menu">
+                              <button type="button" className="delete-conversation"
+                                onClick={() => {
+                                  setWorkItemMenu(null);
+                                  onRequestDeleteConversation(conversation.id, conversation.title);
+                                }}>
+                                <Trash2 size={16} />删除会话
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+            {workspaces.length === 0 && <span className="workspace-empty">暂无工作区</span>}
+          </div>
+        </section>
+      )}
+
+      {mode === "chat" && (
+        <>
       <div className="session-heading">
         {multiSelect ? (
           <>
@@ -1811,6 +2019,8 @@ function Sidebar(props: {
             <Trash2 size={14} />删除
           </button>
         </div>
+      )}
+        </>
       )}
 
       {!multiSelect && (
@@ -1911,7 +2121,13 @@ function App() {
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
-  const [workspace, setWorkspace] = useState("");
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
+  const [deleteWorkspaceTarget, setDeleteWorkspaceTarget] = useState<Workspace | null>(null);
   const [permission, setPermission] = useState<PermissionMode>("询问模式");
   const [conversationMenuId, setConversationMenuId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -1959,7 +2175,6 @@ function App() {
     attachments, addFiles, removeAttachment, clearAttachments, handleDrop, handlePaste
   } = useAttachments();
 
-  const pickerRef = useRef<HTMLInputElement>(null);
   const chatCanvasRef = useRef<HTMLElement>(null);
   const deliveryPanelRef = useDeliveryPanelAnimation(rightOpen, mode === "work");
   const abortRef = useRef<AbortController | null>(null);
@@ -1984,11 +2199,22 @@ function App() {
 
   const closeConversationMenu = () => setConversationMenuId(null);
 
+  const selectedWorkspace = useMemo(
+    () => workspaces.find((item) => item.workspaceId === selectedWorkspaceId),
+    [selectedWorkspaceId, workspaces],
+  );
+  const activeWorkspaceId = mode === "chat"
+    ? DEFAULT_CHAT_WORKSPACE_ID
+    : selectedWorkspaceId;
+
   const activeConversation = useMemo(() => {
     const found = conversations.find((c) => c.id === activeId);
     if (found) return found;
-    return { id: activeId, title: "新对话", messages: [] as Message[] };
-  }, [activeId, conversations]);
+    return {
+      id: activeId, workspaceId: activeWorkspaceId,
+      title: "新对话", messages: [] as Message[],
+    };
+  }, [activeId, activeWorkspaceId, conversations]);
 
   useEffect(() => {
     const state = useChatStore.getState();
@@ -2031,23 +2257,89 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadThreads = async () => {
+    const loadWorkspaces = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/chat/threads`);
-        const json = await res.json();
+        const response = await fetch(`${API_BASE}/api/workspaces?mode=work`);
+        const json = await response.json();
+        if (!response.ok) throw new Error(json.message || "获取工作区失败");
         if (cancelled) return;
-        const threads: Conversation[] = (json.data?.threads ?? []).map(
-          (t: { thread_id: string; title: string; pinned: boolean; active_leaf_thread_id?: string | null }) => ({
-            id: t.thread_id, title: t.title, messages: [], pinned: t.pinned ?? false,
-            activeLeafThreadId: t.active_leaf_thread_id ?? undefined,
+        const items: Workspace[] = (json.data?.workspaces ?? []).map(
+          (item: {
+            workspace_id: string; name: string; path: string | null; mode: Mode;
+            worktree_root: string | null; created_at: string | null;
+          }) => ({
+            workspaceId: item.workspace_id,
+            name: item.name,
+            path: item.path,
+            mode: item.mode,
+            worktreeRoot: item.worktree_root,
+            createdAt: item.created_at,
           }),
         );
+        setWorkspaces(items);
+        setSelectedWorkspaceId((current) =>
+          items.some((item) => item.workspaceId === current)
+            ? current
+            : (items[0]?.workspaceId ?? "")
+        );
+        setExpandedWorkspaceIds((current) => {
+          const next = new Set(
+            items.filter((item) => current.has(item.workspaceId)).map((item) => item.workspaceId),
+          );
+          if (next.size === 0 && items[0]) next.add(items[0].workspaceId);
+          return next;
+        });
+      } catch { /* silent */ }
+    };
+    void loadWorkspaces();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const draftId = makeId();
+    setConversations([]);
+    setDraftThreadId(draftId);
+    setActiveId(draftId);
+    setConversationMenuId(null);
+    setMultiSelect(false);
+    setSelectedIds(new Set());
+
+    const workspaceIds = mode === "chat"
+      ? [DEFAULT_CHAT_WORKSPACE_ID]
+      : workspaces.map((workspace) => workspace.workspaceId);
+    if (workspaceIds.length === 0) return () => { cancelled = true; };
+
+    const loadThreads = async () => {
+      try {
+        const responses = await Promise.all(workspaceIds.map(async (workspaceId) => {
+          const response = await fetch(
+            `${API_BASE}/api/chat/threads?workspace_id=${encodeURIComponent(workspaceId)}`,
+          );
+          const json = await response.json();
+          if (!response.ok) throw new Error(json.message || "获取会话失败");
+          return json;
+        }));
+        if (cancelled) return;
+        const threads: Conversation[] = responses.flatMap((json) => (json.data?.threads ?? []).map(
+          (thread: {
+            thread_id: string; workspace_id: string; title: string; pinned: boolean;
+            active_leaf_thread_id?: string | null;
+          }) => ({
+            id: thread.thread_id,
+            workspaceId: thread.workspace_id,
+            title: thread.title,
+            messages: [],
+            pinned: thread.pinned ?? false,
+            activeLeafThreadId: thread.active_leaf_thread_id ?? undefined,
+          }),
+        ));
         setConversations(threads);
       } catch { /* silent */ }
     };
     void loadThreads();
     return () => { cancelled = true; };
-  }, []);
+  }, [mode, workspaces, setActiveId, setConversations, setDraftThreadId]);
 
   useEffect(() => {
     if (!multiSelect) return;
@@ -2091,6 +2383,11 @@ function App() {
     versionContext?: StreamVersionContext,
   ) => {
     const appendTo = displayThreadId;
+    const targetConversation = useChatStore.getState().conversations.find(
+      (conversation) => conversation.id === displayThreadId
+    );
+    const streamWorkspaceId = targetConversation?.workspaceId || activeWorkspaceId;
+    if (!streamWorkspaceId) return;
 
     if (truncateBeforeIndex !== undefined) {
       const conv = useChatStore.getState().conversations.find((c) => c.id === appendTo);
@@ -2128,6 +2425,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           thread_id: execThreadId,
+          workspace_id: streamWorkspaceId,
           query,
           ...versionContext,
         }),
@@ -2349,14 +2647,15 @@ function App() {
   const sendMessage = async (event: FormEvent) => {
     event.preventDefault();
     const text = prompt.trim();
-    if (!text || streaming) return;
+    if (!text || streaming || !activeWorkspaceId) return;
 
     const isDraft = !conversations.some((c) => c.id === activeId);
     const threadId = activeId;
 
     if (isDraft) {
       prependConversation({
-        id: threadId, title: text.slice(0, 24), messages: [],
+        id: threadId, workspaceId: activeWorkspaceId,
+        title: text.slice(0, 24), messages: [],
       });
       setDraftThreadId("");
     }
@@ -2386,6 +2685,7 @@ function App() {
   };
 
   const newConversation = () => {
+    if (!activeWorkspaceId) return;
     const newId = makeId();
     setDraftThreadId(newId);
     setActiveId(newId);
@@ -2393,11 +2693,65 @@ function App() {
     clearAttachments();
   };
 
-  const chooseWorkspace = (event: ChangeEvent<HTMLInputElement>) => {
-    const firstFile = event.target.files?.[0];
-    if (!firstFile) return;
-    const relativePath = firstFile.webkitRelativePath || firstFile.name;
-    setWorkspace(relativePath.split("/")[0]);
+  const selectWorkspace = (workspaceId: string) => {
+    if (workspaceId === selectedWorkspaceId) return;
+    setSelectedWorkspaceId(workspaceId);
+    const draftId = makeId();
+    setDraftThreadId(draftId);
+    setActiveId(draftId);
+    setPrompt("");
+    clearAttachments();
+  };
+
+  const toggleWorkspace = (workspaceId: string) => {
+    setExpandedWorkspaceIds((current) => {
+      const next = new Set(current);
+      if (next.has(workspaceId)) next.delete(workspaceId);
+      else next.add(workspaceId);
+      return next;
+    });
+  };
+
+  const createWorkspace = async (name: string, path: string) => {
+    const response = await fetch(`${API_BASE}/api/workspaces`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, path, mode: "work" }),
+    });
+    const json = await response.json();
+    if (!response.ok) throw new Error(json.message || "创建工作区失败");
+    const item = json.data?.workspace;
+    const created: Workspace = {
+      workspaceId: item.workspace_id,
+      name: item.name,
+      path: item.path,
+      mode: item.mode,
+      worktreeRoot: item.worktree_root,
+      createdAt: item.created_at,
+    };
+    setWorkspaces((current) => [...current, created]);
+    setSelectedWorkspaceId(created.workspaceId);
+    setExpandedWorkspaceIds((current) => new Set(current).add(created.workspaceId));
+    setMode("work");
+  };
+
+  const deleteWorkspace = async (workspaceId: string) => {
+    const response = await fetch(
+      `${API_BASE}/api/workspaces/${encodeURIComponent(workspaceId)}`,
+      { method: "DELETE" },
+    );
+    const json = await response.json();
+    if (!response.ok) throw new Error(json.message || "删除工作区失败");
+    const remaining = workspaces.filter((item) => item.workspaceId !== workspaceId);
+    setWorkspaces(remaining);
+    setExpandedWorkspaceIds((current) => {
+      const next = new Set(current);
+      next.delete(workspaceId);
+      return next;
+    });
+    if (selectedWorkspaceId === workspaceId) {
+      setSelectedWorkspaceId(remaining[0]?.workspaceId ?? "");
+    }
   };
 
   const deleteConversation = async (conversationId: string) => {
@@ -2545,8 +2899,14 @@ function App() {
       <Sidebar
         mode={mode} modeMenuOpen={modeMenuOpen}
         onToggleModeMenu={() => setModeMenuOpen((o) => !o)}
-        onSelectMode={(next) => { if (next === "work") setRightOpen(true); setMode(next); setModeMenuOpen(false); }}
+        onSelectMode={(next) => { if (next === "work") setRightOpen(true); setMode(next); setModeMenuOpen(false); setSearchOpen(false); }}
         onCollapse={() => setLeftOpen(false)}
+        workspaces={workspaces} selectedWorkspaceId={selectedWorkspaceId}
+        onSelectWorkspace={selectWorkspace}
+        expandedWorkspaceIds={expandedWorkspaceIds}
+        onToggleWorkspace={toggleWorkspace}
+        onCreateWorkspace={() => setWorkspaceDialogOpen(true)}
+        onRequestDeleteWorkspace={setDeleteWorkspaceTarget}
         conversations={conversations} activeId={activeId}
         onSelectConversation={(id) => void handleSelectConversation(id)}
         conversationMenuId={conversationMenuId}
@@ -2562,7 +2922,7 @@ function App() {
         onToggleSelected={toggleSelected} onSelectAll={selectAll}
         onClearSelection={clearSelection} onRequestBatchDelete={() => setBatchDeleteOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenSearch={() => setSearchOpen(true)}
+        onOpenSearch={() => { if (activeWorkspaceId) setSearchOpen(true); }}
       />
 
       {!leftOpen && (
@@ -2596,8 +2956,8 @@ function App() {
         </section>
 
         <Composer
-          mode={mode} workspace={workspace} pickerRef={pickerRef}
-          onPickWorkspace={chooseWorkspace}
+          mode={mode} workspace={selectedWorkspace?.name ?? ""}
+          onCreateWorkspace={() => setWorkspaceDialogOpen(true)}
           prompt={prompt} onPromptChange={(e) => setPrompt(e.target.value)}
           onDragOver={(e) => { e.preventDefault(); }} onDragLeave={() => { }} onDrop={handleDrop}
           onPaste={handlePaste}
@@ -2613,7 +2973,7 @@ function App() {
 
       {mode === "work" && (
         <DeliveryPanel panelRef={deliveryPanelRef}
-          onOpenWorkspacePicker={() => pickerRef.current?.click()}
+          onCreateWorkspace={() => setWorkspaceDialogOpen(true)}
           onClose={() => setRightOpen(false)} />
       )}
       {mode === "work" && !rightOpen && (
@@ -2639,9 +2999,26 @@ function App() {
           onCancel={() => setBatchDeleteOpen(false)} onConfirm={batchDelete} />
       )}
 
+      <WorkspaceDialog open={workspaceDialogOpen}
+        onClose={() => setWorkspaceDialogOpen(false)}
+        onCreate={createWorkspace} />
+
+      {deleteWorkspaceTarget && (
+        <ConfirmDialog open={!!deleteWorkspaceTarget}
+          title={`删除工作区“${deleteWorkspaceTarget.name}”？`}
+          description="该工作区下的会话将被删除，本机目录和其中的文件会保留。"
+          confirmText="删除" cancelText="取消" destructive
+          onCancel={() => setDeleteWorkspaceTarget(null)}
+          onConfirm={async () => {
+            await deleteWorkspace(deleteWorkspaceTarget.workspaceId);
+            setDeleteWorkspaceTarget(null);
+          }} />
+      )}
+
       {searchOpen && (
         <SearchDialog
           open={searchOpen}
+          workspaceId={activeWorkspaceId}
           onClose={() => setSearchOpen(false)}
           onSelectConversation={(id) => void handleSelectConversation(id)}
         />
