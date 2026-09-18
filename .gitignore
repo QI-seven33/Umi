@@ -28,3 +28,9 @@ sql/*.db-*
 
 # Logs
 **/*.log
+
+# Test files (新增)
+**/test_*.py
+**/test_*.js
+**/*_test.py
+**/*_test.js
