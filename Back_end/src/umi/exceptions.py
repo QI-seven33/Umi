@@ -11,6 +11,11 @@ class CustomExceptionCode(BaseExceptionCode):
     THREAD_DELETE_FAILED = ("THR-500", "会话删除失败", "删除对话记录时发生错误。")
     THREAD_HISTORY_FAILED = ("THR-501", "会话历史查询失败", "查询对话记录时发生错误。")
 
+    # 工作区相关错误
+    WORKSPACE_NOT_FOUND = ("WSP-404", "工作区不存在", "指定的 workspace_id 找不到对应的工作区。")
+    WORKSPACE_INVALID = ("WSP-400", "工作区参数无效", "工作区名称、模式或目录路径无效。")
+    WORKSPACE_DELETE_FAILED = ("WSP-500", "工作区删除失败", "删除工作区及其会话时发生错误。")
+
     # LLM 及工具相关错误
     LLM_SERVICE_ERROR = ("LLM-503", "AI 服务不可用", "底层大模型服务暂时无法响应，请稍后再试。")
     TOOL_EXECUTION_FAILED = ("TOOL-500", "工具执行失败", "联网搜索等工具执行时发生错误。")

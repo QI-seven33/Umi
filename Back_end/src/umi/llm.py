@@ -1,8 +1,6 @@
 from datetime import datetime
-from langchain.agents import create_agent
 from umi.config import llm_base_url, llm_api_key
 from langchain.chat_models import init_chat_model
-from umi.tools import deepseek_server_web_search, mock_slow_tool
 from langchain_core.messages import SystemMessage
 
 
@@ -18,9 +16,6 @@ model = init_chat_model(
 
 current_date = datetime.now().strftime("%Y年%m月%d日 %A")
 
-
-
-# agent = model.bind_tools([deepseek_server_web_search]).with_config({"streaming": False})
 
 
 

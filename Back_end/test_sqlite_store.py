@@ -20,6 +20,7 @@ async def test_sqlite_store_initializes_schema_and_pragmas(tmp_path, monkeypatch
         assert {
             "checkpoints",
             "writes",
+            "umi_workspaces",
             "umi_threads",
             "umi_message_versions",
             "umi_message_archive",
@@ -38,6 +39,21 @@ async def test_sqlite_store_initializes_schema_and_pragmas(tmp_path, monkeypatch
         assert foreign_keys[0] == 1
         assert journal_mode[0] == "wal"
         assert busy_timeout[0] == 5000
+
+        default_chat = await (
+            await connection.execute(
+                """
+                SELECT name, path, mode
+                FROM umi_workspaces
+                WHERE workspace_id = 'default_chat'
+                """
+            )
+        ).fetchone()
+        assert dict(default_chat) == {
+            "name": "Chat",
+            "path": None,
+            "mode": "chat",
+        }
 
         with pytest.raises(sqlite3.IntegrityError):
             await connection.execute(

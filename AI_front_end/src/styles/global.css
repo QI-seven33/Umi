@@ -1777,6 +1777,56 @@ select:focus-visible {
     color: #ececec;
 }
 
+/* ── 暗色模式 Composer 优化 ── */
+[data-theme="dark"] .composer {
+    background: var(--bg-input); /* 使用 #212121 */
+    border-color: var(--border-color);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 4px 12px rgba(0, 0, 0, 0.3),
+        0 12px 28px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .composer:focus-within {
+    border-color: var(--border-hover);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 4px 16px rgba(0, 0, 0, 0.4),
+        0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* 暗色模式下输入框内的拖拽状态 */
+[data-theme="dark"] .composer.dragging {
+    border-color: var(--text-muted);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+/* 暗色模式下输入文字的颜色 */
+[data-theme="dark"] .composer textarea {
+    color: var(--text-primary);
+}
+
+
+/* 暗色模式下附件 Chip 的微调（避免纯白太亮） */
+[data-theme="dark"] .attachment-chip {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+[data-theme="dark"] .attachment-chip.done {
+    background: var(--bg-primary);
+}
+
+/* 暗色模式下消息编辑框（如果使用了 message-edit-wrapper） */
+[data-theme="dark"] .message-edit-wrapper .composer {
+    background: var(--bg-input);
+    border-color: var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+[data-theme="dark"] .message-edit-wrapper .composer:focus-within {
+    border-color: var(--border-hover);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
 [data-theme="dark"] .composer textarea::placeholder {
     color: #6b6b75;
 }
@@ -2308,3 +2358,45 @@ select:focus-visible {
     background: var(--border-hover);
     border-radius: 999px;
 }
+
+
+/* ── 暗色模式右侧交付面板优化 ── */
+
+/* 1. 面板容器：弱化强烈的边框和阴影，使其与主背景融合 */
+[data-theme="dark"] .delivery-panel {
+    border-left-color: var(--border-light);
+    box-shadow: -1px 0 0 var(--border-light), -6px 0 20px rgba(0, 0, 0, 0.2);
+}
+
+/* 2. 操作按钮（搜索、新建、终端等）：改为深色背景，去掉亮色投影 */
+[data-theme="dark"] .work-search,
+[data-theme="dark"] .work-action {
+    background: var(--bg-secondary); /* 使用 #141414，比主背景稍深 */
+    border: 1px solid var(--border-color); /* 添加细微边框增加轮廓感 */
+    color: var(--text-secondary);
+    box-shadow: 
+        0 1px 2px rgba(0, 0, 0, 0.2),
+        0 2px 6px rgba(0, 0, 0, 0.15); /* 改用极淡的纯黑阴影 */
+}
+
+/* 3. 悬停状态：微微提亮背景，取消原先的位移和重阴影 */
+[data-theme="dark"] .work-action:hover,
+[data-theme="dark"] .work-search:hover {
+    background: var(--bg-hover); /* 使用 #2a2a2a */
+    border-color: var(--border-hover);
+    transform: none; /* 取消上浮，保持稳重 */
+    box-shadow: 
+        0 2px 4px rgba(0, 0, 0, 0.25),
+        0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* 4. 按钮内的图标颜色统一 */
+[data-theme="dark"] .work-search svg,
+[data-theme="dark"] .work-action svg {
+    color: var(--text-muted);
+}
+
+/* 5. 面板内的“层级”背景微调（确保叠加层不会漏出亮色） */
+[data-theme="dark"] .delivery-layers span:nth-child(1) { background: var(--bg-primary); }
+[data-theme="dark"] .delivery-layers span:nth-child(2) { background: var(--bg-secondary); }
+[data-theme="dark"] .delivery-layers span:nth-child(3) { background: var(--bg-hover); }

@@ -1,5 +1,3 @@
-from umi.config import tavily_api_key
-from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
 from openai.types.responses import WebSearchToolParam
 from openai import AsyncOpenAI
@@ -9,23 +7,20 @@ import json
 import time
 from umi.tool_results import SearchArtifact, SearchSource
 
-tavily_search_tool = TavilySearch(
-    max_results=1,
-    topic="general",
-    api_key=tavily_api_key,
-
-)
-
+# AsyncOpenAI 是 OpenAI 官方 SDK 的异步客户端类
 ds_client = AsyncOpenAI(api_key=llm_api_key, base_url=llm_base_url)
 
-
-
-
+# "content_and_artifact"（返回 内容 + 附加数据）
+# SearchArtifact是tool_results.py模块的类型，用于存储搜索结果的元数据
 @tool(response_format="content_and_artifact")
 async def deepseek_server_web_search(query: str) -> tuple[str, SearchArtifact]:
     """联网搜索，获取实时新闻、最新公开信息。"""
+
+    # time.monotonic() 返回一个单调递增的时钟值（不受系统时间调整影响）
+    # 记下开始时间，后面算 latency_ms
     start = time.monotonic()
     try:
+        # DeepSeek responses API 的创建接口
         resp = await ds_client.responses.create(
             model="deepseek-v4-flash",
             input=[{
@@ -44,11 +39,16 @@ async def deepseek_server_web_search(query: str) -> tuple[str, SearchArtifact]:
         # 从 web_search_call items 中提取 sources
         sources: list[SearchSource] = []
         for item in resp.output:
+            # item.type == "web_search_call" 筛选出"网页搜索调用"项
             if item.type == "web_search_call" and item.status == "completed":
                 for src in item.action.sources:
+                    # src.url —— 取每个源的 url 字段
+                    # SearchSource(url=...) —— 构造一个新的 SearchSource 对象 并追加到 sources 列表中
                     sources.append(SearchSource(url=src.url))
 
+        # resp.output_text 是 API 返回的纯文本输出
         content = resp.output_text
+        # 用 SearchArtifact 这个 Pydantic 类作为"模板/契约"，把实际值填进去，构造出一个符合类型定义的对象
         artifact = SearchArtifact(
             provider="deepseek_server",
             query=query,
@@ -65,24 +65,25 @@ async def deepseek_server_web_search(query: str) -> tuple[str, SearchArtifact]:
             query=query,
             execution_status="failed",
             evidence_status="unknown",
-            error_code=type(e).__name__,
-            latency_ms=int((time.monotonic() - start) * 1000),
+            error_code=type(e).__name__, # __name__ 类对象的特殊属性，返回类名字符串
+            latency_ms=int((time.monotonic() - start) * 1000), # 调用 time 模块的 monotonic 函数，返回当前单调时钟值（float） 并转成毫秒
         )
+        # return 后跟多个值，用逗号分隔 → 自动打包成元组
         return "", artifact
 
 
 # case1：总是抛出异常，用来测试重试耗尽进入error_handler
-@tool
-async def mock_bad_tool() -> str:
-    """模拟一个总是报错的工具"""
-    i = 0
-    print(f"一次重试{i + 1}")
-    raise RuntimeError("模拟工具执行失败！")
-
-
-# case2：模拟长时间sleep，触发节点TimeoutPolicy超时
-@tool
-async def mock_slow_tool() -> str:
-    """模拟慢工具，sleep 70秒，超过节点run_timeout=60"""
-    await asyncio.sleep(70)
-    return "slow tool done"
+# @tool
+# async def mock_bad_tool() -> str:
+#     """模拟一个总是报错的工具"""
+#     i = 0
+#     print(f"一次重试{i + 1}")
+#     raise RuntimeError("模拟工具执行失败！")
+#
+#
+# # case2：模拟长时间sleep，触发节点TimeoutPolicy超时
+# @tool
+# async def mock_slow_tool() -> str:
+#     """模拟慢工具，sleep 70秒，超过节点run_timeout=60"""
+#     await asyncio.sleep(70)
+#     return "slow tool done"
