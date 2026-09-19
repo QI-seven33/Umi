@@ -20,5 +20,8 @@ class CustomExceptionCode(BaseExceptionCode):
     LLM_SERVICE_ERROR = ("LLM-503", "AI 服务不可用", "底层大模型服务暂时无法响应，请稍后再试。")
     TOOL_EXECUTION_FAILED = ("TOOL-500", "工具执行失败", "联网搜索等工具执行时发生错误。")
 
+    # 沙箱 / 容器相关错误
+    SANDBOX_UNAVAILABLE = ("SBX-503", "沙箱环境不可用", "未检测到可用的 Docker 环境，Work 模式需要 Docker 正在运行。")
+
     # 你可以继续在这里添加更多业务错误
     # USER_NOT_FOUND = ("USR-404", "用户不存在", "该用户ID不存在。")
