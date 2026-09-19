@@ -468,6 +468,9 @@ async def create_version_branch(
 
     返回新 leaf 以及重放本轮所需的版本元数据。
     """
+    # Work 会话不支持编辑重发 / 重新生成：明确 409，避免误入 LangGraph hidden branch
+    await _reject_work_thread_for_version_ops(thread_id)
+
     # 确保 graph 已初始化
     graph_instance = await _ensure_graph()
 
@@ -649,6 +652,9 @@ async def switch_active_version(
     """
     切换当前会话的 active leaf 到指定版本，返回该版本的 hidden_thread_id。
     """
+    # Work 会话不支持版本切换：明确 409
+    await _reject_work_thread_for_version_ops(thread_id)
+
     async with db_connection.execute(
         """
         SELECT hidden_thread_id
@@ -726,6 +732,124 @@ async def get_conversation_messages_paginated(
 
 
 # ─────────────────────────────────────────────────────────────
+# Work 会话门禁：归属校验 + 并发控制
+# ─────────────────────────────────────────────────────────────
+
+
+# 进程内 thread 级并发控制：同一 Work thread 同时只允许一个活跃 run。
+# V0.5 先用进程内锁；Phase 1 引入 umi_work_runs 后再换成数据库部分唯一索引。
+_active_work_threads: set[str] = set()
+_work_threads_guard = asyncio.Lock()
+
+
+async def _begin_work_run(thread_id: str) -> None:
+    """占用该 thread 的 Work 运行位；已被占用则抛 409（不排队等待）。"""
+    async with _work_threads_guard:
+        if thread_id in _active_work_threads:
+            raise APIException(
+                error_code=CustomExceptionCode.WORK_THREAD_BUSY,
+                http_status_code=409,
+                description="该会话已有一个正在执行的任务，请先停止或等待其完成。",
+            )
+        _active_work_threads.add(thread_id)
+
+
+async def _end_work_run(thread_id: str) -> None:
+    """释放该 thread 的 Work 运行位。"""
+    async with _work_threads_guard:
+        _active_work_threads.discard(thread_id)
+
+
+async def validate_work_request(thread_id: str, workspace_id: str) -> dict:
+    """Work 请求门禁（只读校验，不写库）。
+
+    与 Chat 分支的归属校验同语义，但 Work thread 是普通 thread id，
+    不参与 `_bN_` hidden thread 解析。失败时抛出可直接映射为 HTTP 状态码的错误：
+
+    - 工作区不存在            -> 404
+    - 工作区不是 work 模式     -> 409
+    - 工作区没有可用的本地目录  -> 400
+    - thread 已属于别的工作区  -> 409
+    - 该 thread 已有活跃 run   -> 409
+    """
+    workspace = await get_workspace(workspace_id)  # 不存在时抛 404
+
+    if workspace.get("mode") != "work":
+        raise APIException(
+            error_code=CustomExceptionCode.WORKSPACE_INVALID,
+            http_status_code=409,
+            description="该工作区不是 Work 模式，无法作为 Work 会话运行。",
+        )
+
+    path = workspace.get("path")
+    if not path or not os.path.isdir(path):
+        raise APIException(
+            error_code=CustomExceptionCode.WORKSPACE_INVALID,
+            http_status_code=400,
+            description="Work 工作区必须配置一个存在的本地目录。",
+        )
+
+    await _assert_thread_ownership(thread_id, workspace_id)
+
+    if thread_id in _active_work_threads:
+        raise APIException(
+            error_code=CustomExceptionCode.WORK_THREAD_BUSY,
+            http_status_code=409,
+            description="该会话已有一个正在执行的任务，请先停止或等待其完成。",
+        )
+
+    return workspace
+
+
+async def _assert_thread_ownership(thread_id: str, workspace_id: str) -> None:
+    """thread 已存在时，必须属于请求里的同一个工作区，否则 409。"""
+    async with db_connection.execute(
+        "SELECT workspace_id FROM umi_threads WHERE thread_id = ?",
+        (thread_id,),
+    ) as cursor:
+        existing = await cursor.fetchone()
+    if existing and existing["workspace_id"] != workspace_id:
+        raise APIException(
+            error_code=CustomExceptionCode.WORKSPACE_INVALID,
+            http_status_code=409,
+            description="该会话不属于请求中的工作区。",
+        )
+
+
+async def register_work_thread(thread_id: str, workspace_id: str, user_query: str) -> None:
+    """Work thread 登记：新 thread 写入 title，已存在则只刷新 updated_at。"""
+    await db_connection.execute(
+        """
+        INSERT INTO umi_threads (thread_id, workspace_id, title, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT (thread_id) DO UPDATE SET updated_at = datetime('now')
+        """,
+        (thread_id, workspace_id, (user_query or "")[:30]),
+    )
+    await db_connection.commit()
+
+
+async def _reject_work_thread_for_version_ops(thread_id: str) -> None:
+    """edit-resend / regenerate / version-switch 只支持 Chat 会话，Work 会话明确 409。"""
+    async with db_connection.execute(
+        """
+        SELECT w.mode AS mode
+        FROM umi_threads t
+        JOIN umi_workspaces w ON w.workspace_id = t.workspace_id
+        WHERE t.thread_id = ?
+        """,
+        (thread_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row and row["mode"] == "work":
+        raise APIException(
+            error_code=CustomExceptionCode.WORK_FEATURE_UNSUPPORTED,
+            http_status_code=409,
+            description="Work 会话暂不支持该操作。",
+        )
+
+
+# ─────────────────────────────────────────────────────────────
 # 会话 CRUD
 # ─────────────────────────────────────────────────────────────
 
@@ -799,8 +923,16 @@ async def chat_stream(
     workspace = await get_workspace(workspace_id)
 
     if workspace["mode"] == "work":
-        async for event in work_stream(user_query, thread_id, workspace_id):
-            yield event
+        # Work 分流：先完成归属校验与 umi_threads 登记，再进入 run。
+        # Work thread 是普通 thread id，不参与 Chat 的 `_bN_` hidden thread 解析。
+        await validate_work_request(thread_id, workspace_id)
+        await register_work_thread(thread_id, workspace_id, user_query)
+        await _begin_work_run(thread_id)
+        try:
+            async for event in work_stream(user_query, thread_id, workspace_id):
+                yield event
+        finally:
+            await _end_work_run(thread_id)
         return
 
     from umi.compact_middleware import set_current_thread

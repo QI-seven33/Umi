@@ -143,6 +143,15 @@ async def chat_sse(req: ChatRequest, request: Request):
     如果前端不知道 active leaf，可以传主 thread id，
     这里会通过 _get_active_leaf_thread 解析。
     """
+    # Work 请求门禁：必须在返回 StreamingResponse 之前完成校验。
+    # 一旦开始流式响应，HTTP 状态码就固定为 200，错误只能通过 event: error 传递，
+    # 前端无法区分 404/409 这类“请求本身不合法”的情况。
+    from umi.service import validate_work_request
+
+    workspace = await get_workspace(req.workspace_id)
+    if workspace["mode"] == "work":
+        await validate_work_request(req.thread_id, req.workspace_id)
+
     # 解析真正的执行 thread：如果传的是主 thread，用 active leaf 覆盖
     # 寻找活跃会话
     async def resolve_leaf():

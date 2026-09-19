@@ -23,5 +23,9 @@ class CustomExceptionCode(BaseExceptionCode):
     # 沙箱 / 容器相关错误
     SANDBOX_UNAVAILABLE = ("SBX-503", "沙箱环境不可用", "未检测到可用的 Docker 环境，Work 模式需要 Docker 正在运行。")
 
+    # Work 运行时相关错误
+    WORK_THREAD_BUSY = ("WRK-409", "任务正在执行", "该会话已有一个正在执行的任务，请先停止或等待其完成。")
+    WORK_FEATURE_UNSUPPORTED = ("WRK-405", "当前模式不支持该操作", "Work 会话暂不支持编辑重发、重新生成与版本切换。")
+
     # 你可以继续在这里添加更多业务错误
     # USER_NOT_FOUND = ("USR-404", "用户不存在", "该用户ID不存在。")
