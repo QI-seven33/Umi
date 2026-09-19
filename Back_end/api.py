@@ -50,6 +50,7 @@ class ChatRequest(BaseModel):
     thread_id: str = Field(..., min_length=1)
     workspace_id: str = Field(..., min_length=1)
     query: str = Field(..., min_length=1, max_length=5000)
+    mode: Literal["chat", "work"] = Field("chat")
     human_version_group_id: str | None = None
     human_version_num: int = Field(0, ge=0)
     assistant_version_group_id: str | None = None

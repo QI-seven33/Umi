@@ -14,6 +14,7 @@ from api_exception import APIException
 import logging
 from umi.compact_middleware import set_db_connection
 from umi.message_utils import content_to_text
+from agents import  Runner
 
 # 模块级 logger，用模块名 service 做 logger 名
 logger = logging.getLogger(__name__)
@@ -728,6 +729,56 @@ async def get_conversation_messages_paginated(
 # 会话 CRUD
 # ─────────────────────────────────────────────────────────────
 
+
+async def work_stream(
+    user_query: str,
+    thread_id: str,
+    workspace_id: str,
+    human_version_group_id: str | None = None,
+    human_version_num: int = 0,
+    assistant_version_group_id: str | None = None,
+    assistant_version_num: int = 0,
+):
+    """Work 模式的流式入口。V0 用 LocalDir + Runner 托管 session。"""
+    from umi.work_agent import build_work_agent, build_work_run_config
+    from agents import ItemHelpers
+
+    workspace = await get_workspace(workspace_id)
+    if not workspace.get("path"):
+        raise APIException(
+            error_code=CustomExceptionCode.WORKSPACE_INVALID,
+            http_status_code=400,
+            description="Work 工作区必须配置 path。",
+        )
+
+    agent = build_work_agent(workspace["path"])
+    run_config = build_work_run_config()
+
+    result = Runner.run_streamed(
+        agent,
+        user_query,
+        run_config=run_config,
+        max_turns=25,
+    )
+
+    async for event in result.stream_events():
+        if event.type == "raw_response_event":
+            # token 级流式文本
+            if event.data.type == "response.output_text.delta":
+                yield {"type": "text", "content": event.data.delta}
+        elif event.type == "run_item_stream_event":
+            if event.item.type == "tool_call_item":
+                tool_name = getattr(event.item.raw_item, "name", "unknown")
+                yield {"type": "tool_call", "name": tool_name, "status": "running"}
+            elif event.item.type == "tool_call_output_item":
+                yield {"type": "tool_result", "name": "tool", "status": "done"}
+            elif event.item.type == "message_output_item":
+                # message_output_item 是整段输出，raw delta 已经发过了，这里不再重复发全文
+                pass
+
+
+
+
 async def chat_stream(
         user_query: str,
         thread_id: str,
@@ -736,12 +787,22 @@ async def chat_stream(
         human_version_num: int = 0,
         assistant_version_group_id: str | None = None,
         assistant_version_num: int = 0,
+        mode: str = "chat",
 ):
     """
     流式对话。
     thread_id 现在是「当前 active leaf thread」，由 API 层决定。
     普通发送：active leaf = 主 thread 或某个 hidden thread。
     """
+
+    # 先查 workspace，确认 mode
+    workspace = await get_workspace(workspace_id)
+
+    if workspace["mode"] == "work":
+        async for event in work_stream(user_query, thread_id, workspace_id):
+            yield event
+        return
+
     from umi.compact_middleware import set_current_thread
 
     # 判断一个 thread_id 是不是 "hidden thread"，如果是，就剥掉 _b\d+_ 这段后缀，取出"主线程 ID"；否则原样返回

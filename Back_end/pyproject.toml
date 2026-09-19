@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
 dependencies = [
+    "agents>=1.4.0",
     "aiosqlite>=0.22.1",
     "apiexception>=0.2.3",
     "deepagents>=0.7.14",
@@ -16,6 +17,7 @@ dependencies = [
     "langgraph>=1.2.11",
     "langgraph-checkpoint-sqlite>=3.0.3",
     "msgpack>=1.2.2",
+    "openai-agents[docker]>=0.22.3",
     "platformdirs>=4.4.0",
     "pydantic>=2.13.5",
     "pytest>=9.1.1",

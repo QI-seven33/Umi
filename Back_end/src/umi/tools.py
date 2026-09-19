@@ -72,18 +72,3 @@ async def deepseek_server_web_search(query: str) -> tuple[str, SearchArtifact]:
         return "", artifact
 
 
-# case1：总是抛出异常，用来测试重试耗尽进入error_handler
-# @tool
-# async def mock_bad_tool() -> str:
-#     """模拟一个总是报错的工具"""
-#     i = 0
-#     print(f"一次重试{i + 1}")
-#     raise RuntimeError("模拟工具执行失败！")
-#
-#
-# # case2：模拟长时间sleep，触发节点TimeoutPolicy超时
-# @tool
-# async def mock_slow_tool() -> str:
-#     """模拟慢工具，sleep 70秒，超过节点run_timeout=60"""
-#     await asyncio.sleep(70)
-#     return "slow tool done"
