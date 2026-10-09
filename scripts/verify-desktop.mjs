@@ -1,0 +1,10 @@
+import {spawn} from 'node:child_process';
+import {mkdtempSync,readFileSync,existsSync,writeFileSync,mkdirSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+const data=mkdtempSync(join(tmpdir(),'umi-desktop-verification-')),exe=process.argv.includes('--packaged')?resolve('release/Umi-win32-x64/Umi.exe'):resolve('node_modules/electron/dist/electron.exe');
+const args=[...(process.argv.includes('--packaged')?[]:['.']),'--verify-desktop','--data',data];
+const child=spawn(exe,args,{cwd:process.cwd(),windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,ELECTRON_ENABLE_LOGGING:'0'}});let output='';child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
+const timer=setTimeout(()=>child.kill(),120000);const code=await new Promise(resolveExit=>child.on('exit',resolveExit));clearTimeout(timer);
+const file=join(data,'desktop-verification.json'),evidence=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{passed:false,error:'未生成桌面验收报告',output:output.slice(-4000)};
+mkdirSync('docs/evidence',{recursive:true});writeFileSync(`docs/evidence/${process.argv.includes('--packaged')?'desktop-packaged':'desktop-runtime'}.json`,JSON.stringify({...evidence,exitCode:code,dataRoot:data},null,2));process.stdout.write(JSON.stringify({passed:evidence.passed,exitCode:code,checks:evidence.evidence?.length??0,dataRoot:data,error:evidence.error})+'\n');if(!evidence.passed||code!==0)process.exitCode=1;

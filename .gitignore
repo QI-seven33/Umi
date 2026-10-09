@@ -1,36 +1,31 @@
-# Secrets and local environment
-**/.env
-!**/.env.example
+node_modules/
+dist/
+release/
+.umi-desktop/
+.env
+.umi/
+coverage/
+*.log
 
-# Python
-**/.venv/
-**/__pycache__/
-**/.pytest_cache/
-**/*.py[cod]
-**/.jbeval/
+# Credentials and machine-local configuration
+.env.*
+!.env.example
+desktop-config.json
+*.pem
+*.key
 
-# Node
-**/node_modules/
-**/dist/
-**/dist-ssr/
-**/*.tsbuildinfo
+# Agent data, user conversations, and local verification output
+.umi*/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+writer.lock
+writer.starting/
+docs/evidence/
+baseline.json
 
-# Local databases
-sql/*.db
-sql/*.db-*
-
-# IDE and operating system files
-**/.idea/
-**/.vscode/
-**/*.iml
-**/.DS_Store
-**/Thumbs.db
-
-# Logs
-**/*.log
-
-# Test files (新增)
-**/test_*.py
-**/test_*.js
-**/*_test.py
-**/*_test.js
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

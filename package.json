@@ -1,0 +1,45 @@
+{
+  "name": "umi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Umi 桌面助手与唯一 TypeScript Agent 核心",
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "start": "node dist/apps/headless/src/cli.js",
+    "demo": "npm run build && node dist/apps/headless/src/demo.js",
+    "verify:deepseek": "npm run build && node dist/scripts/verify-deepseek.js",
+    "verify:files": "npm run build && node dist/scripts/verify-files.js",
+    "verify:process": "npm run build && node dist/scripts/verify-process.js",
+    "verify:context": "npm run build && node dist/scripts/verify-context.js",
+    "build:desktop": "npm run build && node scripts/build-desktop.mjs",
+    "dev": "npm run build:desktop && electron .",
+    "desktop": "electron .",
+    "package:desktop": "npm run build:desktop && node scripts/package-desktop.mjs",
+    "verify:desktop": "npm run build:desktop && node scripts/verify-desktop.mjs"
+  },
+  "dependencies": {
+    "zod": "4.6.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "lucide-react": "1.45.0",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
+    "highlight.js": "11.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.0",
+    "typescript": "7.0.2",
+    "electron": "44.5.1",
+    "@electron/packager": "20.3.0",
+    "esbuild": "0.27.4",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7"
+  },
+  "main": "dist/apps/desktop/main.js"
+}

@@ -1,0 +1,49 @@
+# Umi UI 更新后的问题修复
+
+2026-10-05。
+
+## 修复内容与原因
+
+1. **空会话进入历史**：此前点击新对话就分配环境并列入历史。现在列表增加从用户消息事实计算的 `hasMessages`，导航只显示实际发送过的会话。工作区仍从完整列表生成，不会因没有历史而消失。新对话复用该工作区尚未发送、尚无 run 的空会话；前端有创建锁，后端也执行复用检查，20 次连点不重复分配。未发送文字在当前页面切换会话时保留。
+2. **设置重影**：Mica 使设置外壳透明，底层工作台只有 inert，仍然绘制。现在设置打开时把工作台设为 visibility:hidden，同时保留组件和任务轮询；返回后恢复显示。不会因此停止后台任务。
+3. **模型显示**：输入框和设置共用 `MODEL_OPTIONS`，Flash 显示 **DeepSeek V4.1 Flash**，调用 ID 仍为 `deepseek-flash`。版本是按官方当前路由说明标注，并非从别名猜测。V4 Pro 保持自己的显示与调用 ID。
+4. **发送与中止**：两者均为 36px 圆形，悬停、按下不变形、不变色、不加阴影；中止保持红底白色标识，发送保持主题对应的黑白配色。禁用状态保持灰色。删除旧的中止悬停覆盖规则，并从通用 hover 规则排除发送按钮。
+5. **侧栏状态**：悬停是平面 `#F0F0F2`，不使用投影；选中项使用白底、细描边及略加强的文字。深色主题的选中底色单独配置，浅色悬停背景上的文字改为深色，避免低对比。Mica 下侧栏增加柔和的灰绿薄层，降低壁纸对导航可读性的干扰。
+6. **图标白板**：使用 imagegen 做实际透明背景处理，保留不透明的白色脸部。PNG/ICO 均重新导出，侧栏去掉图标圆角容器样式，Windows 程序图标也更新。
+7. **工作区不能展开**：原来的点击先选中会话并强制展开，再执行 toggle，因此会再次收起。现在工作区选择与展开切换各自只处理一项状态，同一工作区折叠时不会切换当前会话。右侧工作区面板也验收了反复收起/展开。
+8. **标题图标**：移除聊天标题前的文件夹图标，保留标题、省略和完整标题提示。
+9. **新对话空白**：恢复居中的纯图标、问候标题和一行能力介绍；没有工作区时显示选择提示。
+10. **新对话图标**：改用带加号的消息气泡，工作区内的新对话入口同步修改。
+
+## 范围
+
+没有新增表或数据库迁移，也没有修改 Agent Loop、事件协议、归约器、工具执行与批准流程。原有空会话记录及工作环境保留，只从历史导航中排除，避免误删原有资料。附件和会话设置需要稳定身份，因此后台仍有可复用的空会话记录。
+
+未发送文字的保留范围是当前页面内的会话切换，本次没有新增关闭应用后的草稿存储机制。已发送消息、待确认请求的原有持久化与恢复流程继续沿用。
+
+## 资料核对
+
+- [DeepSeek 官方更新日志](https://api-docs.deepseek.com/updates/)：`deepseek-flash` 调用 V4.1 Flash；更新日志补充 V4 Pro 在 9 月 14 日后继续提供服务。早期发布文章的 Pro 路由计划与后续日志不同，因此没有把 Pro 错标为 Flash。
+- [Material Design 色彩角色](https://m3.material.io/styles/color/the-color-system)：将表面、选中与前景等角色分开。这里参考角色划分，具体灰绿、白色与悬停色为 Umi 的设计选择，没有使用投影代替选中状态。
+
+## 工程验证
+
+- 编译通过，146/146 自动案例通过。
+- 更新原有桌面测试，验证空会话复用、首次发送后进入历史、20 个并发创建请求只复用同一身份，附件上传及设置变更不算已发送。
+- 打包程序 45 项真实 Electron 检查通过。新增覆盖：透明图标、空白引言、标题无图标、工作区反复展开、空会话不进入导航、20 次连点后草稿仍在、版本显示、设置底层隐藏、发送按钮 hover 不变化和深色导航可读性。
+- 验收全部使用自建临时数据库及目录，没有发送用户资料，也没有新增真实模型 API 调用。
+- PNG 证据使用静态降级外壳，因为 Chromium 的截图不包含 Windows DWM 材质；它们用于检查布局。实际 Mica 仍由 Windows 绘制。
+
+证据：`docs/evidence/correction-tests.log`、`correction-desktop-packaged.json`、`correction-welcome-preview.png`、`correction-settings-preview.png`。交付前逐个核对源码哈希，备份目录：`E:\Codex\Workspace\umi-ui-corrections-backup`。
+
+## 图标资产
+
+模式：内置 imagegen 编辑，透明背景。
+
+生成源文件：`C:\Users\sevan\.codex\generated_images\01a0cd28-0c05-7501-a2f3-e622dc237bd6\exec-e18aa6c9-1988-43ed-a7a4-b00848c96d9f.png`。
+
+交付：`apps/desktop/renderer/public/umi-logo.png`（512 PNG）、`umi.ico`（16/24/32/48/64/128/256）。
+
+完整提示词：
+
+> Edit only the background of the supplied Umi app icon. Remove the entire off-white rounded square tile, all outer off-white canvas and any tile shadow, yielding actual transparent alpha around the mascot. Preserve the mascot exactly in appearance and pixel block geometry: navy pointed hat and navy outline, white face with two navy eyes, blue ear/headphone on the right, blue plus sparkle above right. The white face is part of the mascot and MUST remain opaque white, never remove it. No rounded-square container, no white plate, no background rectangle, no added shadow, no added objects, no text, no redesign or recoloring. Center the cutout on a square transparent canvas, about 12% margin. Crisp pixel art edges. Intended compact desktop sidebar and Windows app icon.
