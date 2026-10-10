@@ -6,6 +6,9 @@
 
 ## 从这里了解项目
 
+- **[新会话交接](docs/handoff.zh-CN.md)**：当前状态、未提交改动备份、下一步与构建注意事项。
+- **[新会话开场提示](docs/next-session-prompt.zh-CN.md)**：复制到新对话即可接续开发或学习。
+
 - **[当前项目详解与开发路线](docs/current-project-report.zh-CN.md)**：架构、执行链路、数据、权限、上下文、问题和后续优先级。
 - **[代码学习与开发指南](docs/code-reading-guide.zh-CN.md)**：按文件阅读、调用链练习、修改入口和调试方法。
 - [核心契约](docs/contracts-v1.md)、[架构设计](docs/architecture-v1.md)、[迁移与验收](docs/migration-and-acceptance.md)：早期决策与基线。
