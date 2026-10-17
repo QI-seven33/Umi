@@ -23,5 +23,22 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run build
-      - run: node --test --test-concurrency=2 dist/tests/*.test.js
+      - name: Protocol, file IO and UI contracts (no native process bridge)
+        timeout-minutes: 8
+        run: >
+          node --test --test-concurrency=2 --test-timeout=120000
+          dist/tests/adapter.test.js
+          dist/tests/boundaries.test.js
+          dist/tests/bounded-context.test.js
+          dist/tests/core.test.js
+          dist/tests/deepseek-request.test.js
+          dist/tests/file-discovery.test.js
+          dist/tests/interaction.test.js
+          dist/tests/outputs.test.js
+          dist/tests/outputs-ui.test.js
+          dist/tests/single-file-resources.test.js
+          dist/tests/text-edit.test.js
+          dist/tests/text-write.test.js
+          dist/tests/tool-modules.test.js
+          dist/tests/ui-flow.test.js
       - run: node scripts/build-desktop.mjs

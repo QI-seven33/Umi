@@ -37,3 +37,7 @@ release/installers/umi-windows-release.json
 已有标签和发布资产不强制覆盖。若修复同一版本的构建，应使用新版本或先明确保存和替换策略。推送前检查差异、第三方许可和敏感信息；不上传个人数据库、密钥、证书或原始聊天日志。
 
 参考：[GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)、[electron-builder NSIS](https://www.electron.build/nsis/)。
+
+## 托管CI覆盖范围
+
+GitHub托管CI只运行明确列出的协议、文件IO和界面逻辑测试，不覆盖真实Windows进程桥。初次在托管环境运行全量时，宿主进程就绪/崩溃核验出现超时和失败，运行随后被停止；这项托管环境兼容性仍待处理，不能把后续CI绿色当成439项全量通过。本轮完整439项结果来自本机Windows 11，所有原测试及断言保留。

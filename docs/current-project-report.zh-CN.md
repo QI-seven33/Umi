@@ -2,7 +2,7 @@
 
 ## 2026-10-17：GitHub与Windows预发布 0.2.0-alpha.1
 
-本轮同步安装器、完整便携包和校验清单，图标改为平面圆角白底。版本入口：[v0.2.0-alpha.1](https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.1)；本地输出release/installers/。公共README、贡献/安全/授权/第三方声明、Issue/PR模板和Windows CI已整理。项目未选择新的开源许可证，状态为UNLICENSED。
+本轮同步安装器、完整便携包和校验清单，图标改为平面圆角白底。GitHub托管CI只运行明确列出的协议、文件IO和界面逻辑测试，不覆盖真实Windows进程桥。初次在托管环境运行全量时，宿主进程就绪/崩溃核验出现超时和失败，运行随后被停止；这项托管环境兼容性仍待处理，不能把后续CI绿色当成439项全量通过。本轮完整439项结果来自本机Windows 11，所有原测试及断言保留。版本入口：[v0.2.0-alpha.1](https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.1)；本地输出release/installers/。公共README、贡献/安全/授权/第三方声明、Issue/PR模板和Windows CI已整理。项目未选择新的开源许可证，状态为UNLICENSED。
 
 本轮类型检查和构建通过，439/439核心测试通过（测试文件并发度2）；源码桌面72/72通过；实际便携exe 64/72检查已通过，随后因已知HTML可见排版断言失败而结束，余下8项未执行。安装器实际嵌入载荷解包后182个运行文件逐项hash通过，载荷exe与便携exe相同。安装/卸载交互和注册表/快捷方式行为没有在本机额外执行验收；安装文件未代码签名。
 
