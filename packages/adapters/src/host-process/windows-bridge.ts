@@ -1,6 +1,6 @@
 // 固定宿主桥接：创建挂起进程，先加入作业对象；收到持久派发后的 go 才恢复。
 // 作业对象只管理常规子进程树，不隔离磁盘/网络，不阻止通过外部服务启动进程。
-const SOURCE=String.raw`
+const SOURCE = String.raw`
 using System;
 using System.IO;
 using System.Text;
@@ -97,7 +97,7 @@ public static class UmiNativeProcess {
     }
   }
 }`;
-export const WINDOWS_BRIDGE=`$ErrorActionPreference='Stop'
+export const WINDOWS_BRIDGE = `$ErrorActionPreference='Stop'
 $source=@'
 ${SOURCE}
 '@

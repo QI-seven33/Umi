@@ -1,0 +1,39 @@
+/* 拖动不经过 React 主树；关闭宽度过渡，避免网格持续追赶指针。 */
+.app-shell.is-resizing, .app-shell.is-resizing * { cursor: col-resize !important; user-select: none !important; }
+.app-shell.is-resizing .work-surface { transition: none; }
+.app-shell.is-resizing .file-html-preview { pointer-events: none; }
+.main-area { container-type: inline-size; container-name: work-chat; }
+.composer { box-sizing: border-box; min-width: 0; box-shadow: none; }
+.composer:is(.composer-approval, .composer-question) { font-family: var(--font-ui); font-size: 12px; font-weight: 400; line-height: 1.6; }
+.composer textarea { field-sizing: content; min-width: 0; width: 100%; height: auto; min-height: 32px; max-height: 140px; box-sizing: border-box; overflow-y: auto; }
+.composer-tools { display: flex; flex-wrap: nowrap; min-width: 0; gap: 8px; }
+.composer-tools > .tool-group:first-child { flex: none; }
+.composer-tools > .tool-group:last-child { flex: 1; justify-content: flex-end; min-width: 0; width: auto; margin-left: auto; }
+.composer .model-selector { flex: 0 1 auto; min-width: 0; }
+.composer .model-button { max-width: 100%; min-width: 0; white-space: nowrap; }
+.composer .model-button-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.composer .model-button-effort { flex: none; white-space: nowrap; }
+.composer .send-button, .composer .context-orb-wrap { flex: none; }
+@container work-chat (max-width: 560px) {
+  .composer, .composer:focus-within, .composer.dragging { width: calc(100% - 32px); }
+  .chat-canvas { padding-inline: 16px; }
+  .chat-canvas .message-stack { width: 100%; }
+  .composer .tool-group { gap: 3px; }.composer-tools { gap: 4px; }
+  .composer .model-button { padding-inline: 3px; gap: 4px; }.composer .model-button-effort { display: none; }
+  .composer .permission-button { padding-inline: 4px; gap: 4px; }
+  .composer .context-orb-wrap { display: none; }
+}
+@container work-chat (max-width: 440px) {
+  .composer .permission-button strong { max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .composer .model-button-name { max-width: 125px; }
+}
+:root { --file-link-color: #276db7; }[data-theme=dark] { --file-link-color: #88b9ef; }
+.chat-canvas :is(.umi-file-row,.umi-tool-file,.inline-file-link) { color: var(--file-link-color); background: transparent; text-decoration: none; }
+.chat-canvas :is(.umi-file-row,.umi-tool-file,.inline-file-link):hover { color: var(--file-link-color); background: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.chat-canvas :is(.umi-process-toggle,.umi-activity-toggle,.umi-tool-toggle,.umi-tool,.umi-file-row,.umi-tool-file,summary):is(:hover,:focus-within) { box-shadow: none !important; filter: none !important; }
+.chat-canvas .umi-tool, .chat-canvas .umi-file-row, .chat-canvas .umi-tool-toggle { border: 0; background: transparent; }
+.chat-canvas :is(.umi-tool,.umi-file-row,.umi-tool-toggle)::before, .chat-canvas :is(.umi-tool,.umi-file-row,.umi-tool-toggle)::after { box-shadow: none; background: none; }
+.umi-reasoning-row > summary { min-width: 0; }.umi-reasoning-excerpt { flex: 1; }
+.settings-page, .settings-page :is(.settings-card,.settings-page-panel,.settings-page-nav-item,.settings-page-back) { box-shadow: none; filter: none; }
+.settings-page :is(.settings-page-back,.settings-page-nav-item:not(.active)):hover { background: transparent; color: var(--text-primary); }
+.settings-page :is(.settings-page-nav-item,.settings-card,.settings-page-panel)::before, .settings-page :is(.settings-page-nav-item,.settings-card,.settings-page-panel)::after { box-shadow: none; filter: none; }

@@ -8,7 +8,7 @@ export function removeTestRoot(root:string) {
   const target=realpathSync(root),parent=realpathSync(tmpdir());
   if(dirname(target).toLowerCase()!==parent.toLowerCase()||!basename(target).startsWith('umi-'))
     throw new Error('拒绝清理专用临时测试目录以外的位置');
-  rmSync(target,{recursive:true,force:true});
+  rmSync(target,{recursive:true,force:true,maxRetries:5,retryDelay:100});
 }
 export type Step=WireMessage|((request:PreparedRequest)=>WireMessage|Promise<WireMessage>);
 // 仅替换模型端口；所有模拟响应仍经过产品中的同一个循环和仓储。
@@ -34,4 +34,14 @@ export const call=(name:string,args:unknown,content='先执行这项操作。',i
   reasoning_content:'我先核实必要的信息。',tool_calls:[{id,type:'function',function:{name,arguments:JSON.stringify(args)}}]});
 export async function eventually<T>(fn:()=>T|undefined,timeout=4000):Promise<T> {
   const start=Date.now();while(Date.now()-start<timeout){const value=fn();if(value!==undefined)return value;await delay(5);}throw new Error('条件未按时满足');
+}
+
+// 测试模型按域合并最新事实，而非假定每轮最后一条必为全量快照。
+export function projectedFacts(messages: WireMessage[]): Record<string, any> {
+  const domains: Record<string, any> = {};
+  for (const message of messages) {
+    if (message.role !== 'system' || !message.content.startsWith('当前宿主事实按域更新；')) continue;
+    Object.assign(domains, JSON.parse(message.content.slice(message.content.indexOf('\n') + 1)));
+  }
+  return domains;
 }

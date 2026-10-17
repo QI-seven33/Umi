@@ -1,7 +1,0 @@
-.jelly-radio { display:inline-flex; align-items:center; gap:8px; padding:8px 10px; user-select:none; }
-.jelly-radio__chip { position:relative; padding:0; border:0; background:none; font:inherit; border-radius:16px; cursor:pointer; touch-action:manipulation; transform-origin:center; box-shadow:none; }
-.jelly-radio__skin { display:inline-flex; align-items:center; justify-content:center; height:30px; padding:0 14px; border-radius:var(--control-radius); background:var(--bg-chip); color:var(--text-secondary); font-size:12px; font-weight:500; line-height:1; white-space:nowrap; transition:background-color .12s,color .12s; }
-.jelly-radio__chip[data-on=true] .jelly-radio__skin { background:var(--text-primary); color:var(--bg-primary); }
-.jelly-radio__chip[data-on=false]:hover .jelly-radio__skin { background:var(--bg-hover); }
-.jelly-radio__chip:focus-visible { outline:2px solid var(--border-hover); outline-offset:3px; }
-@media(prefers-reduced-motion:reduce){.jelly-radio__skin{transition:none}}

@@ -7,14 +7,12 @@ import {
 import type { Conversation, Workspace, ThemeMode } from "../../types/index.js";
 import { ProfileMenu } from "./ProfileMenu.js";
 import { activityLabel } from "./activity.js";
-import { PanelIcon } from "../../components/ui/PanelIcon.js";
 
 // ─────────────────────────────────────────────────────────────
 // 侧栏
 // ─────────────────────────────────────────────────────────────
 
 export function Sidebar(props: {
-  onCollapse: () => void;
   workspaces: Workspace[]; selectedWorkspaceId: string;
   onSelectWorkspace: (id: string) => void;
   expandedWorkspaceIds: Set<string>;
@@ -29,7 +27,6 @@ export function Sidebar(props: {
   onOpenSettings: () => void;
 }) {
   const {
-    onCollapse,
     workspaces, selectedWorkspaceId, onSelectWorkspace, expandedWorkspaceIds,
     onToggleWorkspace, onCreateWorkspace,
     conversations, activeId, onSelectConversation,
@@ -91,17 +88,6 @@ export function Sidebar(props: {
 
   return (
     <aside className="left-sidebar" aria-label="会话导航">
-      <div className="brand-row">
-        <div className="brand-menu-wrap">
-          <div className="brand-button">
-            <img src="/umi-lockup.png" alt="Umi" className="brand-logo" />
-          </div>
-        </div>
-        <button type="button" className="sidebar-toggle sidebar-toggle-inline" onClick={onCollapse} aria-label="收起侧边栏">
-          <PanelIcon side="left" />
-        </button>
-      </div>
-
       <button type="button" className="new-chat" onClick={() => onNewConversation()}
         disabled={!selectedWorkspaceId}>
         <SquarePen size={16} strokeWidth={1.7} />新对话

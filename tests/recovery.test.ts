@@ -42,11 +42,15 @@ for(const mode of ['approved','intent','effect','settled','partial']) {
         assert.equal(recovered.status,'recovery_required');assert.equal(model.requests.length,0);assert(!existsSync(file));
         // 新输入可持久接收，但同一环境的未知写入不能被新任务绕过。
         await app.stop(checkpoint.conversationId,checkpoint.runId);
-        const newer=app.send(checkpoint.conversationId,uid(),'尝试新任务');assert.equal((await app.wait(newer.runId)).status,'recovery_required');
-        assert.equal(model.requests.length,0);assert.equal(app.store.unresolvedEnvironment(checkpoint.environmentId).length,1);
+        const newer=app.send(checkpoint.conversationId,uid(),'尝试新任务');assert.equal((await app.wait(newer.runId)).status,'completed');
+        assert.equal(model.requests.length,1);assert.equal(app.store.snapshot(checkpoint.conversationId).runs[newer.runId]!.acceptance!.status,'blocked');assert.equal(app.store.unresolvedEnvironment(checkpoint.environmentId).length,1);
       } else {
         assert.equal(recovered.status,'completed');assert.equal(model.requests.length,1);
-        if(mode!=='partial') {
+        if(mode==='approved') {
+          assert(!existsSync(file));assert.equal(app.store.tool(checkpoint.executionId!).state,'cancelled');
+          assert.equal(app.store.environment(checkpoint.environmentId).revision,0);
+          assert.equal(app.store.events(checkpoint.conversationId).filter(e=>e.type==='tool.dispatch_intent').length,0);
+        } else if(mode!=='partial') {
           assert.equal(readFileSync(file,'utf8'),'可核验内容');assert.equal(app.store.environment(checkpoint.environmentId).revision,1);
           const dispatches=app.store.events(checkpoint.conversationId).filter(e=>e.type==='tool.dispatch_intent');assert.equal(dispatches.length,1);
           if(mode==='effect')assert.equal(app.store.readArtifact<{verification:string}>(app.store.tool(checkpoint.executionId!).result_ref!).verification,'desired-state-verified');

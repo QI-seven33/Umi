@@ -1,35 +1,43 @@
-# Umi repository guide
+# Umi 仓库开发指南
 
-## Start here
+## 从这里开始
 
-- Product name: **Umi**. The local folder name `Umi_v2.0` is not the product name.
-- Read `docs/handoff.zh-CN.md` for the latest dated handoff, then `docs/current-project-report.zh-CN.md` and `docs/code-reading-guide.zh-CN.md`.
-- Run `git status` and inspect existing diffs before editing. Preserve user edits and learning annotations. Handoff facts are dated snapshots, not a guarantee that the working tree is still unchanged.
-- The current implementation is `apps/` + `packages/`. The old Python backend is available in Git history; it is not required by the current runtime.
+- 产品名称是 **Umi**。本地目录名 `Umi_v2.0` 不是产品名称。
+- 先阅读 `docs/handoff.zh-CN.md`，再阅读 `docs/current-project-report.zh-CN.md` 和 `docs/code-reading-guide.zh-CN.md`。
+- 修改前查看 `git status` 和已有 diff，保留用户修改及学习注释。交接记录描述对应日期的状态，当前状态以实际仓库为准。
+- 学习注释是正常源码的一部分，不妨碍继续开发，不需要先删除、还原或单独批准。注释与实现不一致时，以代码和验证证据为准并具体解释。
+- 当前实现位于 `apps/` 和 `packages/`。旧 Python 后端保留在 Git 历史中，当前运行不需要它。
 
-## Architecture
+## 架构约束
 
-- Keep one Agent loop: `UmiApplication` assembles `AgentEngine`; desktop IPC calls the existing application.
-- `packages/protocol` defines runtime schemas and pure state reduction; `packages/agent` owns orchestration/context/tools; adapters implement model, SQLite and host effects.
-- Renderer access passes through fixed preload APIs, main, broker and the utility process. Do not expose arbitrary IPC channels, SQL, filesystem access or shell execution to the renderer.
-- Persist dispatch and authority facts before effects; recovery reconciles unknown outcomes before deciding whether another execution is safe.
-- Work-copy edits and source delivery are different authorities. Delivery uses a frozen ChangeSet and approval bound to the concrete request/environment.
-- Host commands currently have no OS filesystem/network sandbox. Job management and cwd must not be described as that sandbox.
-- Preserve raw history and source provenance. Context maintenance must preserve complete assistant tool-call/result groups.
+- 保持唯一 Agent 循环：`UmiApplication` 组装 `AgentEngine`，桌面 IPC 调用已有应用入口。
+- `packages/protocol` 定义运行时校验和纯状态归约；`packages/agent` 负责循环、上下文与工具；适配器负责模型、SQLite 和宿主操作。
+- 渲染进程通过固定 preload API、主进程、broker 和 utility process 访问核心。不要向页面暴露任意 IPC 频道、SQL、文件系统或 Shell 执行能力。
+- 副作用发生前保存派发和授权事实；恢复时先核验未知结果，再决定是否可以再次执行。
+- 工作副本编辑和源文件交付是不同权限。交付使用冻结的 ChangeSet，并把批准绑定具体请求和环境。
+- 当前宿主命令没有操作系统级文件或网络沙箱。Job 进程管理和工作目录不能被描述为这种沙箱。
+- 保留原始历史及来源。上下文维护必须保留完整的 assistant 工具调用及对应结果消息组。
 
-## Development and verification
+## 开发与验证
 
-- Root npm package, Node `>=24.11.0 <25`; use the lockfile and existing scripts.
-- `npm run dev` rebuilds desktop assets. `npm run desktop` uses existing dist. Portable release has a separate embedded dist and requires repackaging to receive source changes.
-- Use the Umi quit menu to fully exit; closing the window hides it. A second instance may only focus the first instance.
-- CSS loads `global.css`, `desktop.css`, then `surface.css`; inspect winning rules before adding another override.
-- Match validation to the changed behavior and current user instructions. Report exactly what ran; historical acceptance counts are not current test results.
-- Model verification scripts can spend money. Do not make them part of routine checks without task authorization; do not modify production conversation data for tests.
-- Never commit API keys, personal databases/config/evidence, dependencies, dist or release artifacts. Existing `.gitignore` covers common locations.
+- 工程使用根目录 npm package，Node 版本要求 `>=24.11.0 <25`；沿用锁文件和现有脚本。
+- `npm run dev` 会重新构建桌面资源；`npm run desktop` 使用已有 dist。便携包内有独立 dist，源码变化需要重新打包才能进入便携包。
+- 通过 Umi 的退出菜单完整退出；关闭窗口只是隐藏。第二实例可能只唤回已有窗口。
+- CSS 加载顺序是 `global.css → desktop.css → surface.css`；添加覆盖规则前先检查最终生效的样式。
+- 根据改动行为和用户当次要求安排验证，准确说明执行过哪些检查；历史验收数量不是本次测试结果。
+- 真实模型验证脚本可能产生费用，按任务授权使用；不要修改生产会话数据来做测试。
+- 不提交 API Key、个人数据库、配置、原始证据、依赖、dist 或 release。现有 `.gitignore` 已覆盖常见位置。
 
-## Collaboration and teaching
+## 协作与学习
 
-- Explain in clear Chinese when working with this user. Point to real files/functions and connect changes to actual execution flow.
-- Keep UI controls compact, round corners consistent and process disclosures free of extra shadows. Consult the handoff for accepted visual choices.
-- Preserve user preferences but follow the current request if it changes scope. A handoff is not permanent authorization to push, spend API credits or perform major redesigns.
-- Update the dated handoff or current report when a substantial behavior changes, including remaining limitations and verification evidence.
+- 使用清晰的中文交流，指向实际文件和函数，把改动与真实执行流程联系起来。
+- UI 控件保持紧凑，圆角统一，过程展开控件避免额外阴影。已接受的视觉选择见交接文档。
+- 延续用户偏好，同时遵循当次请求的范围。交接文档不构成永久推送、付费 API 调用或重大改版授权。
+- 实质行为变化后更新交接或项目报告，说明剩余限制与验证证据。
+
+## Windows分发与社区文档
+
+- npm run package:windows会同步便携版并生成Setup.exe、便携zip和SHA-256清单；本地生成与GitHub发布是独立步骤。
+- 图标从assets/brand/umi-symbol.png生成，运行npm run build:icons；正式规格是圆角白底。
+- 安装器载荷一致性不等于实际安装/卸载验收；未配置代码签名或自动更新。
+- README/CHANGELOG/CONTRIBUTING/SECURITY/THIRD_PARTY_NOTICES面向公共仓库维护。当前UNLICENSED，不自行替所有者选择新许可证。

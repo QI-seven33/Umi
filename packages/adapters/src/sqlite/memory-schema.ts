@@ -1,5 +1,5 @@
 // 阶段 4 的实际结构；原消息、事件和工具执行不迁移或重写。
-export const MEMORY_SCHEMA_SQL=`
+export const MEMORY_SCHEMA_SQL = `
 CREATE TABLE memory_entries(id TEXT PRIMARY KEY,conversation_id TEXT NOT NULL REFERENCES conversations(id),
  execution_id TEXT NOT NULL UNIQUE REFERENCES tool_executions(id),kind TEXT NOT NULL CHECK(kind IN('note','requirement','reset')),
  artifact_ref TEXT NOT NULL REFERENCES artifacts(id));

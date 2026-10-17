@@ -1,0 +1,28 @@
+appId: io.github.qiseven33.umi
+productName: Umi
+electronVersion: 44.5.1
+asar: false
+directories:
+  output: release/installers
+win:
+  icon: apps/desktop/renderer/public/umi.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  signAndEditExecutable: false
+nsis:
+  artifactName: Umi-Setup-${version}-${arch}.${ext}
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  packElevateHelper: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  runAfterFinish: false
+  createDesktopShortcut: true
+  differentialPackage: false
+  installerIcon: apps/desktop/renderer/public/umi.ico
+  uninstallerIcon: apps/desktop/renderer/public/umi.ico
+  uninstallDisplayName: Umi
+  installerLanguages: [en_US, zh_CN]
+publish: null

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 私密安全报告
+    url: https://github.com/QI-seven33/Umi/blob/main/SECURITY.md
+    about: 请按安全政策提供私密、脱敏的漏洞报告。

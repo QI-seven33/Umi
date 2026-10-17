@@ -1,3 +1,4 @@
+import {ApprovalCard} from '../apps/desktop/renderer/src/ApprovalCard.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync} from 'node:fs';
@@ -38,15 +39,15 @@ test('UI-03：批准阻塞保持阶段正文，工具与思考分段按事实排
   const f=setup(new ScriptModel([call('write_scratch',{relativePath:'a.txt',content:'test'},'我先准备这份文件。'),text('文件已完成。')]));
   try{const r=f.app.send(f.c.conversationId,uid(),'创建资料'),approval=await eventually(()=>Object.entries(f.app.store.snapshot(f.c.conversationId).approvals).find(([,a])=>a.status==='pending'));
     const waiting=f.app.store.snapshot(f.c.conversationId),items=processItems(waiting,r.runId);assert.deepEqual(items.map(i=>i.kind),['activity','text','activity']);const last=items.at(-1)!;assert(last.kind==='activity');assert.equal(activityLabel(last.items,waiting),'等待你的批准');
-    const html=markup(f);assert(html.includes('我先准备这份文件'));assert(html.includes('等待你的批准'));assert(html.includes('需要你的批准'));assert(!html.includes('文件已完成'));assert(!html.includes('第 1 轮'));assert(!html.includes('项操作'));
-    f.app.approve(f.c.conversationId,approval[0],'allow');await f.app.wait(r.runId);const complete=markup(f);assert(complete.includes('已完成，用时'));assert(complete.includes('文件已完成'));assert(!complete.includes('我先准备这份文件'));assert(complete.includes('aria-expanded="false"'));
+    const html=markup(f);assert(html.includes('我先准备这份文件'));assert(html.includes('等待你的批准'));assert(!html.includes('umi-approval'));const card=renderToStaticMarkup(createElement(ApprovalCard,{id:approval[0],state:waiting,conversationId:f.c.conversationId,onPreview:()=>{},onError:()=>{}}));assert(card.includes('确认本次操作'));assert(card.includes('a.txt'));assert(!html.includes('文件已完成'));assert(!html.includes('第 1 轮'));assert(!html.includes('项操作'));
+    f.app.approve(f.c.conversationId,approval[0],'allow');await f.app.wait(r.runId);const complete=markup(f);assert(complete.includes('本轮结束，用时'));assert(complete.includes('文件已完成'));assert(!complete.includes('我先准备这份文件'));assert(complete.includes('aria-expanded="false"'));
   }finally{await f.close();}
 });
 
 test('UI-04：分段不把失败当成功，不隐藏 reasoning 的 attempt 身份',async()=>{
   const f=setup(new ScriptModel([call('write_scratch',{relativePath:'a.txt',content:'test'}),text('已经收到拒绝。'),text('没有写入文件。')]));
   try{const r=f.app.send(f.c.conversationId,uid(),'创建资料'),approval=await eventually(()=>Object.entries(f.app.store.snapshot(f.c.conversationId).approvals).find(([,a])=>a.status==='pending'));f.app.approve(f.c.conversationId,approval[0],'deny');await f.app.wait(r.runId);
-    const state=f.app.store.snapshot(f.c.conversationId),items=processItems(state,r.runId),groups=items.filter(i=>i.kind==='activity');assert(groups.some(g=>activityLabel(g.items,state)==='存在未完成的操作'));assert(!groups.some(g=>activityLabel(g.items,state).includes('已写入')));
+    const state=f.app.store.snapshot(f.c.conversationId),items=processItems(state,r.runId),groups=items.filter(i=>i.kind==='activity');assert(groups.some(g=>activityLabel(g.items,state)==='操作已拒绝'));assert(!groups.some(g=>activityLabel(g.items,state).includes('已写入')));
     assert(groups.flatMap(g=>g.items).filter(i=>i.kind==='reasoning').every(i=>i.block.turnId&&i.block.attemptId));
   }finally{await f.close();}
 });

@@ -153,7 +153,8 @@ test('A19：相同失败工具不能无限循环，也不重复弹出被拒绝�
   const directory=root(),model=new ScriptModel([call('read_history',{messageId:'missing'},'查找一','a'),call('read_history',{messageId:'missing'},'查找二','b'),
     call('read_history',{messageId:'missing'},'查找三','c'),call('read_history',{messageId:'missing'},'查找四','d')]),app=new UmiApplication(join(directory,'data'),model);
   try {
-    const c=app.createConversation(directory),r=app.send(c.conversationId,uid(),'重复失败样本');assert.equal((await app.wait(r.runId)).status,'failed');assert.equal(model.requests.length,4);
+    const c=app.createConversation(directory),r=app.send(c.conversationId,uid(),'重复失败样本');assert.equal((await app.wait(r.runId)).status,'failed');assert.equal(model.requests.length,5);
+    assert(app.store.snapshot(c.conversationId).runs[r.runId]?.failureSummary?.text.includes('这一步仍未完成'));
     assert.equal(app.store.events(c.conversationId).find(e=>e.type==='run.failed')?.payload.code,'TASK_STALLED');
     assert.equal(app.store.events(c.conversationId).filter(e=>e.type==='tool.dispatch_intent').length,3);
   }finally{await app.close();removeTestRoot(directory);}

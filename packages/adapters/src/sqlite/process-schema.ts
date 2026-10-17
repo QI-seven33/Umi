@@ -1,5 +1,5 @@
 // 阶段 3B 的事务迁移；程序定位、进程身份和输出均引用原工具执行。
-export const PROCESS_SCHEMA_SQL=`
+export const PROCESS_SCHEMA_SQL = `
 CREATE TABLE process_executions(execution_id TEXT PRIMARY KEY REFERENCES tool_executions(id),snapshot_ref TEXT NOT NULL REFERENCES artifacts(id),
   state TEXT NOT NULL CHECK(state IN('planned','ready','running','exited')),bridge_pid INTEGER,bridge_birth TEXT,child_pid INTEGER,child_birth TEXT,
   released INTEGER NOT NULL DEFAULT 0 CHECK(released IN(0,1)),receipt_ref TEXT REFERENCES artifacts(id));

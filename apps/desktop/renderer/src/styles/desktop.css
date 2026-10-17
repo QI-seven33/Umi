@@ -162,7 +162,7 @@ input {
 .umi-activity-list {
     max-height: 320px;
     overflow-y: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior-y: auto;
     scrollbar-gutter: stable;
     padding: 5px 10px 5px 0;
     width: 100%;

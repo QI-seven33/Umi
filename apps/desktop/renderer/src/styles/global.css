@@ -3833,7 +3833,7 @@ select:focus-visible {
     display: flex;
 }
 
-.settings-page-back:hover { color: var(--text-primary); background: var(--button-hover); }
+.settings-page-back:hover { color: var(--text-primary); background: transparent; }
 
 .settings-page-nav nav { gap: 5px; display: grid; }
 
@@ -3854,7 +3854,7 @@ select:focus-visible {
 
 .settings-page-nav-item.active { background: var(--bg-selected-soft); color: var(--text-primary); }
 
-.settings-page-nav-item:hover:not(.active) { background: var(--button-hover); color: #18181b; }
+.settings-page-nav-item:hover:not(.active) { background: transparent; color: var(--text-primary); }
 
 .settings-page-panel {
     border: 1px solid var(--border-light);
@@ -4100,9 +4100,10 @@ select:focus-visible {
 
 /* 会话导航 */
 
-:root body button:not(:disabled):not(:is(.active, .selected, [aria-pressed="true"], [aria-checked="true"], [aria-current])):not(:where(.workspace-select, .workspace-conversation, .conversation-map-ticks button, .new-chat, .jelly-radio__chip, .hold-button, .send-button)):hover {
+/* 低权重后备悬停：组件自己的状态、颜色和底色始终优先。 */
+:where(button:not(:disabled):not(:is(.active, .selected, [aria-pressed="true"], [aria-checked="true"], [aria-current])):not(:where(.workspace-select, .workspace-conversation, .conversation-map-ticks button, .new-chat, .jelly-radio__chip, .hold-button, .send-button)):hover) {
     background: var(--button-hover);
-    color: #18181b;
+    color: var(--text-primary);
 }
 /* 工作区与侧栏 */
 

@@ -1,3 +1,4 @@
+import {userFacingError} from '../../ui-error.js';
 import {useEffect,useRef,useState} from 'react';
 import type {Attachment} from '../../types/index.js';
 
@@ -62,7 +63,7 @@ export function useAttachments(conversationId:string,onError:(e:unknown)=>void){
         }
         if(scope.current!==current)continue;
         replace(rows.current.map(a=>a.id===item.id?{...a,serverId:uploaded.id,size:uploaded.byteLength,state:'done',progress:100,...(previewUrl?{previewUrl}:{})}:a));
-      }catch(error){if(scope.current!==current)continue;const message=error instanceof Error?error.message:String(error);replace(rows.current.map(a=>a.id===item.id?{...a,state:'error',error:message}:a));onError(error);}
+      }catch(error){if(scope.current!==current)continue;const message=userFacingError(error)||'附件回执暂未返回，请稍后重试。';replace(rows.current.map(a=>a.id===item.id?{...a,state:'error',error:message}:a));onError(error);}
     }
     return rows.current.filter(row=>selected.some(item=>item.id===row.id));
   };

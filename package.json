@@ -1,6 +1,6 @@
 {
   "name": "umi",
-  "version": "0.1.0",
+  "version": "0.2.0-alpha.1",
   "private": true,
   "type": "module",
   "description": "Umi 桌面助手与唯一 TypeScript Agent 核心",
@@ -21,25 +21,40 @@
     "dev": "npm run build:desktop && electron .",
     "desktop": "electron .",
     "package:desktop": "npm run build:desktop && node scripts/package-desktop.mjs",
-    "verify:desktop": "npm run build:desktop && node scripts/verify-desktop.mjs"
+    "verify:desktop": "npm run build:desktop && node scripts/verify-desktop.mjs",
+    "build:icons": "electron scripts/build-icons.cjs",
+    "package:windows": "npm run package:desktop && node scripts/build-windows.mjs",
+    "verify:packaged": "node scripts/verify-desktop.mjs --packaged"
   },
   "dependencies": {
-    "zod": "4.6.5",
+    "highlight.js": "11.12.0",
+    "lucide-react": "1.45.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "lucide-react": "1.45.0",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
-    "highlight.js": "11.12.0"
+    "zod": "4.6.5"
   },
   "devDependencies": {
-    "@types/node": "24.10.0",
-    "typescript": "7.0.2",
-    "electron": "44.5.1",
     "@electron/packager": "20.3.0",
-    "esbuild": "0.27.4",
+    "@types/node": "24.10.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7"
+    "@types/react-dom": "19.2.7",
+    "7zip-bin": "5.2.0",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.27.4",
+    "typescript": "7.0.2"
   },
-  "main": "dist/apps/desktop/main.js"
+  "main": "dist/apps/desktop/main.js",
+  "license": "UNLICENSED",
+  "author": "Umi contributors",
+  "homepage": "https://github.com/QI-seven33/Umi",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/QI-seven33/Umi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/QI-seven33/Umi/issues"
+  }
 }

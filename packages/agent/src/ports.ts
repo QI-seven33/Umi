@@ -1,12 +1,43 @@
-import type { Settings, WireMessage, ToolSpec, ProviderCall } from '../../protocol/src/model.js';
+import type {
+  Settings,
+  WireMessage,
+  ToolSpec,
+  ProviderCall,
+} from '../../protocol/src/model.js';
 
-export type PreparedRequest = { adapterId:string; adapterVersion:string; protocol:string; endpointProfileId:string;
-  model:string; settings:Settings; maxOutputTokens:number; body:Record<string,unknown> };
-export type ModelFrame = { kind:'delta'; channel:'reasoning'|'text'|'tool'; key:string; text:string } |
-  { kind:'response'; message:WireMessage; finishReason:string; usage:Record<string,unknown>|null; raw:unknown };
+export type PreparedRequest = {
+  adapterId: string;
+  adapterVersion: string;
+  protocol: string;
+  endpointProfileId: string;
+  model: string;
+  settings: Settings;
+  maxOutputTokens: number;
+  body: Record<string, unknown>;
+};
+export type ModelFrame =
+  | { kind: 'delta'; channel: 'reasoning' | 'text' | 'tool'; key: string; text: string }
+  | {
+      kind: 'response';
+      message: WireMessage;
+      finishReason: string;
+      usage: Record<string, unknown> | null;
+      raw: unknown;
+    };
 export interface ModelPort {
-  prepare(messages:WireMessage[],tools:ToolSpec[],settings:Settings,maxOutputTokens:number):PreparedRequest;
-  stream(request:PreparedRequest,signal:AbortSignal):AsyncIterable<ModelFrame>;
+  prepare(
+    messages: WireMessage[],
+    tools: ToolSpec[],
+    settings: Settings,
+    maxOutputTokens: number,
+  ): PreparedRequest;
+  stream(request: PreparedRequest, signal: AbortSignal): AsyncIterable<ModelFrame>;
 }
-export type ModelResponse = { message:WireMessage; calls:ProviderCall[]; finishReason:string };
-export interface EnvironmentInitializer { initialize(environmentId:string):void; }
+export type ModelResponse = {
+  message: WireMessage;
+  calls: ProviderCall[];
+  finishReason: string;
+};
+export interface EnvironmentInitializer {
+  initialize(environmentId: string): void;
+}

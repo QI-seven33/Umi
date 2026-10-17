@@ -48,8 +48,8 @@ body,
   backdrop-filter: none;
 }
 
-:root body button:not(:is(.send-button, .scroll-to-bottom, .context-orb, .settings-avatar-button, .conversation-map-ticks button)) {
-  border-radius: var(--control-radius) !important;
+:where(body button:not(:is(.send-button, .scroll-to-bottom, .context-orb, .settings-avatar-button, .conversation-map-ticks button))) {
+  border-radius: var(--control-radius);
 }
 
 :root body button {
@@ -69,6 +69,7 @@ body,
 
 .app-shell {
   padding: 8px 8px 8px 0;
+  grid-template-rows: 28px minmax(0, 1fr);
 }
 
 .app-shell.left-collapsed {
@@ -87,23 +88,16 @@ body,
   box-shadow: none;
 }
 
-.brand-row {
-  height: 48px;
-  padding: 0 18px;
-}
 
-.brand-button {
-  padding: 0;
-  gap: 0;
-}
 
-.brand-logo {
-  width: 80px;
-  height: auto;
-  max-height: 28px;
-  object-fit: contain;
-  mix-blend-mode: normal;
-}
+
+
+/* 图形与普通文本分开；名字跟随主题，不依赖图片字形。 */
+
+
+
+
+
 
 .left-sidebar {
   padding-bottom: 6px;
@@ -127,19 +121,7 @@ body,
 }
 
 .new-chat {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: calc(100% - 20px);
-  height: 34px;
-  margin: 4px 10px 24px;
-  padding: 0 10px;
-  justify-content: flex-start;
-  background: transparent;
-  border: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 400;
+  display: flex; align-items: center; gap: 9px; width: calc(100% - 20px); height: 34px; margin: 4px 10px 12px; padding: 0 10px; justify-content: flex-start; background: transparent; border: 0; color: var(--text-secondary); font-size: 13px; font-weight: 400;
 }
 
 :root body .new-chat:hover:not(:disabled) {
@@ -238,11 +220,7 @@ body,
 }
 
 .work-preview-tabs {
-  height: var(--work-header-height);
-  min-height: var(--work-header-height);
-  max-height: var(--work-header-height);
-  box-sizing: border-box;
-  border-bottom: 1px solid var(--border-light);
+  height: var(--work-header-height); min-height: var(--work-header-height); max-height: var(--work-header-height); box-sizing: border-box; border-bottom: 1px solid var(--border-light); padding: 8px 10px; gap: 4px; align-items: center;
 }
 
 .conversation-title {
@@ -267,7 +245,7 @@ body,
 }
 
 .left-collapsed .topbar {
-  padding-left: 54px;
+  padding-left: 20px;
 }
 
 .right-collapsed .topbar {
@@ -356,6 +334,15 @@ body,
 
 .composer-section {
   padding: 8px 0 10px;
+}
+
+.composer-notice .umi-error {
+  width: 100%;
+  margin: 0 0 8px;
+}
+
+.chat-canvas .message-reasoning-content {
+  overscroll-behavior-y: auto;
 }
 
 .composer,
@@ -645,8 +632,8 @@ body,
   border: 1px solid var(--border-light);
   border-radius: var(--card-radius);
   background: var(--bg-primary);
-  padding: 20px;
-  margin: 0 0 16px;
+  padding: 16px;
+  margin: 0 0 12px;
 }
 
 .settings-card h2 {
@@ -921,10 +908,7 @@ body,
   font-weight: 500;
 }
 
-.brand-logo {
-  border-radius: 0;
-  background: none;
-}
+
 
 /* 发送与中止保持相同圆形和固定颜色，覆盖旧的全局 hover 规则。 */
 :root body button.send-button,
@@ -1011,38 +995,12 @@ body,
 }
 
 .empty-conversation {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 15px;
-  margin: 0 auto;
-  padding: 20px;
-  max-width: 480px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; margin: 0 auto; padding: 20px; max-width: 560px;
 }
 
-.empty-conversation img {
-  object-fit: contain;
-  width: min(168px, 50vw);
-  height: auto;
-  margin-bottom: 4px;
-}
 
-.empty-conversation h1 {
-  margin: 0;
-  font-size: 23px;
-  line-height: 1.5;
-  font-weight: 550;
-  letter-spacing: -.3px;
-}
 
-.empty-conversation p {
-  margin: 0;
-  max-width: 360px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.8;
-}
+
 
 .empty-conversation small {
   color: var(--text-muted);
@@ -1054,21 +1012,168 @@ body,
 :root body .message-footer.copy-confirmed { opacity: 1; }
 .copy-feedback { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
 .copy-feedback:empty { display: none; }
-.composer.composer-approval { padding: 0; overflow: hidden; border-radius: 18px; background: var(--bg-primary); }
+/* 宽度、外圆角共用 .composer；卡片只管理内部间距与字体。 */
+.composer.composer-approval {
+  padding: 0; box-shadow: none; transition: border-color .12s; background: var(--bg-primary);
+}
 .approval-dock-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 7px 14px; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary); }
 .approval-dock-header > span { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
 .approval-dock-header strong { font-weight: 500; }
-.approval-dock-content { max-height: min(42vh, 360px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.composer-approval .umi-approval { margin: 0; padding: 14px 16px; border: 0; border-radius: 0; background: transparent; }
+.approval-dock-content { overflow: visible; }
+.composer-approval .umi-approval-body {
+  max-height: min(46vh, 380px); overflow-y: auto; overscroll-behavior: auto;
+}
+.composer-approval .operation-description, .composer-approval .delivery-file-list { max-height: none; overflow: visible; }
+.composer-approval .umi-approval {
+  margin: 0; padding: 14px 16px; border: 0; border-radius: 0; background: transparent;
+}
 .composer-approval .umi-approval + .umi-approval { border-top: 1px solid var(--border-color); }
-.composer-approval .umi-approval > strong { display: block; font-size: 13px; font-weight: 600; }
-.composer-approval .umi-approval p { margin: 8px 0; font-size: 13px; line-height: 1.65; }
-.composer-approval .delivery-file-list { max-height: 130px; overflow-y: auto; }
-.composer-approval .umi-approval-actions { justify-content: flex-end; align-items: center; margin-top: 12px; gap: 8px; }
+.composer-approval .umi-approval-body > strong { display: block; font-size: 13px; font-weight: 500; }
+.composer-approval .umi-approval p {
+  margin: 8px 0; font-size: 12px; line-height: 1.6;
+}
+
+.composer-approval .umi-approval-actions {
+  justify-content: flex-end; align-items: center; margin-top: 10px; gap: 8px;
+}
 .approval-decision-status { margin-right: auto; color: var(--text-secondary); font-size: 11px; }
-:root body .composer-approval .umi-approval-actions button { min-height: 32px; padding: 6px 14px; font-size: 12px; font-weight: 500; border-radius: 10px !important; box-shadow: none !important; }
+:root body .composer-approval .umi-approval-actions button {
+  min-height: 30px; padding: 5px 12px; font-size: 12px; font-weight: 400; border-radius: 8px !important; box-shadow: none !important;
+}
 :root body .composer-approval .approval-deny { color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border-color); }
 :root body .composer-approval .approval-deny:hover { background: var(--bg-secondary); }
 :root body .composer-approval .approval-allow { color: #fff; background: #337fed; border: 1px solid #337fed; }
 :root body .composer-approval .approval-allow:hover { background: #2d72d6; border-color: #2d72d6; }
 :root body .composer-approval .umi-approval-actions button:disabled { opacity: .5; cursor: default; }
+
+/* 成果采用现有圆角与颜色变量；展开只增加内容，不增加投影。 */
+.delivery-panel .work-panel-body { display: block; overflow-y: auto; padding: 0; }
+.umi-outputs { padding: 16px; color: var(--text-primary); font-size: 13px; }
+.umi-outputs header, .umi-output-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.umi-outputs h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.umi-outputs button { border: 1px solid var(--border-color); background: transparent; color: inherit; border-radius: var(--control-radius); padding: 6px 9px; font: inherit; cursor: pointer; }
+.umi-outputs button:hover { background: var(--bg-selected-soft); }
+.umi-outputs button:disabled { opacity: .5; cursor: default; }
+.umi-outputs button:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
+.umi-output-list { list-style: none; padding: 0; margin: 12px 0; }
+.umi-output-list li, .umi-export-record { border-top: 1px solid var(--border-color); padding: 10px 0; }
+.umi-output-name { display: block; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.umi-outputs small, .umi-outputs p, .umi-inspection small { color: var(--text-secondary); line-height: 1.6; }
+.umi-output-actions { margin-top: 7px; }
+.umi-output-preview { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--control-radius); font-size: 12px; }
+.umi-outputs [role=alert] { color: var(--text-primary); overflow-wrap: anywhere; }
+.umi-export-record summary { cursor: pointer; padding: 4px 0; }
+.umi-export-target { overflow-wrap: anywhere; }
+.umi-inspection { border-left: 2px solid var(--border-color); padding: 8px 12px; margin-bottom: 10px; }
+.umi-inspection p { overflow-wrap: anywhere; }
+
+.umi-output-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; }
+.umi-output-list .umi-output-name { grid-column: 1; border: 0; padding: 0; display: flex; align-items: center; gap: 5px; text-align: left; background: transparent; }
+.umi-output-list small { grid-column: 1; font-size: 11px; }
+.umi-output-list .umi-output-actions { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+
+.umi-history-load { align-self: center; border: 0; background: transparent; color: var(--text-muted); padding: 8px 12px; font: inherit; font-size: 12px; }
+.umi-history-load:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+
+.work-preview-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 12px; color: var(--text-secondary); }
+.work-preview-status button { margin-left: auto; border: 1px solid var(--border-color); background: transparent; color: inherit; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
+.work-preview-error { padding: 12px 16px; font-size: 13px; }
+
+/* 标签外观与溢出行为统一由 file-preview.css 管理。 */
+.work-preview-add, .work-preview-tab-close { flex-shrink: 0; }
+
+/* 人类问答与权限卡分开；沿现有颜色/圆角，不引入另一套运行时面板。 */
+.umi-question {
+  margin: 0; padding: 14px 16px; border: 0; border-radius: 14px; background: var(--bg-primary); color: var(--text-primary); font-size: 12px;
+}
+.umi-question-body {
+  max-height: none; overflow: visible; margin: 12px 0;
+}
+.umi-question fieldset {
+  border: 0; padding: 0; margin: 0; min-width: 0;
+}
+.umi-question legend {
+  font-size: 13px; font-weight: 500; line-height: 1.6; margin-bottom: 10px; padding: 0;
+}
+.umi-question-option {
+  display: flex; align-items: flex-start; gap: 9px; padding: 9px 10px; border: 1px solid var(--border-light); border-radius: 9px; cursor: pointer; line-height: 1.5;
+}
+.umi-question-option input {
+  flex: none; width: 13px; height: 13px; margin: 2px 0 0; accent-color: #2e7feb;
+}
+.umi-question-option small {
+  display: block; color: var(--text-muted); margin-top: 3px; font-size: 11px; line-height: 1.5;
+}
+.umi-question textarea {
+  box-sizing: border-box; width: 100%; max-height: 110px; margin-top: 8px; resize: vertical; border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 10px; color: var(--text-primary); background: var(--bg-primary); font-size: 12px; line-height: 1.6;
+}
+.umi-question-actions {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.umi-question-actions small { color: var(--text-secondary); }
+.umi-question-actions button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0; border-radius: 8px; padding: 6px 12px; min-height: 30px; background: #2e7feb; color: white; cursor: pointer; font-size: 12px; font-weight: 400;
+}
+.umi-question-actions button:disabled { opacity: .45; cursor: default; }
+.umi-preview-modes {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border-light); border-radius: 8px;
+}
+.umi-preview-modes button {
+  color: var(--text-muted); background: transparent; border: 0; border-radius: 6px !important; padding: 4px 10px; font-size: 11px;
+}
+.umi-preview-modes button[aria-pressed="true"] {
+  background: var(--bg-hover); color: var(--text-primary);
+}
+.umi-frozen-versions { display: grid; gap: 4px; padding: 0 16px 8px; color: var(--text-secondary); font-size: 11px; overflow-wrap: anywhere; }
+@media (max-width: 760px) { .umi-question { margin-inline: 12px; } }
+
+/* 问答复用已测量的底部交互区域，正文和提交控件不会被悬浮输入器覆盖。 */
+.composer.composer-question {
+  padding: 0; box-shadow: none; transition: border-color .12s; background: var(--bg-primary);
+}
+.composer-question .umi-question {
+  margin: 0; border: 0; background: transparent;
+}
+.umi-question-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 11px;
+}
+.umi-question-header button {
+  border: 0; border-radius: 7px; background: transparent; color: var(--text-muted); padding: 3px 6px; font: inherit;
+}
+
+/* 左按钮保留顶部位置；右按钮跟随工作卡片，定位由 file-preview.css 管理。 */
+.app-titlebar { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; height: 28px; padding-left: 16px; -webkit-app-region: drag; }
+.app-titlebar button { -webkit-app-region: no-drag; width: 28px; height: 28px; border: 0; }
+.app-shell > .left-sidebar { grid-column: 1; grid-row: 2; }
+.app-shell > .work-surface { grid-column: 2; grid-row: 2; }
+.left-title-toggle { position: relative; flex: none; }
+.question-options { display: grid; gap: 5px; }
+.umi-question-option:hover { background: var(--bg-hover); }
+.umi-question-option.is-selected { background: #2e7feb08; border-color: #2e7feb60; }
+.umi-question-header > span { display: flex; gap: 10px; align-items: center; }
+.umi-question-header small { color: var(--text-muted); font-size: 10px; }
+:root body .umi-question-actions .question-previous { background: transparent; color: var(--text-secondary); padding-left: 0; }
+.approval-operation-detail { margin-top: 8px; color: var(--text-secondary); font-size: 11px; }
+.approval-operation-detail summary { cursor: pointer; padding: 3px 0; }
+.approval-operation-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 10px; max-height: 200px; overflow-y: auto; border-radius: 8px; background: var(--bg-secondary); font: 11px/1.65 Consolas, var(--font-ui); }
+.umi-changes .umi-file-row, .umi-changes .umi-file-row:hover { background: transparent; box-shadow: none; border-radius: 8px; padding: 7px 8px; }
+.umi-tool-toggle[data-outcome=failed], .umi-tool-toggle[data-outcome=failed] .umi-tool-hint { color: #d94556; }
+[data-theme=dark] .umi-tool-toggle[data-outcome=failed], [data-theme=dark] .umi-tool-toggle[data-outcome=failed] .umi-tool-hint { color: #f18a97; }
+.delivery-panel .work-preview-content { display: flex; flex-direction: column; min-height: 0; flex: 1; background: var(--bg-primary); }
+.delivery-panel .umi-preview-body { display: flex; flex: 1; min-height: 0; overflow: hidden; padding: 0; }
+.delivery-panel .work-preview-breadcrumb { padding: 10px 12px 4px; font-size: 11px; gap: 6px; }
+.delivery-panel .work-preview-breadcrumb strong { font-weight: 400; }
+.delivery-panel .work-preview-status { padding: 6px 12px 10px; font-size: 10px; }
+.work-preview-location { font-size: 0; gap: 0; padding: 4px; }
+.work-preview-location svg { width: 14px; height: 14px; }
+.work-preview-error button { display: inline-flex; align-items: center; gap: 4px; background: transparent; border: 0; color: inherit; }
+.settings-page * { box-shadow: none !important; }
+.settings-content { width: min(660px, 100%); }
+.settings-heading h1 { font-size: 20px; font-weight: 500; }
+.composer { position: relative; }
+
+.question-options:has(> .umi-question-option:nth-child(5)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.question-options:has(> .umi-question-option:nth-child(5)) > .umi-question-option:last-child { grid-column: 1 / -1; }
+
+.composer-approval .umi-approval-body > small { color: var(--text-muted); font-size: 11px; line-height: 1.5; }

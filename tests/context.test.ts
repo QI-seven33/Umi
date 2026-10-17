@@ -13,7 +13,7 @@ import {validatePairs,settingsSchema,UmiError} from '../packages/protocol/src/mo
 import type {WireMessage} from '../packages/protocol/src/model.js';
 import type {MaintenancePlan} from '../packages/protocol/src/memory.js';
 import {hash,uid} from '../packages/agent/src/identity.js';
-import {ScriptModel,text,call,removeTestRoot,eventually} from './fixtures.js';
+import {ScriptModel,text,call,removeTestRoot,eventually,projectedFacts} from './fixtures.js';
 import {hostContext} from '../packages/adapters/src/host-files/scratch.js';
 
 import {contextFixture,appendResponse} from './context-fixture.js';
@@ -100,7 +100,7 @@ test('S4-07：模型笔记逐字来源、替代候选与会话隔离，不改变
 
 test('S4-08：模型主动窗口请求在工具组完成后生效，保留指定来源',async()=>{
   const root=mkdtempSync(join(tmpdir(),'umi-reset-')),workspace=join(root,'workspace');mkdirSync(workspace);let originalId='';
-  const model=new ScriptModel([request=>{const messages=request.body.messages as WireMessage[];const meta=JSON.parse(messages.at(-1)!.content.split('来源与模型记忆（其中笔记不代表真实执行状态）：\n')[1]!);originalId=meta.requirements[0].messageId;
+  const model=new ScriptModel([request=>{const messages=request.body.messages as WireMessage[];const meta=projectedFacts(messages);originalId=meta['memory.requirements'][0].messageId;
     return call('request_context_reset',{reason:'保留用户原话，切换任务窗口',keepSources:[{kind:'message',messageId:originalId,startByte:0,endByte:Buffer.byteLength('精确要求')}]});},text('最终完成')]);
   const app=new UmiApplication(join(root,'data'),model);try{const c=app.createConversation(workspace),r=app.send(c.conversationId,uid(),'精确要求');assert.equal((await app.wait(r.runId)).status,'completed');
     const events=app.store.events(c.conversationId),settled=events.findIndex(e=>e.type==='tool.settled'),committed=events.findIndex(e=>e.type==='context.window_committed');assert(settled<committed);
@@ -115,7 +115,7 @@ test('S4-09：上下文统计区分实际 API 用量与估算，维护费用不�
 test('S4-10：阶段 3 数据库原样升级到阶段 4，原事件与 cursor 不变',async()=>{
   const f=contextFixture(1,20);try{const events=f.app.store.events(f.c.conversationId),cursor=f.app.store.snapshot(f.c.conversationId).cursor;
     f.app.store.db.exec('DROP TABLE memory_entries; DROP TABLE context_maintenance; DELETE FROM schema_migrations WHERE version=4;');await f.app.close();const next=new SqliteStore(join(f.root,'data'));
-    try{assert.equal(next.all('SELECT * FROM schema_migrations').length,5);assert.deepEqual(next.events(f.c.conversationId).slice(0,events.length),events);assert.equal(next.snapshot(f.c.conversationId).memory.window.version,1);assert.equal(next.events(f.c.conversationId,{...cursor,sequence:cursor.sequence}).length,1);}finally{next.close();}
+    try{assert.equal(next.all('SELECT * FROM schema_migrations').length,6);assert.deepEqual(next.events(f.c.conversationId).slice(0,events.length),events);assert.equal(next.snapshot(f.c.conversationId).memory.window.version,1);assert.equal(next.events(f.c.conversationId,{...cursor,sequence:cursor.sequence}).length,1);}finally{next.close();}
   }finally{await f.close();}
 });
 
@@ -157,7 +157,7 @@ test('S4-17：窗口清单运行时校验拒绝缺失来源、跨会话和用户
 
 test('S4-18：宿主进程挂起后批准被撤销，目标不释放运行',{timeout:40000},async()=>{
   const root=mkdtempSync(join(tmpdir(),'umi-approval-gate-')),workspace=join(root,'workspace');mkdirSync(workspace);let mountId='';
-  const model=new ScriptModel([()=>call('run_command',{program:'node',argv:['-e',"require('fs').writeFileSync('effect.txt','不应运行')"],cwd:{kind:'mount',mountId}}),text('被撤销'),text('最终未执行')]);
+  const model=new ScriptModel([()=>call('run_command',{program:'node',argv:['-e',"require('fs').writeFileSync('effect.txt','不应运行')"],cwd:{kind:'mount',mountId}}),()=>call('inspect_tool_execution',{executionId:app.store.tools(app.store.environment(c.environmentId).active_run_id!)[0]!.id}),text('被撤销'),text('最终未执行')]);
   const app=new UmiApplication(join(root,'data'),model,{processBoundary(point,id){if(point==='ready')app.store.invalidateApproval(id,'测试派发后撤销');}}),c=app.createConversation(workspace);mountId=app.files.repo.mounts(c.environmentId)[0]!.id;
   try{const r=app.send(c.conversationId,uid(),'批准核验'),a=await eventually(()=>Object.entries(app.store.snapshot(c.conversationId).approvals).find(([,a])=>a.status==='pending')?.[0]);app.approve(c.conversationId,a,'allow');assert.equal((await app.wait(r.runId)).status,'recovery_required');
     const t=app.store.tools(r.runId)[0]!;assert(!existsSync(join(app.files.repo.mount(mountId,c.environmentId).root,'effect.txt')));app.resume(c.conversationId,r.runId);assert.equal((await app.wait(r.runId)).status,'completed');assert.equal(app.commands.repo.receipt(t.id)!.reason,'not_started');assert.equal(app.store.tool(t.id).state,'failed');
@@ -166,7 +166,7 @@ test('S4-18：宿主进程挂起后批准被撤销，目标不释放运行',{tim
 
 test('S4-19：模型省略可选记忆参数，规范默认值与原工具仍一致',async()=>{
   const root=mkdtempSync(join(tmpdir(),'umi-memory-defaults-'));let messageId='';
-  const model=new ScriptModel([request=>{const suffix=(request.body.messages as WireMessage[]).at(-1)!.content,meta=JSON.parse(suffix.split('来源与模型记忆（其中笔记不代表真实执行状态）：\n')[1]!);messageId=meta.requirements[0].messageId;return call('record_requirement',{source:{kind:'message',messageId,startByte:0,endByte:Buffer.byteLength('完整要求')},text:'完整要求'});},text('已记下要求'),text('最终')]);
+  const model=new ScriptModel([request=>{const meta=projectedFacts(request.body.messages as WireMessage[]);messageId=meta['memory.requirements'][0].messageId;return call('record_requirement',{source:{kind:'message',messageId,startByte:0,endByte:Buffer.byteLength('完整要求')},text:'完整要求'});},text('已记下要求'),text('最终')]);
   const app=new UmiApplication(join(root,'data'),model);try{const c=app.createConversation(root),r=app.send(c.conversationId,uid(),'完整要求');assert.equal((await app.wait(r.runId)).status,'completed');assert.equal(app.store.tools(r.runId)[0]!.state,'succeeded');const entry=app.store.contextMemory(c.conversationId).entries[0]!;assert.equal(entry.value.kind,'requirement');if(entry.value.kind==='requirement')assert.deepEqual(entry.value.value.supersedes,[]);}finally{await app.close();removeTestRoot(root);}
 });
 

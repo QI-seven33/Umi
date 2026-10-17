@@ -1,0 +1,36 @@
+name: 缺陷报告
+description: 提供可复现的问题与脱敏证据
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "安全漏洞请先阅读 SECURITY.md。不要提交密钥、完整会话数据库或私人工作文件。"
+  - type: input
+    id: version
+    attributes:
+      label: Umi 版本与来源
+      placeholder: "0.2.0-alpha.1，安装版 / 便携版 / 源码提交"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows 版本
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 最小复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 预期结果与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 已脱敏的截图或错误摘要

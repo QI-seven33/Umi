@@ -1,118 +1,101 @@
 # Umi
 
-基于 **TypeScript + Electron + React** 的 Windows 桌面 Agent。默认使用 DeepSeek，支持流式任务过程、文件工作副本、具体批准、变更集交付、宿主命令和长任务上下文维护。
+<img src="apps/desktop/renderer/public/umi-logo.png" width="96" height="96" alt="Umi 圆角白底应用图标">
 
-当前主分支已由旧 Python 后端迁移到唯一 TypeScript Agent 核心。旧实现保留在 Git 历史中；产品名始终是 **Umi**。
+A local Windows AI agent built with TypeScript, Electron, and React.
 
-## 从这里了解项目
+Umi 是运行在 Windows 上的单人 AI 工作代理：描述任务、查看执行过程、批准具体操作，在工作副本中修改文件，再把确认的变更交付回原位置。默认模型适配器使用 DeepSeek。
 
-- **[新会话交接](docs/handoff.zh-CN.md)**：当前状态、未提交改动备份、下一步与构建注意事项。
-- **[新会话开场提示](docs/next-session-prompt.zh-CN.md)**：复制到新对话即可接续开发或学习。
+**当前版本：0.2.0-alpha.1，实验性预发布。** 当前唯一 Agent 核心为 TypeScript；旧 Python 实现保留在 Git 历史中。
 
-- **[当前项目详解与开发路线](docs/current-project-report.zh-CN.md)**：架构、执行链路、数据、权限、上下文、问题和后续优先级。
-- **[代码学习与开发指南](docs/code-reading-guide.zh-CN.md)**：按文件阅读、调用链练习、修改入口和调试方法。
-- [核心契约](docs/contracts-v1.md)、[架构设计](docs/architecture-v1.md)、[迁移与验收](docs/migration-and-acceptance.md)：早期决策与基线。
+## 下载与安装
 
-历史阶段报告描述当时状态；后续已增加图片附件等能力。当前状态以最新报告和源码为准。本地原始截图/日志 `docs/evidence/` 不随本次源码发布。
+从 [GitHub Releases](https://github.com/QI-seven33/Umi/releases) 下载 Windows x64 版本：
 
-## 开发运行
+| 文件 | 用途 |
+| --- | --- |
+| `Umi-Setup-0.2.0-alpha.1-x64.exe` | 安装版，可选择目录，为当前用户安装，包含卸载入口 |
+| `Umi-0.2.0-alpha.1-win-x64-portable.zip` | 便携版，完整解压后运行其中的 `Umi.exe` |
+| `SHA256SUMS.txt` | 下载文件的 SHA-256 校验值 |
 
-要求 Node.js **`>=24.11.0 <25`**，依赖由 package-lock.json 固定。当前只有根 package，没有 pnpm/npm workspaces。
+目标环境为 Windows 10/11 x64；本次实际验证环境和结果见[发布说明](docs/releases/0.2.0-alpha.1.zh-CN.md)。安装包暂未进行代码签名。请核对仓库来源和校验值，不要只从便携目录复制一个 exe。
 
 ```powershell
+Get-FileHash .\Umi-Setup-0.2.0-alpha.1-x64.exe -Algorithm SHA256
+```
+
+首次启动后，在设置中填写自己的模型 API Key。密钥、会话和工作资料保存在本机用户数据目录，与安装目录分开。卸载默认保留用户数据；更新前建议自行备份。
+
+关闭窗口会隐藏应用，任务继续；通过 **Umi → 退出 Umi** 完整退出。升级或在源码版和便携版之间切换时，请先从菜单退出旧实例。
+
+## 已有能力
+
+- 单一 Agent 循环、流式任务过程、持久事件和中断核验。
+- 自然消息继续或切换任务，独立的选项问答与自定义回答。
+- 资源发现、选定范围授权、工作副本、搜索、连续读取和原子文本编辑。
+- 冻结变更集预览、具体批准后交付，以及交付文件的跨轮打开。
+- 宿主命令批准、执行记录、停止与未知结果核验。
+- 文件标签与代码/Markdown/静态 HTML/图片预览；可调节预览区域。
+- 蓝色呼吸运行边缘，与输入框等宽的批准卡和选项卡。
+
+**执行边界：宿主命令没有操作系统级文件或网络沙箱。** 工作目录和 Windows Job 进程管理不构成隔离。模型可以请求文件写回或命令执行；请阅读具体请求再决定是否批准。
+
+技能、通用插件加载器、任务内宿主信任和自动免批准执行仍处于设计阶段。PDF/Office 等二进制文件尚无完整内置解析。已知问题见[问题清单](docs/known-issues.zh-CN.md)。
+
+## 从源码运行
+
+要求 Node.js **`>=24.11.0 <25`**，使用根目录 npm 和已提交的锁文件。
+
+```powershell
+git clone https://github.com/QI-seven33/Umi.git
+cd Umi
 npm ci --no-audit --no-fund
 npm run typecheck
 npm run dev
 ```
 
-在设置中填写自己的 DeepSeek API Key，或在启动前配置 `DEEPSEEK_API_KEY`。`.env.example` 仅是模板；桌面入口不会自动读取任意 `.env`，使用环境变量或桌面设置。
-
-关闭窗口只隐藏，任务继续；菜单 **Umi → 退出 Umi** 才会关闭执行器。重启会核验持久状态，不自动续跑。
-
-便携 Umi 已打开时，开发入口的第二实例可能只唤回旧窗口。先退出旧实例，再启动开发版。dist 与 release 的资源目录不同，构建源码不会自动更新旧便携包。
-
-### 无 Key 演示
+可在设置中配置密钥，或使用 `DEEPSEEK_API_KEY` 环境变量。桌面入口不会自动读取任意 `.env` 文件。无需密钥的确定性演示：
 
 ```powershell
 npm run demo
 ```
 
-使用确定性模型替身和产品同一循环，在独立临时环境中运行。
-
-### 无界面入口
-
-```powershell
-npm run build
-node --env-file=.env dist/apps/headless/src/cli.js --data .umi
-```
-
-CLI 每行接收一条 JSON 命令，不需要 Python 服务。
-
-```json
-{"type":"create","workspace":"E:/Projects/example"}
-{"type":"send","conversationId":"会话 ID","commandId":"本次输入的唯一 ID","text":"请检查这个项目。"}
-{"type":"approve","conversationId":"会话 ID","approvalId":"批准 ID","decision":"allow"}
-{"type":"stop","conversationId":"会话 ID","runId":"运行 ID"}
-{"type":"recovery","conversationId":"会话 ID","runId":"运行 ID"}
-{"type":"resume","conversationId":"会话 ID","runId":"运行 ID"}
-{"type":"shutdown"}
-```
-
-工作区必须存在。同一输入回执重试时使用原 commandId，不要用新 ID 重复发任务。
-
-## 目录
-
-```text
-apps/headless/src/       应用组装、CLI、生命周期
-apps/desktop/            Electron、IPC、Agent worker、React 页面
-packages/protocol/src/   Zod 契约、事件、纯归约
-packages/agent/src/      唯一循环、上下文、工具和持久化端口
-packages/adapters/src/   DeepSeek、SQLite、宿主文件/进程
-tests/                   协议、恢复、故障注入和 UI 逻辑验证
-scripts/                 构建、打包、真实 API 与桌面验证
-docs/                    设计、学习指南、阶段报告
-```
-
-## 能力和边界
-
-- **文件**：获准资源后编辑副本，再冻结 ChangeSet；真实写回需要具体交付批准。当前单文件路径转成父目录资源，可能触发目录物化限额，是优先待修问题。
-- **命令**：每次需具体批准，绑定程序、脚本和环境，Windows Job 管理普通进程树。**没有宿主文件/网络 OS 沙箱**，cwd 只是起点。
-- **恢复**：先核验原执行，不盲目重复未知写入；预算未变时拒绝无效恢复。恢复反馈待完善。
-- **上下文**：默认配置窗口 1M，保护用户原话，按完整工具组维护。估算和实际用量分开；极长用户原文累计仍可能阻塞。
-- **附件**：每条最多 8 个，每个最多 1 MB；支持文本和常见图片，图片最长边 4096。Flash 路由支持图像，Pro 路由不支持。PDF/Office 二进制解析未实现。
-- **模型**：路由为 `deepseek-flash`、`deepseek-v4-pro`；UI 版本名称是静态标签，不是本次实际响应证明。Off/Normal/High 由适配器映射参数。
-- **插件**：Docker/WSL 目前提供配置和检查，调用仍走宿主批准；没有通用加载器或专用隔离 Runtime。
-- **数据**：SQLite schema 5。密钥、会话、工作副本和本机证据不提交到 Git。
-
-详见[当前项目报告](docs/current-project-report.zh-CN.md)。长任务质量、费用、恢复体验和生产发布仍需持续验证。
+无界面入口、协议与调用链见[代码学习指南](docs/code-reading-guide.zh-CN.md)和[核心契约](docs/contracts-v1.md)。
 
 ## 构建与验证
 
 ```powershell
-npm run typecheck
-npm run build:desktop
 npm test
+npm run build:icons
 npm run verify:desktop
-npm run package:desktop
+npm run package:windows
+npm run verify:packaged
 ```
 
-便携输出 release/Umi-win32-x64/Umi.exe，需要整个目录。Electron 下载按其安装配置进行；网络受限时可在自己的环境配置镜像。
+`build:icons` 从 `assets/brand/umi-symbol.png` 生成圆角白底 PNG 和多尺寸 ICO。`package:windows` 先重建便携版，再生成安装器、完整便携 zip 和校验文件，输出到 `release/installers/`。本地构建不自动上传 GitHub。详见[Windows 发布流程](docs/windows-release.zh-CN.md)。
 
-测试包含真实进程/文件检查，部分能力要求 Windows；桌面验证使用独立目录和模型替身。真实 DeepSeek 验收会产生费用，不是普通构建的默认步骤：
+普通验证使用独立数据目录和模型替身。真实 API 验证可能产生费用，需要自己的密钥和单独授权，不属于默认构建流程。
 
-```powershell
-node --env-file=.env dist/scripts/verify-deepseek.js
-node --env-file=.env dist/scripts/verify-files.js
-node --env-file=.env dist/scripts/verify-process.js
-node --env-file=.env dist/scripts/verify-context.js
-```
+## 项目结构与文档
 
-## 后续重点
+| 目录 | 职责 |
+| --- | --- |
+| `apps/desktop/` | Electron 主进程、固定 IPC、broker、worker 和 React 界面 |
+| `apps/headless/src/` | 应用组装、CLI 和生命周期 |
+| `packages/protocol/src/` | 运行时契约、事件和纯状态归约 |
+| `packages/agent/src/` | 唯一 Agent 循环、上下文和工具调度 |
+| `packages/adapters/src/` | 模型、SQLite、宿主文件与进程适配器 |
+| `tests/` | 协议、恢复、故障注入和界面逻辑验证 |
 
-1. 单文件/选定范围资源的发现、授权、物化和恢复闭环。
-2. 资源限制原因、恢复核验结果和进度展示。
-3. 重复输入来源追踪、同一运行多消息的展示修正。
-4. 有预算的活跃原文保护、长期检索和长任务评测。
-5. 样式/组件整理、完整国际化和可重现发布。
+- [当前项目报告](docs/current-project-report.zh-CN.md)：实现状态与架构。
+- [代码学习指南](docs/code-reading-guide.zh-CN.md)：调用链和阅读入口。
+- [开发交接](docs/handoff.zh-CN.md)：开发阶段记录，历史条目不等于当前实现。
+- [更新记录](CHANGELOG.md)、[贡献指南](CONTRIBUTING.md)、[安全报告](SECURITY.md)。
 
-仓库未新增项目许可证；后续对外分发前由项目所有者明确授权方式，并核对第三方依赖和组件的适用许可。
+阶段报告中的机器路径仅描述维护者当时的本地证据位置；原始日志、截图、数据库、密钥、依赖和构建产物不提交到源码 Git。安装文件通过 Releases 分发。
+
+## 授权与第三方资料
+
+本仓库当前没有授予开源许可证，npm 元数据标记为 `UNLICENSED`；具体说明见[授权状态](LICENSING.md)。公开仓库不等同于已授予任意再分发许可。项目所有者尚未选择开源协议。
+
+第三方代码、字体和图标分别遵循各自许可，见[第三方声明](THIRD_PARTY_NOTICES.md)。欢迎按[贡献指南](CONTRIBUTING.md)交流问题和改进建议。

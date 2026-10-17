@@ -17,7 +17,10 @@ import { THINKING_LABELS } from "../models.js";
 
 export function Composer(props: {
   workspace: string;
+  // 当前批准等待保留允许/拒绝；未来可在独立输入扩展区接入改要求，不能借回答隐式批准。
   approvalPanel?: ReactNode;
+  questionPanel?: ReactNode;
+  notice?: ReactNode;
   prompt: string; onPromptChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
   onDragOver: (e: DragEvent) => void; onDragLeave: () => void; onDrop: (e: DragEvent) => void;
   onPaste: (e: ClipboardEvent) => void;
@@ -29,7 +32,7 @@ export function Composer(props: {
   thinking: ThinkingLevel; onSelectThinking: (level: ThinkingLevel) => void;
   contextStats?: WorkContextStats | null;
   executionPolicy: ExecutionPolicy; onSelectExecutionPolicy: (policy: ExecutionPolicy) => void;
-  streaming: boolean; submitting?:boolean;
+  streaming: boolean; stopping?: boolean; submitting?:boolean;
   onSubmit: (e: FormEvent) => void; onStop: () => void;
   isAtBottom: boolean; onScrollToBottom: () => void;
 }) {
@@ -83,12 +86,7 @@ export function Composer(props: {
     return () => window.removeEventListener("resize", place);
   }, [modelMenuOpen, thinkingMenuOpen]);
 
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 140)}px`;
-  }, [prompt, Boolean(props.approvalPanel)]);
+  // 高度由 CSS field-sizing 随文字和容器宽度共同调整，避免每次输入强制测量布局。
 
   // 输入区高度会随附件 / 多行文本变化：把实测高度写到 --composer-h，
   // 让聊天区底部留白同步，避免输入区变高时遮挡消息。
@@ -120,23 +118,22 @@ export function Composer(props: {
   }, []);
 
   useEffect(() => {
-    if (props.approvalPanel) { setPermissionMenuOpen(false); setModelMenuOpen(false); setThinkingMenuOpen(false); }
-  }, [Boolean(props.approvalPanel)]);
+    if (props.approvalPanel || props.questionPanel) { setPermissionMenuOpen(false); setModelMenuOpen(false); setThinkingMenuOpen(false); }
+  }, [Boolean(props.approvalPanel || props.questionPanel)]);
 
   const insert=(text:string)=>{const ta=textareaRef.current;if(!ta)return;const next=insertPlainText(ta.value,ta.selectionStart,ta.selectionEnd,text);ta.value=next.value;onPromptChange({target:ta,currentTarget:ta} as ChangeEvent<HTMLTextAreaElement>);requestAnimationFrame(()=>{ta.focus();ta.setSelectionRange(next.caret,next.caret);});};
   const canSend=Boolean(workspace&&currentModel?.available&&!props.submitting&&(prompt.trim()||attachments.length)&&attachments.every(item=>item.state==='done'&&(item.kind!=='image'||currentModel.capabilities.vision)));
   return (
-    <form ref={sectionRef} className="composer-section" onSubmit={onSubmit}>
+    <form ref={sectionRef} className="composer-section" onSubmit={props.approvalPanel || props.questionPanel ? e => e.preventDefault() : onSubmit}>
+      {props.notice && <div className="composer-notice">{props.notice}</div>}
       {props.approvalPanel ? <div className="composer composer-approval" aria-label="等待批准">
-        <div className="approval-dock-header"><span><ShieldCheck size={15}/><strong>等待你的批准</strong></span>
-          {streaming && <button type="button" className="send-button stop" aria-label="停止任务" title="停止任务" onClick={onStop}><span className="stop-square"/></button>}
-        </div>
         <div className="approval-dock-content">{props.approvalPanel}</div>
-      </div> : <div className={`composer ${dragging ? "dragging" : ""}`}
+      </div> : props.questionPanel ? <div className="composer composer-question">{props.questionPanel}</div> : <div className={`composer ${dragging ? "dragging" : ""}`}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); onDragOver(e); }}
         onDragLeave={() => { setDragging(false); onDragLeave(); }}
         onDrop={(e) => { setDragging(false); onDrop(e); }}
         onPaste={e=>{if(e.clipboardData.files.length){onPaste(e);return;}const text=e.clipboardData.getData("text/plain");if(text){e.preventDefault();if(asTextDocument(text))onAddFiles([new File([text],'已粘贴的文本.txt',{type:'text/plain'})]);else insert(text);}}}>
+        {streaming && !props.stopping && <span className="composer-breathing" aria-hidden="true" />}
         <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} onPreview={onPreviewAttachment} />
         {attachments.some((item) => item.kind === "image") && !currentModel?.capabilities.vision &&
           <p className="confirm-error">当前 Pro 不支持图片输入，请切换至 DeepSeek Flash。</p>}
@@ -168,7 +165,7 @@ export function Composer(props: {
                 {executionPolicy === "ask"
                   ? <ShieldCheck size={14} strokeWidth={1.9} />
                   : <Zap size={14} strokeWidth={1.9} />}
-                <strong>{executionPolicy === "ask" ? "询问执行" : "自动执行"}</strong>
+                <strong>{executionPolicy === "ask" ? "询问执行" : "自动执行（未实现）"}</strong>
                 <ChevronDown size={13} strokeWidth={2} />
               </button>
               {permissionMenuOpen && <div className="permission-menu work-permission-menu">
@@ -178,11 +175,12 @@ export function Composer(props: {
                     icon: <ShieldCheck size={15} strokeWidth={1.9} />
                   },
                   {
-                    value: "auto" as ExecutionPolicy, title: "自动执行", detail: "常规操作自动执行，风险操作仍询问",
+                    value: "auto" as ExecutionPolicy, title: "自动执行（未实现）", detail: "当前仍按具体批准执行；任务内信任待设计",
                     icon: <Zap size={15} strokeWidth={1.9} />
                   },
                 ]).map((item) => <button type="button" key={item.value}
                   className={`policy-${item.value}${executionPolicy === item.value ? " selected" : ""}`}
+                  disabled={item.value === "auto"}
                   onClick={() => { onSelectExecutionPolicy(item.value); setPermissionMenuOpen(false); }}>
                   {item.icon}<span><strong>{item.title}</strong><small>{item.detail}</small></span>
                   <Check size={15} />
@@ -280,7 +278,7 @@ export function Composer(props: {
               )}
             </div>
             {streaming ? (
-              <button type="button" className="send-button stop" aria-label="终止生成" onClick={onStop}>
+              <button type="button" className="send-button stop" aria-label={props.stopping ? "正在停止" : "终止生成"} disabled={props.stopping} onClick={onStop}>
                 <span className="stop-square" />
               </button>
             ) : (

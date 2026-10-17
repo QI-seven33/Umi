@@ -29,8 +29,8 @@ export function projectHistoryPreview(snapshot: Snapshot | null): Message[] {
 }
 
 /** 右侧历史刻度：邻近刻度随悬停渐变，预览跟随对应消息的位置。 */
-export function ConversationMap({ messages, canvasRef }: {
-  messages: Message[]; canvasRef: RefObject<HTMLElement | null>;
+export function ConversationMap({ messages, canvasRef, onNavigate }: {
+  messages: Message[]; canvasRef: RefObject<HTMLElement | null>; onNavigate?: (id: string) => void;
 }) {
   const turns = useMemo(() => messages.filter((message) => message.role === "user"), [messages]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -102,6 +102,7 @@ export function ConversationMap({ messages, canvasRef }: {
           onFocus={(event) => showPreview(turn.id, event.currentTarget)}
           onBlur={() => setHoveredId(null)}
           onClick={() => {
+            if (onNavigate) { onNavigate(turn.id); return; }
             const root = canvasRef.current;
             const element = document.getElementById(`msg-${turn.id}`);
             if (root && element) root.scrollTo({ top: root.scrollTop + element.getBoundingClientRect().top

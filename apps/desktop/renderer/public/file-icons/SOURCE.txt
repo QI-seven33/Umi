@@ -1,0 +1,5 @@
+vscode-icons official project repository
+https://github.com/vscode-icons/vscode-icons
+Commit: 5170b0e7ee6b23ad31d69848bd051e70e5f26cf1
+Files copied unchanged from icons/file_type_*.svg.
+MIT license; language and product marks belong to their respective owners.
