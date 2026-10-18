@@ -419,12 +419,12 @@ test('C11：阶段 2 数据库升级保留原消息、scratch 定位与事件游
       messages = app.store.messages(c.conversationId);
     // 阶段 2 已有表和记录；去掉仅新增的表及版本，模拟真实版本 1 存量。
     app.store.db.exec(
-      'DROP TABLE context_maintenance; DROP TABLE memory_entries; DROP TABLE process_outputs; DROP TABLE process_executions; DROP TABLE process_fingerprints; DROP TABLE delivery_items; DROP TABLE changesets; DROP TABLE mounts; DROP TABLE materializations; DROP TABLE resource_denials; DROP TABLE capabilities; DROP TABLE resources; DROP TABLE resource_scopes; DROP TABLE resource_candidates; DELETE FROM schema_migrations WHERE version IN(2,3,4,6);',
+      'DROP TABLE conversation_deletions; DELETE FROM schema_migrations WHERE version=7; DROP TABLE context_maintenance; DROP TABLE memory_entries; DROP TABLE process_outputs; DROP TABLE process_executions; DROP TABLE process_fingerprints; DROP TABLE delivery_items; DROP TABLE changesets; DROP TABLE mounts; DROP TABLE materializations; DROP TABLE resource_denials; DROP TABLE capabilities; DROP TABLE resources; DROP TABLE resource_scopes; DROP TABLE resource_candidates; DELETE FROM schema_migrations WHERE version IN(2,3,4,6);',
     );
     await app.close();
     const upgraded = new SqliteStore(join(root, 'data'));
     try {
-      assert.equal(upgraded.all('SELECT * FROM schema_migrations').length, 6);
+      assert.equal(upgraded.all('SELECT * FROM schema_migrations').length, 7);
       assert.deepEqual(upgraded.messages(c.conversationId), messages);
       assert.deepEqual(upgraded.events(c.conversationId), events);
     } finally {

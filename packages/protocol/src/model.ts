@@ -165,6 +165,7 @@ export const executionContextSchema = z
     interactionExecutionId: id.optional(),
     inspectionExecutionId: id.optional(),
     fileReadExecutionId: id.optional(),
+    webReadExecutionId: id.optional(),
     fileEdit: fileEditSnapshotSchema.optional(),
     fileWrite: fileWriteSnapshotSchema.optional(),
     output: outputSnapshotSchema.optional(),

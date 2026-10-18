@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Folder, FolderOpen,
-  MoreHorizontal, Plus, SquarePen, Trash2,
+  MoreHorizontal, Plus, SquarePen, Archive,
 } from "lucide-react";
 
 import type { Conversation, Workspace, ThemeMode } from "../../types/index.js";
@@ -21,7 +21,7 @@ export function Sidebar(props: {
   conversations: Conversation[]; activeId: string;
   onSelectConversation: (id: string) => void;
   onNewConversation: (workspaceId?: string) => void;
-  onRequestDeleteConversation: (id: string, title: string) => void;
+  onRequestArchiveConversation: (id: string, title: string) => void;
   avatar: string | null; username: string; themeMode: ThemeMode;
   onSelectTheme: (theme: ThemeMode) => void;
   onOpenSettings: () => void;
@@ -31,7 +31,7 @@ export function Sidebar(props: {
     onToggleWorkspace, onCreateWorkspace,
     conversations, activeId, onSelectConversation,
     onNewConversation,
-    onRequestDeleteConversation,
+    onRequestArchiveConversation,
     avatar, username, themeMode, onSelectTheme, onOpenSettings,
   } = props;
 
@@ -162,12 +162,12 @@ export function Sidebar(props: {
                           </button>
                           {workItemMenu?.kind === "conversation" && workItemMenu.id === conversation.id && (
                             <div className="conversation-menu workspace-item-menu">
-                              <button type="button" className="delete-conversation"
+                              <button type="button" className="archive-conversation"
                                 onClick={() => {
                                   setWorkItemMenu(null);
-                                  onRequestDeleteConversation(conversation.id, conversation.title);
+                                  onRequestArchiveConversation(conversation.id, conversation.title);
                                 }}>
-                                <Trash2 size={16} />删除会话
+                                <Archive size={16} />归档会话
                               </button>
                             </div>
                           )}

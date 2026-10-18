@@ -110,7 +110,7 @@ write({
   name: 'Umi',
   protocolVersion: 1,
   instanceId: app.store.instanceId,
-  databaseVersion: 5,
+  databaseVersion: app.store.databaseVersion,
   capabilities: {
     modelConfigured: Boolean(key()),
     history: true,

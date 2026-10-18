@@ -18,7 +18,7 @@ test('无界面实际入口：Umi 就绪、严格命令、持久设置、输入�
   child.stderr.on('data',()=>{});const send=(c:unknown)=>child.stdin.write(`${JSON.stringify(c)}\n`);
   try {
     const ready=await eventually(()=>rows.find(r=>r.kind==='ready'));assert.equal(ready.name,'Umi');assert.equal((ready.capabilities as {shell:boolean}).shell,process.platform==='win32');
-    assert.equal(ready.databaseVersion,5);assert.equal((ready.capabilities as {osSandbox:boolean}).osSandbox,false);
+    assert.equal(ready.databaseVersion,7);assert.equal((ready.capabilities as {osSandbox:boolean}).osSandbox,false);
     send({type:'create',workspace:root});const c=await eventually(()=>rows.find(r=>r.type==='create'));assert.equal(typeof c.conversationId,'string');
     send({type:'settings',conversationId:c.conversationId,settings:settingsSchema.parse({thinking:'high',executionPolicy:'auto'})});
     const settings=await eventually(()=>rows.find(r=>r.type==='settings'));assert.equal((settings.settings as {thinking:string}).thinking,'high');

@@ -114,8 +114,8 @@ test('S4-09：上下文统计区分实际 API 用量与估算，维护费用不�
 
 test('S4-10：阶段 3 数据库原样升级到阶段 4，原事件与 cursor 不变',async()=>{
   const f=contextFixture(1,20);try{const events=f.app.store.events(f.c.conversationId),cursor=f.app.store.snapshot(f.c.conversationId).cursor;
-    f.app.store.db.exec('DROP TABLE memory_entries; DROP TABLE context_maintenance; DELETE FROM schema_migrations WHERE version=4;');await f.app.close();const next=new SqliteStore(join(f.root,'data'));
-    try{assert.equal(next.all('SELECT * FROM schema_migrations').length,6);assert.deepEqual(next.events(f.c.conversationId).slice(0,events.length),events);assert.equal(next.snapshot(f.c.conversationId).memory.window.version,1);assert.equal(next.events(f.c.conversationId,{...cursor,sequence:cursor.sequence}).length,1);}finally{next.close();}
+    f.app.store.db.exec('DROP TABLE conversation_deletions; DELETE FROM schema_migrations WHERE version=7; DROP TABLE memory_entries; DROP TABLE context_maintenance; DELETE FROM schema_migrations WHERE version=4;');await f.app.close();const next=new SqliteStore(join(f.root,'data'));
+    try{assert.equal(next.all('SELECT * FROM schema_migrations').length,7);assert.deepEqual(next.events(f.c.conversationId).slice(0,events.length),events);assert.equal(next.snapshot(f.c.conversationId).memory.window.version,1);assert.equal(next.events(f.c.conversationId,{...cursor,sequence:cursor.sequence}).length,1);}finally{next.close();}
   }finally{await f.close();}
 });
 

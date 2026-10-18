@@ -25,6 +25,8 @@
 }
 @container work-chat (max-width: 440px) {
   .composer .permission-button strong { max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 窄区只隐藏品牌前缀，保留可辨认的完整型号与日期；完整名称和 API ID 仍在菜单/提示中。 */
+  .composer .model-button-brand { display: none; }
   .composer .model-button-name { max-width: 125px; }
 }
 :root { --file-link-color: #276db7; }[data-theme=dark] { --file-link-color: #88b9ef; }

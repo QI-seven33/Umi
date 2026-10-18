@@ -131,7 +131,15 @@ export class MemoryRepository {
       UNION ALL SELECT id FROM memory_entries WHERE artifact_ref=? AND conversation_id=?
       UNION ALL SELECT p.execution_id FROM process_outputs p JOIN tool_executions t ON t.id=p.execution_id JOIN runs r ON r.id=t.run_id WHERE p.artifact_ref=? AND r.conversation_id=?
       UNION ALL SELECT p.execution_id FROM process_executions p JOIN tool_executions t ON t.id=p.execution_id JOIN runs r ON r.id=t.run_id WHERE p.receipt_ref=? AND r.conversation_id=?
+      UNION ALL SELECT t.id FROM tool_executions t JOIN runs r ON r.id=t.run_id
+      JOIN artifacts result ON result.id=t.result_ref JOIN artifacts page ON page.id=?
+      WHERE r.conversation_id=? AND t.state='succeeded'
+      AND ((t.name='fetch_webpage' AND page.kind='web-page')
+        OR (t.name='search_web' AND page.kind='web-search'))
+      AND json_extract(result.content,'$.data.snapshotId')=page.id
       UNION ALL SELECT id FROM context_maintenance WHERE (plan_ref=? OR summary_ref=? OR manifest_ref=?) AND conversation_id=? LIMIT 1`,
+      artifactId,
+      conversationId,
       artifactId,
       conversationId,
       artifactId,

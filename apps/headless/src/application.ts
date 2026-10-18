@@ -34,6 +34,10 @@ import {
   registerScratch,
 } from '../../../packages/adapters/src/host-files/scratch.js';
 import { registerWebSearch } from '../../../packages/adapters/src/deepseek-search/search.js';
+import { registerWebFetch } from '../../../packages/adapters/src/deepseek-search/fetch.js';
+import { registerWebPageReading } from '../../../packages/agent/src/tools/webpage.js';
+import { WebPageRepository } from '../../../packages/adapters/src/sqlite/webpage.js';
+import { WebSearchRepository } from '../../../packages/adapters/src/sqlite/web-search.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { ResourceRepository } from '../../../packages/adapters/src/sqlite/resources.js';
 import { ResourceFiles } from '../../../packages/adapters/src/host-files/resources.js';
@@ -86,7 +90,7 @@ export class UmiApplication {
       context?: ContextManager;
       clock?: () => string;
       openDocument?: DocumentOpener;
-      search?: { key: () => string; baseUrl: string };
+      search?: { key: () => string; baseUrl: string; transport?: typeof fetch };
       deliveryBoundary?: (point: DeliveryBoundary, path: string) => void | Promise<void>;
       processRunner?: LegacyWindowsProcessPort;
       toolModules?: readonly ToolModule[];
@@ -115,7 +119,9 @@ export class UmiApplication {
     );
     this.questions = new UserQuestions(this.store);
     this.frozenPreview = new FrozenPreview(this.files);
+    const webPages = new WebPageRepository(this.store);
     const modules: ToolModule[] = [
+      toolModule('umi.web-pages', '1.0.0', [], r => registerWebPageReading(r, webPages, hostContext)),
       toolModule('umi.questions', '1.0.0', [], r => registerQuestions(r, this.questions, hostContext)),
       toolModule('umi.outputs', '1.0.0', [], (r) => registerOutputs(r, this.outputs)),
       toolModule('umi.tasks', '1.0.0', [], (r) =>
@@ -154,9 +160,11 @@ export class UmiApplication {
     if (options.search) {
       const search = options.search;
       modules.push(
-        toolModule('umi.search', '1.0.0', [], (r) =>
-          registerWebSearch(r, search.key, search.baseUrl),
+        toolModule('umi.web-search', '1.0.0', [], (r) =>
+          registerWebSearch(r, new WebSearchRepository(this.store), search.key, search.baseUrl, search.transport),
         ),
+        toolModule('umi.web-fetch', '1.0.0', ['umi.web-pages'], r =>
+          registerWebFetch(r, webPages, search.key, search.baseUrl, search.transport)),
       );
     }
     try {
@@ -185,6 +193,12 @@ export class UmiApplication {
     const c = this.store.createConversation(workspace, settings);
     this.files.initialize(c.environmentId);
     return c;
+  }
+  deleteArchivedConversation(conversationId: string) {
+    const runs = this.store.all('SELECT id FROM runs WHERE conversation_id=?',conversationId);
+    if (runs.some(r => this.running.has(String(r.id))))
+      throw new UmiError('RUN_STATE', '请等待当前任务完成停止与清理');
+    return this.store.deleteArchivedConversation(conversationId);
   }
   contextStatistics(conversationId: string, projection?: ConversationState) {
     const state = projection ?? this.store.snapshot(conversationId);

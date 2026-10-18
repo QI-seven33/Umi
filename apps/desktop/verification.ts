@@ -1,6 +1,6 @@
 import { filePreviewFixtures } from './verification-preview-fixtures.js';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -24,6 +24,10 @@ export async function verifyDesktop(
   win: BrowserWindow,
   dataRoot: string,
 ) {
+  if (process.argv.includes('--preview-only')) {
+    const { verifyFilePreview } = await import('./verification-file-preview.js');
+    return verifyFilePreview(broker, win, dataRoot);
+  }
   // Windows 隐藏窗口可能保留旧合成帧；截图需要实际可见的合成表面。
   // 真实可见但不抢焦点的独立验收窗口，确保 Windows 合成器绘制跨进程 HTML。
   win.setOpacity(1);
@@ -400,9 +404,33 @@ export async function verifyDesktop(
       await win.webContents.executeJavaScript(
         `document.querySelector('.model-button-name').innerText`,
       ),
-      'DeepSeek V4.1 Flash',
+      'DeepSeek-V4.1-Flash-1017',
     );
-    pass('输入框显示产品版本 V4.1 Flash，API 路由保持原值');
+    pass('输入框显示官方具体版本 DeepSeek-V4.1-Flash-1017');
+    const modelBounds = win.getBounds();
+    for (const [id, name] of [['deepseek-v4-pro','DeepSeek-V4-Pro-0813'],['deepseek-flash','DeepSeek-V4.1-Flash-1017']] as const) {
+      await win.webContents.executeJavaScript(`document.querySelector('[data-menu-trigger=model]').click()`);
+      await until(() => win.webContents.executeJavaScript(`document.querySelectorAll('.model-menu-item').length`), count => count === 2);
+      const catalog = await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.model-menu-item')).map(node=>({id:node.dataset.modelId,name:node.querySelector('strong').innerText}))`);
+      assert.deepEqual(catalog,[{id:'deepseek-flash',name:'DeepSeek-V4.1-Flash-1017'},{id:'deepseek-v4-pro',name:'DeepSeek-V4-Pro-0813'}]);
+      await win.webContents.executeJavaScript(`document.querySelector('[data-model-id="${id}"]').click()`);
+      await until(uiSnapshot, snapshot => snapshot.settings.model === id);
+      await until(() => win.webContents.executeJavaScript(`document.querySelector('.model-button-name').innerText`), value => value === name);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.model-button').title`),name+' · API：'+id);
+    }
+    pass('模型菜单显示完整版本，Pro/Flash 点击切换与实际保存的 API ID 一致');
+    try {
+      win.setSize(1120,modelBounds.height);
+      await win.webContents.executeJavaScript(`if(document.querySelector('.right-rail-toggle').getAttribute('aria-expanded')!=='true')document.querySelector('.right-rail-toggle').click();`);
+      await delay(260);
+      const compact = await win.webContents.executeJavaScript(`(()=>{const name=document.querySelector('.model-button-name'),composer=document.querySelector('.composer'),send=document.querySelector('.send-button');return {text:name.innerText,width:name.clientWidth,scroll:name.scrollWidth,chat:document.querySelector('.main-area').clientWidth,right:send.getBoundingClientRect().right,composerRight:composer.getBoundingClientRect().right,label:document.querySelector('.model-button').getAttribute('aria-label')};})()`);
+      assert(compact.text.includes('V4.1-Flash-1017'));assert(compact.scroll<=compact.width+1,'窄区不能省略模型日期');assert(compact.right<compact.composerRight);assert(compact.label.includes('DeepSeek-V4.1-Flash-1017'));
+      writeFileSync(join(dataRoot,'model-selection-narrow.png'),(await captureFrame(true)).toPNG());
+      pass('窄聊天区保留完整型号和日期，发送按钮无越界',compact);
+    } finally {
+      await win.webContents.executeJavaScript(`if(document.querySelector('.right-rail-toggle').getAttribute('aria-expanded')==='true')document.querySelector('.right-rail-toggle').click();`);
+      win.setBounds(modelBounds);await delay(220);
+    }
     const sendStyle = await controlStyle('.send-button');
     assert.equal(sendStyle.radius, '50%');
     assert.equal(sendStyle.background, 'rgb(51, 127, 237)');
@@ -545,7 +573,7 @@ export async function verifyDesktop(
       );
     }
     await win.webContents.executeJavaScript(
-      `(async()=>{document.querySelectorAll('.conversation-more')[0].click();await new Promise(resolve=>setTimeout(resolve,0));document.querySelector('.delete-conversation').click();})()`,
+      `(async()=>{document.querySelectorAll('.conversation-more')[0].click();await new Promise(resolve=>setTimeout(resolve,0));document.querySelector('.archive-conversation').click();})()`,
     );
     await until(
       () => win.webContents.executeJavaScript(`!!document.querySelector('.hold-button')`),
@@ -629,6 +657,39 @@ export async function verifyDesktop(
       (rows) => rows.some((row) => row.id === ui.conversationId),
     );
     pass('长按归档后可在设置恢复，原会话身份不变');
+    const disposable = await broker.request({internal:'create_internal',payload:{workspace}}) as {conversationId:string;environmentId:string};
+    await broker.request({type:'rename',conversationId:disposable.conversationId,title:'删除功能验收'});
+    await broker.request({type:'archive',conversationId:disposable.conversationId});
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=profile]').click()");
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=archive]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.archive-delete')"),Boolean);
+    await win.webContents.executeJavaScript("document.querySelector('.archive-delete').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.archive-delete-confirm [role=dialog]')"),Boolean);
+    assert((await broker.request({type:'list',archived:true}) as any[]).some(row=>row.id===disposable.conversationId));
+    assert.equal(await win.webContents.executeJavaScript("document.activeElement.textContent"),'取消');
+    pass('永久删除先显示范围说明并默认聚焦取消，尚不删除会话');
+    await win.webContents.executeJavaScript("document.querySelector('.archive-delete-confirm button').click()");
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('.archive-delete-confirm')"),Boolean);
+    assert((await broker.request({type:'list',archived:true}) as any[]).some(row=>row.id===disposable.conversationId));
+    pass('取消永久删除后原归档会话仍可恢复');
+    await win.webContents.executeJavaScript("document.querySelector('.archive-delete').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.archive-delete-confirm')"),Boolean);
+    await win.webContents.executeJavaScript("window.__deleteMaterial=document.documentElement.dataset.material;document.documentElement.dataset.material='solid';new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+    const deleteStyle=await win.webContents.executeJavaScript("(()=>{const node=document.querySelector('.archive-delete-confirm section'),s=getComputedStyle(node);return {width:node.getBoundingClientRect().width,font:getComputedStyle(node.querySelector('p')).fontSize,shadow:s.boxShadow,visible:s.visibility,topHit:!!document.elementFromPoint(node.getBoundingClientRect().x+node.getBoundingClientRect().width/2,node.getBoundingClientRect().y+node.getBoundingClientRect().height/2)?.closest('.archive-delete-confirm')};})()");
+    assert(deleteStyle.width>300&&deleteStyle.width<=420);assert.equal(deleteStyle.shadow,'none');assert.equal(deleteStyle.visible,'visible');assert.equal(deleteStyle.topHit,true,'删除确认框必须位于设置页上方并可点击');
+    await delay(100);
+    writeFileSync(join(dataRoot,'archive-delete-preview.png'),(await captureFrame(true)).toPNG());
+    await win.webContents.executeJavaScript("document.documentElement.dataset.material=window.__deleteMaterial;delete window.__deleteMaterial");
+    await win.webContents.executeJavaScript("localStorage.setItem('umi.pending.'+"+JSON.stringify(disposable.conversationId)+",'测试待发草稿');localStorage.setItem('umi.feedback.'+"+JSON.stringify(disposable.conversationId)+"+'.message','like')");
+    await win.webContents.executeJavaScript("document.querySelector('.archive-delete-confirm .archive-delete').click()");
+    await until(()=>broker.request({type:'list',archived:true}) as Promise<any[]>,rows=>!rows.some(row=>row.id===disposable.conversationId));
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('.archive-delete-confirm')"),Boolean);
+    await assert.rejects(()=>broker.request({type:'snapshot',conversationId:disposable.conversationId}),/会话不存在/);
+    assert(!existsSync(join(dataRoot,'agent','environments',disposable.environmentId)));
+    pass('确认永久删除后数据库会话与托管目录消失，原工作区源文件保留');
+    assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('umi.pending.'+"+JSON.stringify(disposable.conversationId)+")"),null);
+    assert.equal(await win.webContents.executeJavaScript("localStorage.getItem('umi.feedback.'+"+JSON.stringify(disposable.conversationId)+"+'.message')"),null);
+    pass('永久删除清除本会话待发草稿与本机反馈');
     await broker.request({
       type: 'send',
       conversationId: ui.conversationId,

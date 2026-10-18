@@ -371,14 +371,14 @@ test('迁移 6：版本 5 的目录候选、挂载、原始消息和事件原样
       mounts = f.app.files.repo.mounts(f.c.environmentId),
       checksums = f.app.store.all('SELECT * FROM schema_migrations WHERE version<=5');
     f.app.store.db.exec(
-      'DROP TABLE resource_scopes; DELETE FROM schema_migrations WHERE version=6',
+      'DROP TABLE conversation_deletions; DELETE FROM schema_migrations WHERE version=7; DROP TABLE resource_scopes; DELETE FROM schema_migrations WHERE version=6',
     );
     await f.app.close();
     const app = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
     try {
       assert.equal(
         app.store.get('SELECT max(version) version FROM schema_migrations')!.version,
-        6,
+        7,
       );
       assert.deepEqual(
         app.store.all('SELECT * FROM schema_migrations WHERE version<=5'),

@@ -213,8 +213,12 @@ export function Composer(props: {
             }}>
               <button ref={modelTriggerRef} type="button" className="model-button" data-menu-trigger="model"
                 onClick={() => {setThinkingMenuOpen(false);setModelMenuOpen((o) => !o);}}
-                aria-expanded={modelMenuOpen} aria-controls={menuId}>
-                <span className="model-button-name">{currentModel?.name ?? "模型不可用"}</span>
+                aria-expanded={modelMenuOpen} aria-controls={menuId}
+                title={currentModel ? `${currentModel.name} · API：${currentModel.id}` : undefined}
+                aria-label={currentModel ? `模型：${currentModel.name}；API：${currentModel.id}；思考强度：${THINKING_LABELS[thinking]}` : "模型不可用"}>
+                <span className="model-button-name">{currentModel?.name.startsWith("DeepSeek-")
+                  ? <><span className="model-button-brand">DeepSeek-</span>{currentModel.name.slice("DeepSeek-".length)}</>
+                  : currentModel?.name ?? "模型不可用"}</span>
                 {currentModel?.capabilities.thinking &&
                   <span className={`model-button-effort level-${thinking}`}>{THINKING_LABELS[thinking]}</span>}
                 <ChevronDown size={15} />
@@ -223,7 +227,7 @@ export function Composer(props: {
                 <div ref={modelMenuRef} id={menuId} className="model-menu">
                   <div className="model-menu-list" role="group" aria-label="模型选择">
                     {modelOptions.map((model) => (
-                      <button key={model.id} type="button"
+                      <button key={model.id} type="button" data-model-id={model.id}
                         className={`model-menu-item ${model.id === selectedModel ? "selected" : ""}`}
                         aria-pressed={model.id === selectedModel} title={`API 模型：${model.id}`}
                         onClick={() => { onSelectModel(model.id); setThinkingMenuOpen(false); setModelMenuOpen(false); }}

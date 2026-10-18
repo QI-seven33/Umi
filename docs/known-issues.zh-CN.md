@@ -4,12 +4,17 @@
 
 ## 已确认、仍待处理
 
-- HTML 文件预览首帧偶发空白：验收曾观察到 iframe 尺寸正常、子文档存在，但没有进入可见排版。延长等待和聚焦未充分解释根因；最终验收通过不表示已消除此偶发问题。
 - A-01：启动阶段残留的 `writer.starting` 标记可能阻塞后续写者。恢复策略仍待独立设计。
 - A-02：`TASK_LIMIT` 路径仍有独立正文缺失问题；`TASK_STALLED` 的正文收尾已经实现，二者不可混淆。
-- A-03：实际迁移与 ready 中报告的 schema 标识不一致，仍待修正。
 
-详细证据见[源码审计](full-project-audit-20261015.zh-CN.md)和[输入区验收记录](composer-breathing-20261016.zh-CN.md)。本页未将这些问题标记为已修复。
+
+详细证据见[源码审计](full-project-audit-20261015.zh-CN.md)和[输入区验收记录](composer-breathing-20261016.zh-CN.md)。A-01/A-02仍保留；A-03与HTML预览触发路径已在当前未发布源码修正，历史失败证据保留。
+
+## 当前未发布源码已修复
+
+- HTML首帧空白与长文档逐页重载：完整正文到达后再创建iframe，保留原有CSP/隔离和尺寸更新；34项多格式预览回归通过。见[本轮证据与边界](html-preview-repair-20261018.zh-CN.md)。
+
+- A-03 已在当前未发布源码中修正：迁移7、CLI、worker与ready协议共用DATABASE_VERSION；旧0.2.0-alpha.1安装包仍为历史版本。
 
 ## 当前产品边界
 

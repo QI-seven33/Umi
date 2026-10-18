@@ -32,13 +32,16 @@ try{
   const events=app.store.events(c.conversationId),usages=events.filter(e=>e.type==='usage.recorded').map(e=>e.type==='usage.recorded'?app.store.readArtifact(e.payload.usageRef):null);
   const returnedModels=[...new Set(app.store.all("SELECT id FROM artifacts WHERE kind='provider-response'").flatMap(r=>
     app.store.readArtifact<{model?:string}[]>(r.id as string).flatMap(item=>item.model?[item.model]:[])))];
-  const search=app.registry.get('deepseek_server_web_search'),searchInput={query:'查询 DeepSeek 官方文档当前 deepseek-flash 对应的模型版本。给出官方文档的网页来源。'};
-  const searchResult=await search.execute(searchInput,search.prepare(searchInput,env),c.conversationId,AbortSignal.timeout(60000));
-  assert.equal(searchResult.outcome,'succeeded','Anthropic 兼容搜索未取得可核验网页来源');
-  const searchData=searchResult.data as {sources:unknown[];usage:unknown;latency_ms:number};
+  const searchRun=app.send(c.conversationId,uid(),'请实际调用一次 search_web 搜索 DeepSeek 官方最新模型版本，搜索词128字以内。只根据结构化来源简短答复，不操作文件、不继续抓网页。');
+  assert.equal((await app.wait(searchRun.runId)).status,'completed');
+  const searches=app.store.tools(searchRun.runId).filter(t=>t.name==='search_web');
+  assert.equal(searches.length,1);assert.equal(searches[0]!.state,'succeeded');
+  const searchResult=app.store.readArtifact<{outcome:string;data:Record<string,unknown>}>(searches[0]!.result_ref!);
+  assert.equal(searchResult.outcome,'succeeded','直连 Search 未完成');
+  const searchData=searchResult.data;
   const report={name:'Umi',verifiedAt:new Date().toISOString(),requestedModel:'deepseek-flash',returnedModels,adapterVersion:'1',thinking:'normal',
-    calls:requests.length,status:'passed',checks:['真实思考流','带工具原始思考回传','历史原话检索','批准等待','托管写入回读','最终回复'],usage:usages,
-    search:{protocol:'anthropic-compatible',status:searchResult.outcome,sources:searchData.sources,usage:searchData.usage,latencyMs:searchData.latency_ms},
-    conversationId:c.conversationId,runs:[first.runId,second.runId],environmentId:c.environmentId};
+    calls:app.store.all('SELECT id FROM model_requests').length,status:'passed',checks:['真实思考流','带工具原始思考回传','历史原话检索','批准等待','托管写入回读','最终回复'],usage:app.store.events(c.conversationId).filter(e=>e.type==='usage.recorded').map(e=>e.type==='usage.recorded'?app.store.readArtifact(e.payload.usageRef):null),
+    search:{protocol:'deepseek-search-json',status:searchResult.outcome,sources:searchData.sources,snapshotId:searchData.snapshotId,latencyMs:searchData.latency_ms},
+    conversationId:c.conversationId,runs:[first.runId,second.runId,searchRun.runId],environmentId:c.environmentId};
   writeFileSync(join(directory,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{await app.close();}

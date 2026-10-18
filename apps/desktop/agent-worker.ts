@@ -64,7 +64,7 @@ port.on('message', ({ data }: Electron.MessageEvent) => {
           payload: {
             protocolVersion: 1,
             instanceId,
-            databaseVersion: 5,
+            databaseVersion: app.store.databaseVersion,
             name: 'Umi',
             node: process.versions.node,
             sqlite: true,

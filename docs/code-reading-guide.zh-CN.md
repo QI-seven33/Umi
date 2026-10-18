@@ -1,5 +1,19 @@
 # Umi 代码学习与开发指南
 
+## 2026-10-18：文件预览生命周期
+
+从FilePreview/FrozenFilePreview读取和preview-page同版本拼接进入FileContent；HTML完整后才清理并挂载HtmlPreview，其他格式保持滚动补读。独立Electron验收在verification-file-preview.ts，通过CDP文字框和截图验证真实排版。复现、实现取舍与复跑步骤见[本轮学习说明](html-preview-repair-20261018.zh-CN.md)。
+
+当前补充阅读：[唯一搜索与永久删除审查](search-clean-and-deletion-20261018.zh-CN.md)。从ArchiveSettings → 固定desktop命令 → UmiApplication → ConversationDeletion阅读；重点区分事务事实与目录副作用、共享资料引用、失败补清理和用户源目录。模型工具只有search_web，没有删会话能力；迁移7与ready统一。旧搜索名称及下文旧状态按历史保留。
+
+
+当前阅读：[2026-10-18 直连搜索与真实验收](web-search-live-20261018.zh-CN.md)。沿 application → registerWebSearch → searchResponseSchema/searchView → WebSearchRepository → memory.accessible/read_artifact 学习“完整存储与有界模型输入分开”；再连到 Fetch/read_webpage。真实预算3/3/6、实际2/2/3，474项全量与便携74项通过；旧搜索包装接口属于历史。
+
+
+## 2026-10-18：独立网页抓取与完整快照按需读取
+
+已接入 fetch_webpage / read_webpage，保留当前搜索。完整保存上限内提供商返回的 Markdown 为独立 artifact；首次只给 8KiB 摘录和有界目录，本地全文字面查找/UTF-8 续读可追回中部与末尾，工具 data 不藏全文。响应超过4MiB或正文超过2MiB明确失败，不伪装完整；网站提取完整性未知。成功快照按会话归属，窗口维护与重启后仍可查；同轮默认复用、明确刷新新建快照。无新数据库结构、调度器或插件平台，源码/学习注释与上轮未提交改动保留。全量458/458、最终相关71/71及本地便携桌面74/74通过，185运行文件hash与最终源码指纹一致，本地便携已同步。实现、验收和能力边界见[本轮说明](web-fetch-20261018.zh-CN.md)。本轮不提交 Git/远端发布，不调用付费API或操作生产会话。
+
 ## 2026-10-17 新增：图标与Windows分发链路
 
 assets/brand/umi-symbol.png保留透明角色；scripts/build-icons.cjs用固定几何白底生成PNG和七尺寸ICO。scripts/build-info.mjs把品牌源图、构建脚本和安装配置纳入指纹。package:windows依次运行既有源码/便携构建和scripts/build-windows.mjs；后者通过electron-builder.yml配置NSIS，并在构建器清理临时载荷前解包核验版本、182个运行文件与exe哈希。发行文件在release/installers中，二进制通过GitHub Releases分发而不进入源码Git。

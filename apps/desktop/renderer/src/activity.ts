@@ -39,7 +39,9 @@ export const toolNames: Record<string, string> = {
   read_history: '读取历史',
   write_scratch: '写入任务资料',
   read_attachment: '读取附件',
-  deepseek_server_web_search: '搜索网页',
+  search_web: '搜索网页',
+  fetch_webpage: '读取网页',
+  read_webpage: '读取网页快照',
   record_work_note: '记录任务笔记',
   record_requirement: '记录要求',
   request_context_reset: '维护上下文',
@@ -140,7 +142,9 @@ const verbs: Record<string, string> = {
   build_changeset: '准备交付',
   deliver_changeset: '交付文件',
   recycle_file: '移入回收站',
-  deepseek_server_web_search: '搜索网页',
+  search_web: '搜索网页',
+  fetch_webpage: '读取网页',
+  read_webpage: '读取网页快照',
 };
 export function activityLabel(items: ActivityItem[], state: ConversationState) {
   const tools = items.filter((i) => i.kind === 'tool').map((i) => state.tools[i.id]!);

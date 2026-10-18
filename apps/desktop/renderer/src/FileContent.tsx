@@ -25,12 +25,14 @@ export function FileContent({ path, text, dataUrl, unsupported, mode, busy, erro
   busy: boolean; error: string; hasMore: boolean; onMore: () => Promise<void>;
 }) {
   const format = fileFormat(path), root = useRef<HTMLDivElement>(null), end = useRef<HTMLDivElement>(null), [linkError, setLinkError] = useState('');
-  const html = useMemo(() => format.kind === 'html' && mode === 'preview' ? htmlDocument(text) : '', [text, mode, format.kind]);
+  // HTML 必须先读完同一版本；空文档和每段截断内容都不能触发 srcdoc 导航。
+  const html = useMemo(() => format.kind === 'html' && mode === 'preview' && text && !hasMore ? htmlDocument(text) : '', [text, mode, format.kind, hasMore]);
   useEffect(() => {
     if (!hasMore || busy || error || !root.current || !end.current) return;
+    if (format.kind === 'html' && mode === 'preview') { void onMore(); return; }
     const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) void onMore(); }, { root: root.current, rootMargin: '160px 0px' });
     observer.observe(end.current); return () => observer.disconnect();
-  }, [text, hasMore, busy, error, onMore]);
+  }, [text, hasMore, busy, error, onMore, format.kind, mode]);
   return <div ref={root} className="file-preview-scroll" data-mode={mode} data-format={format.kind} aria-busy={busy}>
     {error && <p className="file-preview-error" role="alert">{error}</p>}
     {unsupported ? <p className="file-preview-unsupported">此格式暂不支持内置预览</p>
@@ -42,7 +44,7 @@ export function FileContent({ path, text, dataUrl, unsupported, mode, busy, erro
         a: ({ href, children }) => <a href={href} onClick={e => { e.preventDefault(); if (href && /^https?:\/\//i.test(href)) void window.umi.openUrl(href).catch(() => setLinkError('链接暂未打开')); }}>{children}</a>,
         img: ({ src, alt }) => typeof src === 'string' && src.startsWith('data:image/') ? <img src={src} alt={alt ?? ''} /> : <span className="file-image-label">{alt || '图片'}</span>,
       }}>{text}</ReactMarkdown></article>
-      : format.kind === 'html' ? <HtmlPreview html={html} name={format.name} />
+      : format.kind === 'html' ? html ? <HtmlPreview html={html} name={format.name} /> : !error && (hasMore || busy) && <p className="file-preview-loading" role="status">正在读取完整预览…</p>
       : <Syntax text={text} language={format.language} />}
     {linkError && <p className="file-preview-error" role="status">{linkError}</p>}
     <div ref={end} className="file-preview-end" aria-hidden="true" />

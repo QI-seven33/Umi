@@ -351,12 +351,12 @@ test('C11：版本 2 数据库升级至 3 保留挂载、原文及原会话游�
       mounts = f.app.files.repo.mounts(f.c.environmentId),
       cursor = f.app.store.snapshot(f.c.conversationId).cursor;
     f.app.store.db.exec(
-      'DROP TABLE context_maintenance; DROP TABLE memory_entries; DROP TABLE process_outputs; DROP TABLE process_executions; DROP TABLE process_fingerprints; DELETE FROM schema_migrations WHERE version IN(3,4);',
+      'DROP TABLE conversation_deletions; DELETE FROM schema_migrations WHERE version=7; DROP TABLE context_maintenance; DROP TABLE memory_entries; DROP TABLE process_outputs; DROP TABLE process_executions; DROP TABLE process_fingerprints; DELETE FROM schema_migrations WHERE version IN(3,4);',
     );
     await f.app.close();
     const next = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
     try {
-      assert.equal(next.store.all('SELECT * FROM schema_migrations').length, 6);
+      assert.equal(next.store.all('SELECT * FROM schema_migrations').length, 7);
       assert.deepEqual(next.store.events(f.c.conversationId), events);
       assert.deepEqual(next.store.snapshot(f.c.conversationId).cursor, cursor);
       assert.deepEqual(next.files.repo.mounts(f.c.environmentId), mounts);

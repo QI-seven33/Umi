@@ -211,6 +211,8 @@ export class DesktopService {
         s.editConversation(c.conversationId, c.title);
         return { accepted: true };
       //取消归档会话，返回已接受
+      case 'delete_conversation':
+        return a.deleteArchivedConversation(c.conversationId);
       case 'restore':
         s.editConversation(c.conversationId, null, false);
         return { accepted: true };

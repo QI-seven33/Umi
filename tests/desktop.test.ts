@@ -47,7 +47,7 @@ test('S5-04：旧阶段 4 库升级至 5，原消息、迁移指纹和游标保�
       'SELECT version,checksum FROM schema_migrations WHERE version<=4',
     );
   f.app.store.db.exec(
-    'DROP TABLE message_attachments; DROP TABLE attachments; DROP TABLE conversation_views; DELETE FROM schema_migrations WHERE version=5',
+    'DROP TABLE conversation_deletions; DELETE FROM schema_migrations WHERE version=7; DROP TABLE message_attachments; DROP TABLE attachments; DROP TABLE conversation_views; DELETE FROM schema_migrations WHERE version=5',
   );
   await f.app.close();
   const next = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
@@ -58,7 +58,7 @@ test('S5-04：旧阶段 4 库升级至 5，原消息、迁移指纹和游标保�
       next.store.all('SELECT version,checksum FROM schema_migrations WHERE version<=4'),
       checksums,
     );
-    assert.equal(next.store.get('SELECT max(version) v FROM schema_migrations')!.v, 6);
+    assert.equal(next.store.get('SELECT max(version) v FROM schema_migrations')!.v, 7);
   } finally {
     await next.close();
     removeTestRoot(f.root);

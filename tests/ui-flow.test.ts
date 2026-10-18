@@ -12,6 +12,7 @@ import {Timeline} from '../apps/desktop/renderer/src/Timeline.js';
 import {processItems,activityLabel} from '../apps/desktop/renderer/src/activity.js';
 import {initialState,reduceConversation} from '../packages/protocol/src/reducer.js';
 import {uid} from '../packages/agent/src/identity.js';
+import {DeepSeekAdapter} from '../packages/adapters/src/deepseek/adapter.js';
 import {ScriptModel,text,call,eventually,removeTestRoot} from './fixtures.js';
 
 function setup(model:ScriptModel){const root=mkdtempSync(join(tmpdir(),'umi-ui-flow-')),workspace=join(root,'workspace');mkdirSync(workspace);const app=new UmiApplication(join(root,'data'),model),c=app.createConversation(workspace);return {root,app,c,service:new DesktopService(app),async close(){await app.close();removeTestRoot(root);}};}
@@ -57,4 +58,22 @@ test('UI-05：无工具完整响应前的流式正文不被提前标为最终回
   try{const r=f.app.send(f.c.conversationId,uid(),'解释一下');await eventually(()=>f.app.store.snapshot(f.c.conversationId).blocks.find(b=>b.text==='正在解释这个问题。'));
     assert(!f.app.store.snapshot(f.c.conversationId).blocks.some(b=>b.displayRole==='final'));assert(markup(f).includes('正在解释这个问题'));release();await f.app.wait(r.runId);assert.equal(f.app.store.snapshot(f.c.conversationId).blocks.find(b=>b.kind==='text')!.displayRole,'final');
   }finally{release();await f.close();}
+});
+
+// 型号日期是显示信息；实际请求及持久化继续使用官方路由，不能将显示名称发给 API。
+test('UI-06：模型切换保存 API ID，下一轮请求与重新打开的会话保持一致',async()=>{
+  const model=new ScriptModel([text('Pro 回复'),text('Flash 回复')]),adapter=new DeepSeekAdapter(()=> 'local-test-only');
+  model.prepare=adapter.prepare.bind(adapter);
+  const f=setup(model);
+  try{
+    for(const id of ['deepseek-v4-pro','deepseek-flash'] as const){
+      await f.service.handle({type:'settings',conversationId:f.c.conversationId,settings:{...f.app.store.settings(f.c.conversationId),model:id,thinking:'high'}});
+      assert.equal(f.service.snapshot(f.c.conversationId).settings.model,id);
+      const run=f.app.send(f.c.conversationId,uid(),'请回复一句话');await f.app.wait(run.runId);
+      assert.equal(f.app.store.getRun(run.runId).status,'completed');
+      const request=model.requests.at(-1)!;assert.equal(request.model,id);assert.equal(request.body.model,id);assert.equal(request.body.reasoning_effort,'high');
+    }
+    await f.app.close();const reopened=new UmiApplication(join(f.root,'data'),new ScriptModel([]));
+    try{assert.equal(reopened.store.settings(f.c.conversationId).model,'deepseek-flash');assert.equal(reopened.store.settings(f.c.conversationId).thinking,'high');}finally{await reopened.close();}
+  }finally{await f.close();}
 });

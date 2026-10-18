@@ -1177,3 +1177,14 @@ body,
 .question-options:has(> .umi-question-option:nth-child(5)) > .umi-question-option:last-child { grid-column: 1 / -1; }
 
 .composer-approval .umi-approval-body > small { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+
+/* 归档管理沿用主题字体与控件；永久删除用文字颜色区分，不添加悬停投影。 */
+.archive-actions { display:flex;align-items:center;gap:8px;flex:none; }
+.archive-list strong { display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
+.archive-list small { display:block;max-width:100%;font-size:11px; }
+:root body .archive-delete { color:var(--danger); }
+:root body .archive-delete:hover { color:var(--danger);background:var(--danger-bg); }
+:root body .archive-delete-confirm section { font:inherit; }
+.archive-delete-confirm .archive-delete-name { color:var(--text-primary);overflow-wrap:anywhere;font-size:13px; }
+.archive-status { font-size:12px; }
+.archive-delete-confirm { z-index:120; }

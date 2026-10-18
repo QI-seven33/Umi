@@ -1,3 +1,4 @@
+import { DATABASE_VERSION } from './database.js';
 import { answersSchema } from './question.js';
 import { listOutputsSchema } from './outputs.js';
 import { z } from 'zod';
@@ -13,6 +14,7 @@ const range = {
 export const desktopCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('list'), archived: z.boolean().default(false) }).strict(),
   z.object({ type: z.literal('restore'), ...conversation }).strict(),
+  z.object({ type: z.literal('delete_conversation'), ...conversation, confirm: z.literal(true) }).strict(),
   z
     .object({ type: z.literal('approval_detail'), ...conversation, approvalId: id })
     .strict(),
@@ -141,7 +143,7 @@ export const readySchema = z
   .object({
     protocolVersion: z.literal(1),
     instanceId: id,
-    databaseVersion: z.literal(5),
+    databaseVersion: z.literal(DATABASE_VERSION),
     name: z.literal('Umi'),
     node: z.string(),
     sqlite: z.boolean(),

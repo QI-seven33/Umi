@@ -54,13 +54,14 @@ test('A07/A32：带工具回传所有历史 raw reasoning，配置与输入原�
   assert.equal(history[1]?.reasoning_content,'被外部修改');
 });
 test('联网搜索：结构化来源才算证据，普通模型文本不能伪装搜索成功',async()=>{
-  const ctx={schemaVersion:1 as const,runtimeId:'fixture',environmentId:'test',environmentRevision:0,bindingRoot:'unused',rootIdentity:'fixture',locations:[]};
+  const ctx={schemaVersion:1 as const,runtimeId:'fixture',environmentId:'test',environmentRevision:0,bindingRoot:'unused',rootIdentity:'fixture',locations:[],webReadExecutionId:'execution-test'};
   for(const verified of [true,false]) {
-    let sent:Record<string,unknown>|undefined;
-    const transport:typeof fetch=async(_url,init)=>{sent=JSON.parse(String(init?.body)) as Record<string,unknown>;
-      return Response.json({content:[{type:'text',text:'最新资料'},...(verified?[{type:'web_search_tool_result',content:[{type:'web_search_result',url:'https://example.org/reference',title:'参考'}]}]:[])],usage:{input_tokens:10}});};
-    const registry=new ToolRegistry();registerWebSearch(registry,()=> 'test-only','https://api.deepseek.com',transport);
-    const result=await registry.get('deepseek_server_web_search').execute({query:'测试'},ctx,'test',new AbortController().signal);
-    assert.equal(result.outcome,verified?'succeeded':'failed');assert.deepEqual(sent?.tools,[{type:'web_search_20250305',name:'web_search',max_uses:2}]);
+    let sent:Record<string,unknown>|undefined,saves=0;
+    const transport:typeof fetch=async(url,init)=>{assert.equal(url,'https://api.deepseek.com/v1/tools/search');sent=JSON.parse(String(init?.body));
+      return Response.json(verified?{results:[{title:'参考',url:'https://example.org/reference',summary:'最新资料',snippet:'资料',content:'',date:null,site_name:null,site_icon:null,authority:-1,rerank_score:2}]}:{content:[{type:'text',text:'最新资料'}]});};
+    const registry=new ToolRegistry();registerWebSearch(registry,{save:()=>{saves++;return 'snapshot-test';}},()=> 'test-only','https://api.deepseek.com',transport);
+    const result=await registry.get('search_web').execute({query:'测试'},ctx,'test',new AbortController().signal);
+    assert.equal(result.outcome,verified?'succeeded':'failed');assert.equal(saves,verified?1:0);
+    assert.deepEqual(sent,{query:'测试',count:5,need_content:false});
   }
 });

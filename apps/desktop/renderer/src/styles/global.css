@@ -489,13 +489,13 @@ select:focus-visible {
 
 .conversation-menu button:hover { background: var(--bg-selected); }
 
-.conversation-menu .delete-conversation { color: var(--danger); }
+.conversation-menu .archive-conversation { color: var(--text-secondary); }
 
-.conversation-menu .delete-conversation:hover { background: var(--danger-bg); }
+.conversation-menu .archive-conversation:hover { background: var(--bg-selected); }
 
 /* 布局与通用控件 */
 
-.delete-conversation:disabled { opacity: .55; cursor: wait; }
+.archive-conversation:disabled { opacity: .55; cursor: wait; }
 
 /* 工作区与侧栏 */
 

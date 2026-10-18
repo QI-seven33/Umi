@@ -31,6 +31,7 @@ jobs:
           dist/tests/boundaries.test.js
           dist/tests/bounded-context.test.js
           dist/tests/core.test.js
+          dist/tests/conversation-deletion.test.js
           dist/tests/deepseek-request.test.js
           dist/tests/file-discovery.test.js
           dist/tests/interaction.test.js
@@ -41,4 +42,6 @@ jobs:
           dist/tests/text-write.test.js
           dist/tests/tool-modules.test.js
           dist/tests/ui-flow.test.js
+          dist/tests/web-search.test.js
+          dist/tests/web-fetch.test.js
       - run: node scripts/build-desktop.mjs

@@ -1,3 +1,6 @@
+import { DATABASE_VERSION } from '../../../protocol/src/database.js';
+import { CONVERSATION_DELETION_SQL } from './conversation-deletion-schema.js';
+import { ConversationDeletion } from './conversation-deletion.js';
 import { singleResultBody } from '../../../agent/src/tools/result.js';
 import { decodeImage } from './images.js';
 import { DESKTOP_SCHEMA_SQL } from './desktop-schema.js';
@@ -122,7 +125,7 @@ export class SqliteStore {
         if (
           versions.some(
             (v) =>
-              ![1, 2, 3, 4, 5, 6].includes(Number(v.version)) ||
+              ![1, 2, 3, 4, 5, 6, 7].includes(Number(v.version)) ||
               v.checksum !==
                 hash(
                   Number(v.version) === 1
@@ -135,7 +138,9 @@ export class SqliteStore {
                           ? MEMORY_SCHEMA_SQL
                           : Number(v.version) === 5
                             ? DESKTOP_SCHEMA_SQL
-                            : RESOURCE_SCOPE_SCHEMA_SQL,
+                            : Number(v.version) === 6
+                              ? RESOURCE_SCOPE_SCHEMA_SQL
+                              : CONVERSATION_DELETION_SQL,
                 ),
           )
         )
@@ -212,6 +217,10 @@ export class SqliteStore {
           this.db
             .prepare('INSERT INTO schema_migrations VALUES(6,?,?)')
             .run(hash(RESOURCE_SCOPE_SCHEMA_SQL), this.now());
+        }
+        if (!this.get('SELECT version FROM schema_migrations WHERE version=7')) {
+          this.db.exec(CONVERSATION_DELETION_SQL);
+          this.run('INSERT INTO schema_migrations VALUES(7,?,?)',hash(CONVERSATION_DELETION_SQL),this.now());
         }
         this.db.exec('COMMIT');
       } catch (e) {
@@ -308,6 +317,7 @@ export class SqliteStore {
             },
           );
       }
+      new ConversationDeletion(this).cleanupPending();
     } catch (e) {
       try {
         this.db!.close();
@@ -462,6 +472,12 @@ export class SqliteStore {
         archive ? 1 : 0,
       );
     });
+  }
+  get databaseVersion() { return DATABASE_VERSION; }
+  deleteArchivedConversation(id: string) {
+    const result = new ConversationDeletion(this).deleteArchived(id);
+    this.states.delete(id);
+    return result;
   }
   attachment(conversationId: string, id: string) {
     const a = this.get(
