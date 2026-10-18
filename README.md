@@ -10,7 +10,7 @@ Umi 把自然语言目标连接到实际工作：理解要求、查找资料、�
 
 [下载](https://github.com/QI-seven33/Umi/releases) · [快速开始](#快速开始) · [开发与验证](#开发与验证) · [更新记录](CHANGELOG.md) · [报告问题](https://github.com/QI-seven33/Umi/issues)
 
-> Umi 仍处于实验性 alpha 阶段。当前 Windows 预发布为 [0.2.0-alpha.3](https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.3)；`main` 可能包含后续未发布改动，安装包以各版本说明为准。当前模型与联网服务使用 DeepSeek API，需要自己的凭据；本地运行不代表离线模型推理。
+> Umi 当前处于 `0.x` 开发阶段。当前 Windows 版本为 [0.2.0](https://github.com/QI-seven33/Umi/releases/tag/v0.2.0)；`main` 可能包含后续未发布改动，安装包以各版本说明为准。当前模型与联网服务使用 DeepSeek API，需要自己的凭据；本地运行不代表离线模型推理。
 
 ## Umi 可以做什么
 
@@ -73,7 +73,7 @@ Umi 把自然语言目标连接到实际工作：理解要求、查找资料、�
 2. 选择项目或资料目录作为工作区，描述想完成的任务。
 3. 根据需要补充信息、审阅请求和变更，接收交付结果。
 
-密钥、会话和托管工作资料保存在本机用户数据目录，与安装目录分开。模型请求会发送到配置的 API 服务。关闭窗口会隐藏应用；通过 **Umi → 退出 Umi** 完整退出。更新程序或切换源码版与便携版前，请先退出旧实例。
+密钥、会话和托管工作资料保存在本机用户数据目录，与安装目录分开。模型请求会发送到配置的 API 服务。关闭窗口会隐藏应用；通过 **应用 → 退出 Umi** 完整退出。更新程序或切换源码版与便携版前，请先退出旧实例。
 
 ### 从源码运行
 
@@ -105,7 +105,7 @@ npm run demo
 - 通用 skill/插件加载、任务内宿主信任、自动免批准执行和自选托管工作根仍待设计。
 - 当前授权状态为 `UNLICENSED`，没有项目级开源许可；说明见[授权状态](LICENSING.md)。
 
-尚待修复的问题和发布差异见[已知问题](docs/known-issues.zh-CN.md)与[版本说明](docs/releases/0.2.0-alpha.3.zh-CN.md)。
+尚待修复的问题和发布差异见[已知问题](docs/known-issues.zh-CN.md)与[版本说明](docs/releases/0.2.0.zh-CN.md)。
 
 ## 开发与验证
 

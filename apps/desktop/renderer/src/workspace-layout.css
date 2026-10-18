@@ -3,7 +3,8 @@
 .app-shell.is-resizing .work-surface { transition: none; }
 .app-shell.is-resizing .file-html-preview { pointer-events: none; }
 .main-area { container-type: inline-size; container-name: work-chat; }
-.composer { box-sizing: border-box; min-width: 0; box-shadow: none; }
+.composer { box-sizing: border-box; min-width: 0; box-shadow: var(--composer-edge-shadow); }
+.composer:is(.composer-approval, .composer-question) { box-shadow: none; }
 .composer:is(.composer-approval, .composer-question) { font-family: var(--font-ui); font-size: 12px; font-weight: 400; line-height: 1.6; }
 .composer textarea { field-sizing: content; min-width: 0; width: 100%; height: auto; min-height: 32px; max-height: 140px; box-sizing: border-box; overflow-y: auto; }
 .composer-tools { display: flex; flex-wrap: nowrap; min-width: 0; gap: 8px; }
@@ -15,7 +16,7 @@
 .composer .model-button-effort { flex: none; white-space: nowrap; }
 .composer .send-button, .composer .context-orb-wrap { flex: none; }
 @container work-chat (max-width: 560px) {
-  .composer, .composer:focus-within, .composer.dragging { width: calc(100% - 32px); }
+  .composer, .composer:focus-within, .composer.dragging, .empty-conversation { width: calc(100% - 32px); }
   .chat-canvas { padding-inline: 16px; }
   .chat-canvas .message-stack { width: 100%; }
   .composer .tool-group { gap: 3px; }.composer-tools { gap: 4px; }
@@ -36,6 +37,27 @@
 .chat-canvas .umi-tool, .chat-canvas .umi-file-row, .chat-canvas .umi-tool-toggle { border: 0; background: transparent; }
 .chat-canvas :is(.umi-tool,.umi-file-row,.umi-tool-toggle)::before, .chat-canvas :is(.umi-tool,.umi-file-row,.umi-tool-toggle)::after { box-shadow: none; background: none; }
 .umi-reasoning-row > summary { min-width: 0; }.umi-reasoning-excerpt { flex: 1; }
-.settings-page, .settings-page :is(.settings-card,.settings-page-panel,.settings-page-nav-item,.settings-page-back) { box-shadow: none; filter: none; }
-.settings-page :is(.settings-page-back,.settings-page-nav-item:not(.active)):hover { background: transparent; color: var(--text-primary); }
-.settings-page :is(.settings-page-nav-item,.settings-card,.settings-page-panel)::before, .settings-page :is(.settings-page-nav-item,.settings-card,.settings-page-panel)::after { box-shadow: none; filter: none; }
+.settings-page, .settings-page :is(.settings-card,.settings-page-nav-item,.settings-page-back) { box-shadow: none; filter: none; }
+.settings-page :is(.settings-page-nav-item,.settings-card)::before, .settings-page :is(.settings-page-nav-item,.settings-card)::after { box-shadow: none; filter: none; }
+
+/* 新会话复用同一个 Composer，仅切换布局；草稿、焦点、附件和菜单状态不重建。
+   上下弹性留白为 0.618 : 1，输入区靠近视觉中部，内容增高时留白自然收缩。 */
+.main-area.is-welcome .chat-canvas-wrap { display: none; }
+.main-area.is-welcome .composer-section {
+  position: relative; inset: auto; flex: 1 1 auto; min-height: 0;
+  max-height: none; overflow: visible; padding: 24px 0;
+  background: transparent; transition: none;
+}
+.main-area.is-welcome .composer-section::before,
+.main-area.is-welcome .composer-section::after { content: ""; display: block; width: 1px; min-height: 0; pointer-events: none; }
+.main-area.is-welcome .composer-section::before { flex: .618 1 0px; }
+.main-area.is-welcome .composer-section::after { flex: 1 1 0px; }
+.main-area.is-welcome .composer-section > * { flex: none; }
+.main-area.is-welcome .empty-conversation { margin: 0 0 22px; }
+/* 新会话为起草保留两三行空间；发送后仍使用原有紧凑输入高度。 */
+.main-area.is-welcome .composer:not(.composer-approval):not(.composer-question) textarea { min-height: 64px; }
+.main-area.is-welcome .attachment-list { max-height: min(160px, 24vh); overflow-y: auto; scrollbar-width: thin; }
+@media (max-height: 720px) {
+  .main-area.is-welcome .composer-section { padding-block: 16px; }
+  .main-area.is-welcome .empty-conversation { margin-bottom: 16px; }
+}

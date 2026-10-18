@@ -21,6 +21,7 @@ export function Composer(props: {
   approvalPanel?: ReactNode;
   questionPanel?: ReactNode;
   notice?: ReactNode;
+  intro?: ReactNode;
   prompt: string; onPromptChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
   onDragOver: (e: DragEvent) => void; onDragLeave: () => void; onDrop: (e: DragEvent) => void;
   onPaste: (e: ClipboardEvent) => void;
@@ -125,6 +126,7 @@ export function Composer(props: {
   const canSend=Boolean(workspace&&currentModel?.available&&!props.submitting&&(prompt.trim()||attachments.length)&&attachments.every(item=>item.state==='done'&&(item.kind!=='image'||currentModel.capabilities.vision)));
   return (
     <form ref={sectionRef} className="composer-section" onSubmit={props.approvalPanel || props.questionPanel ? e => e.preventDefault() : onSubmit}>
+      {props.intro}
       {props.notice && <div className="composer-notice">{props.notice}</div>}
       {props.approvalPanel ? <div className="composer composer-approval" aria-label="等待批准">
         <div className="approval-dock-content">{props.approvalPanel}</div>

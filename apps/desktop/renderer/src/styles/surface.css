@@ -1,18 +1,28 @@
 /* 桌面控件的统一边界：按钮无投影，浮层靠描边区分，大面板仅保留轻微层级。 */
 :root {
   --titlebar-height: 40px;
+  --work-edge-shadow: 0 0 0 1px #23354a05, 0 3px 16px -6px #23354a24;
+  --composer-edge-shadow: 0 1px 3px #23354a08, 0 4px 20px #23354a0d;
+  --welcome-ink: var(--text-primary);
   --control-radius: 10px;
   --card-radius: 18px;
   --sidebar-row-height: 34px;
+  --sidebar-width: 232px;
+  --surface-gap-right: 4px;
+  --surface-gap-left: 0px;
+  --surface-gap-bottom: 3px;
   --conversation-width: 820px;
   --work-header-height: 48px;
-  --surface-shell: #f0f1f0;
+  --surface-shell: #f9f9f9;
   --bg-selected-conversation: #fff;
   --bg-selected-soft: #ffffffd6;
 }
 
 [data-theme=dark] {
   --surface-shell: #202020;
+  --work-edge-shadow: 0 0 0 1px #ffffff05, 0 3px 18px -5px #00000066;
+  --composer-edge-shadow: 0 0 0 1px #ffffff06, 0 4px 20px #00000040;
+  --welcome-ink: var(--text-primary);
   --bg-selected-conversation: #ffffff14;
   --bg-selected-soft: #ffffff14;
 }
@@ -30,15 +40,6 @@ body,
 
 .left-sidebar,
 .settings-page-nav {
-  background: transparent;
-}
-
-/* 实际壁纸着色由 Windows DWM 绘制，页面不截图或采样桌面。 */
-:root[data-material=mica],
-:root[data-material=mica] body,
-:root[data-material=mica] #root,
-:root[data-material=mica] .app-shell,
-:root[data-material=mica] .settings-page {
   background: transparent;
 }
 
@@ -69,29 +70,26 @@ body,
 }
 
 .app-shell {
-  padding: 0 8px 8px 0;
+  padding: 0 var(--surface-gap-right) var(--surface-gap-bottom) 0;
   grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
 }
 
+.app-shell.left-expanded { --left-width: var(--sidebar-width); column-gap: var(--surface-gap-left); }
+
 .app-shell.left-collapsed {
-  padding-left: 8px;
+  padding-left: var(--surface-gap-right);
 }
 
 .work-surface,
 .settings-page-panel {
-  border-radius: 18px;
-  border: 1px solid #18181b06;
-  box-shadow: 0 1px 3px #18181b06;
+  border-radius: var(--card-radius);
+  border: 1px solid #23354a0a;
+  box-shadow: var(--work-edge-shadow);
 }
-
 [data-theme=dark] :is(.work-surface, .settings-page-panel) {
-  border-color: #ffffff08;
-  box-shadow: none;
+  border-color: #ffffff0a;
+  box-shadow: var(--work-edge-shadow);
 }
-
-
-
-
 
 /* 图形与普通文本分开；名字跟随主题，不依赖图片字形。 */
 
@@ -101,10 +99,9 @@ body,
 
 
 .left-sidebar {
-  padding-bottom: 6px;
-  --button-hover: var(--nav-selected);
-  --bg-hover: var(--nav-selected);
-  --nav-hover: var(--nav-selected);
+  padding-bottom: 11px;
+  --button-hover: var(--nav-hover);
+  --bg-hover: var(--nav-hover);
 }
 
 :root body .left-sidebar button:not(:disabled):hover {
@@ -352,7 +349,7 @@ body,
   width: min(var(--conversation-width), calc(100% - 64px));
   padding: 10px 12px;
   border-radius: 18px;
-  box-shadow: 0 2px 8px #18181b07;
+  box-shadow: var(--composer-edge-shadow);
 }
 
 .composer-tools {
@@ -426,7 +423,7 @@ body,
 }
 
 [data-theme=dark] :is(.composer, .composer:focus-within, .composer.dragging) {
-  box-shadow: none;
+  box-shadow: var(--composer-edge-shadow);
 }
 
 /* 模型与思考共用紧凑列表，选中状态只用勾选；子卡片按可用空间展开。 */
@@ -594,12 +591,13 @@ body,
 }
 
 .settings-page {
-  grid-template-columns: 240px minmax(0, 1fr);
-  padding: var(--titlebar-height) 14px 14px 0;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  column-gap: var(--surface-gap-left);
+  padding: var(--titlebar-height) var(--surface-gap-right) var(--surface-gap-bottom) 0;
 }
 
 .settings-page-nav {
-  padding: 16px 12px;
+  padding: 16px 10px;
 }
 
 .settings-page-back {
@@ -858,9 +856,9 @@ body,
 
 /* 导航的状态靠平面底色、文字和描边区分，不用浮起的阴影。 */
 :root {
-  --nav-selected: #e5e8e8;
+  --nav-selected: #E8EAED ;
   --nav-selected-border: transparent;
-  --nav-hover: #f0f0f2;
+  --nav-hover: #E8EAED ;
   --send-bg: #337fed;
   --send-fg: #fff;
 }
@@ -868,7 +866,7 @@ body,
 [data-theme=dark] {
   --nav-selected: #ffffff1a;
   --nav-selected-border: transparent;
-  --nav-hover: #f0f0f2;
+  --nav-hover: #ffffff1a;
   --send-bg: #337fed;
   --send-fg: #fff;
 }
@@ -879,7 +877,8 @@ body,
   box-shadow: none !important;
 }
 
-:root .workspace-row:is(:hover, :focus-within),
+/* 工作区的选择/焦点不铺底色；只在鼠标悬停时高亮，避免与当前会话同时常驻。 */
+:root .workspace-row:hover,
 :root .workspace-conversation-wrap:is(:hover, :focus-within):not(.active) {
   background: var(--nav-hover);
   box-shadow: none;
@@ -910,6 +909,42 @@ body,
 }
 
 
+
+/* 新会话与设置导航复用历史会话的行高、圆角和状态色。
+   调深浅只改上方 --nav-hover / --nav-selected，不要重新叠 box-shadow。 */
+.new-chat,
+.settings-page-back,
+.settings-page-nav-item {
+  box-sizing: border-box;
+  height: var(--sidebar-row-height);
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  padding: 0 10px;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 400;
+  transform: none;
+}
+.settings-page-back,
+.settings-page-nav-item { width: 100%; }
+:root body :is(.new-chat, .settings-page-back, .settings-page-nav-item):not(:disabled):is(:hover, :focus-visible) {
+  background: var(--nav-hover);
+  color: var(--text-primary);
+  border-color: var(--nav-selected-border);
+  box-shadow: none;
+  transform: none;
+}
+:root body .settings-page-nav-item.active,
+:root body .settings-page-nav-item.active:is(:hover, :focus-visible),
+:root body .new-chat:not(:disabled):active {
+  background: var(--nav-selected);
+  color: var(--text-primary);
+  border-color: var(--nav-selected-border);
+  box-shadow: none;
+  transform: none;
+}
+.settings-page-nav-item.active { font-weight: 500; }
 
 /* 发送与中止保持相同圆形和固定颜色，覆盖旧的全局 hover 规则。 */
 :root body button.send-button,
@@ -996,17 +1031,17 @@ body,
 }
 
 .empty-conversation {
-  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; margin: 0 auto; padding: 20px; max-width: 560px;
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0; margin: 0; padding: 0; width: min(var(--conversation-width), calc(100% - 64px)); min-width: 0; max-width: none;
 }
 
 
 
 
 
-.empty-conversation small {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.7;
+.welcome-title {
+  margin: 0; color: var(--welcome-ink);
+  font-family: var(--font-ui); font-size: clamp(26px, 3.4cqw, 32px);
+  font-weight: 400; line-height: 1.5; letter-spacing: 0;
 }
 
 /* 批准沿用输入区的布局和高度测量，草稿在等待期间保留。 */
@@ -1194,7 +1229,7 @@ body,
 .work-preview-location { font-size: 0; gap: 0; padding: 4px; }
 .work-preview-location svg { width: 14px; height: 14px; }
 .work-preview-error button { display: inline-flex; align-items: center; gap: 4px; background: transparent; border: 0; color: inherit; }
-.settings-page * { box-shadow: none !important; }
+.settings-page :is(.settings-card, .settings-page-nav-item, .settings-page-back) { box-shadow: none !important; }
 .settings-content { width: min(660px, 100%); }
 .settings-heading h1 { font-size: 20px; font-weight: 500; }
 .composer { position: relative; }

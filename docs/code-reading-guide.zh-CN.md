@@ -1,5 +1,11 @@
 # Umi 代码学习与开发指南
 
+当前发行入口：[Umi 0.2.0](releases/0.2.0.zh-CN.md)。本轮核心486/486、源码/便携各85/85完整桌面通过，旧“未测试”为前轮阶段。维护者欢迎语现为“Thus begins the story.”，导航浅色#E8EAED；surface.css的--sidebar-width=232px、--surface-gap-left=0px管理侧栏与主面板，--nav-hover/--nav-selected管理导航底色。沿scripts/build-info.mjs → package-desktop.mjs → build-windows.mjs学习源码指纹、运行文件核验、NSIS载荷验证和资产摘要；不要把载荷核验当作实际安装体验验收。
+
+当前导航样式：[状态色与设置面板统一](navigation-surfaces-20261018.zh-CN.md)。surface.css 的 --nav-hover/--nav-selected 分别管理悬停/选中底色，--control-radius 管理圆角；主面板共用 --work-edge-shadow。workspace-layout 不再清掉设置导航悬停或主面板阴影。本轮仅编译，未运行测试。
+
+当前界面学习：[居中单句与纯色背景](welcome-ui-20261018.zh-CN.md)。EmptyConversation 只保留“故事将由此展开。”；字号/字重在 surface.css 的 welcome-title，侧栏宽度和外缝在同文件 app-shell。main.ts 的 windowBackgroundColor 与固定 solid 返回替代 Mica。沿 App → Composer → workspace-layout 阅读欢迎/底部输入切换；本轮按要求未运行测试，旧阶段验收按日期区分。
+
 当前顶栏阅读：[开发/发行区分](desktop-titlebar-20261018.zh-CN.md)。沿 TitleBar → 固定 preload → 严格菜单 DTO → 主进程原生菜单阅读；app.isPackaged 决定开发入口，Windows 控制按钮保留原生实现。
 
 ## 2026-10-18：文件预览生命周期

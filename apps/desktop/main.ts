@@ -12,7 +12,6 @@ import {
   Menu,
   nativeTheme,
 } from 'electron';
-import { release as osRelease } from 'node:os';
 import {
   readFileSync,
   writeFileSync,
@@ -62,10 +61,10 @@ let win: BrowserWindow | null = null,
   quitting = false,
   config: DesktopConfig;
 
-// micaSupported：判断是否支持 Windows 11 的 Mica 材质效果。
-// osRelease() 返回类似 10.0.22621，取第三段（build 号），>= 22621 就是 Win11 22H2 及以上。
-const micaSupported =
-  process.platform === 'win32' && Number(osRelease().split('.')[2]) >= 22621;
+// 窗口与页面共用不透明纯色背景，避免桌面壁纸或窗口激活状态改变外观。
+function windowBackgroundColor() {
+  return nativeTheme.shouldUseDarkColors ? '#202020' : '#F9F9F9';
+}
 
 // selected：一个 Map，存“用户刚通过对话框选中的目录”。
 // key 是 selectionId（UUID），value 包含路径、身份标识、过期时间。
@@ -213,7 +212,7 @@ function handle(
 // 原生窗口控制覆盖页面右上角；主题变化时同步图标和背景。
 function titleBarOverlay() {
   return {
-    // 透出同一层窗口材质；固定灰底会在渐变/Mica 顶栏形成独立色块。
+    // 透出同一层纯色窗口背景，避免原生控制按钮出现独立底板。
     color: '#00000000',
     symbolColor: nativeTheme.shouldUseDarkColors ? '#e8e8e8' : '#292b30',
     height: TITLE_BAR_HEIGHT,
@@ -241,13 +240,13 @@ function installIPC() {
     }));
   });
   // umi:theme：校验主题值，设置 nativeTheme.themeSource，
-  // 返回当前窗口材质（Mica 或纯色）。
+  // 返回固定的纯色材质；主题切换仍更新原生窗口文字与背景。
   handle('umi:theme', (_e, arg) => {
     if (arg !== 'light' && arg !== 'dark' && arg !== 'system') {
       throw new UmiError('PROTOCOL_INVALID', '主题无效');
     }
     nativeTheme.themeSource = arg;
-    return { material: micaSupported ? 'mica' : 'solid' };
+    return { material: 'solid' };
   });
 
   // umi:status：返回 broker 是否 ready。
@@ -445,8 +444,7 @@ function createWindow() {
     title: 'Umi',
     titleBarStyle: 'hidden',
     ...(process.platform === 'win32' ? { titleBarOverlay: titleBarOverlay() } : {}),
-    backgroundColor: micaSupported ? '#00000000' : '#eef2f0',
-    ...(micaSupported ? { backgroundMaterial: 'mica' as const } : {}),
+    backgroundColor: windowBackgroundColor(),
     show: false,
     icon: join(codeRoot, process.platform === 'win32' ? 'renderer/umi.ico' : 'renderer/umi-logo.png'),
     webPreferences: {
@@ -460,7 +458,7 @@ function createWindow() {
   });
 
   if (process.platform === 'win32') {
-    const updateOverlay = () => { if (win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay()); };
+    const updateOverlay = () => { if (win && !win.isDestroyed()) { win.setTitleBarOverlay(titleBarOverlay()); win.setBackgroundColor(windowBackgroundColor()); } };
     nativeTheme.on('updated', updateOverlay);
     win.once('closed', () => nativeTheme.removeListener('updated', updateOverlay));
   }

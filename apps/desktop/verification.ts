@@ -334,13 +334,15 @@ export async function verifyDesktop(
     );
     const { verifyWindowChrome } = await import('./verification-window-chrome.js');
     await verifyWindowChrome(win, dataRoot, pass);
+    const { verifyWelcomeLayout } = await import('./verification-welcome.js');
+    await verifyWelcomeLayout(win, dataRoot, pass);
     await win.webContents.executeJavaScript(`document.fonts.ready`);
     const welcome = await win.webContents.executeJavaScript(`(() => {
-      const heading=document.querySelector('.text-pressure'),left=document.querySelector('.left-title-toggle'),sidebar=document.querySelector('.left-sidebar'),profile=document.querySelector('.profile-trigger');
+      const heading=document.querySelector('.welcome-title'),left=document.querySelector('.left-title-toggle'),sidebar=document.querySelector('.left-sidebar'),profile=document.querySelector('.profile-trigger');
       const bounds=node=>{const r=node.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
-      return {text:heading.textContent,label:heading.getAttribute('aria-label'),letters:heading.querySelectorAll('[data-letter]').length,fontReady:document.fonts.check('100px "Umi Pressure"'),icons:document.querySelectorAll('.brand-logo,.umi-brandmark').length,brand:!!document.querySelector('.brand-name'),left:bounds(left),sidebar:bounds(sidebar),newChat:bounds(document.querySelector('.new-chat')),profile:bounds(profile),height:innerHeight,rightTop:document.querySelector('.right-rail-toggle').getBoundingClientRect().top};
+      return {text:heading.textContent,outsideIcons:document.querySelectorAll('.umi-brandmark:not(.welcome-mark)').length,icons:document.querySelectorAll('.brand-logo,.umi-brandmark').length,brand:!!document.querySelector('.brand-name'),left:bounds(left),sidebar:bounds(sidebar),newChat:bounds(document.querySelector('.new-chat')),profile:bounds(profile),height:innerHeight,rightTop:document.querySelector('.right-rail-toggle').getBoundingClientRect().top};
     })()`);
-    assert.equal(welcome.text,'hello'); assert.equal(welcome.label,'hello'); assert.equal(welcome.letters,5); assert(welcome.fontReady);
+    assert.equal(welcome.text,'Thus begins the story.'); assert.equal(welcome.outsideIcons,0);
     assert.equal(welcome.icons,0); assert.equal(welcome.brand,false); assert(welcome.left.bottom<=welcome.sidebar.top+1);
     assert(welcome.newChat.top < welcome.sidebar.top+12); assert(welcome.height-welcome.profile.bottom<22);
     const surfaceBounds = await win.webContents.executeJavaScript(`(()=>{const s=document.querySelector('.work-surface').getBoundingClientRect(),b=document.querySelector('.right-rail-toggle').getBoundingClientRect();return {top:s.top,right:s.right,buttonTop:b.top,buttonRight:b.right};})()`);
@@ -349,18 +351,15 @@ export async function verifyDesktop(
     pass('右侧控制位于工作卡片右上角，左控制和头像保持原位',welcome);
     win.showInactive();win.webContents.setBackgroundThrottling(false);
     await captureFrame(true);await delay(150);
-    win.webContents.debugger.attach('1.3');
-    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
-    const pressure = await win.webContents.executeJavaScript(`(() => {const h=document.querySelector('.text-pressure'),r=h.getBoundingClientRect();h.dispatchEvent(new PointerEvent('pointermove',{clientX:r.left+r.width*.2,clientY:r.top+r.height*.5,bubbles:true}));return Array.from(h.children).map(n=>n.style.fontVariationSettings).join('|');})()`);
-    await until(()=>win.webContents.executeJavaScript(`Array.from(document.querySelector('.text-pressure').children).map(n=>n.style.fontVariationSettings).join('|')`),value=>Boolean(value)&&value!==pressure);
-    await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[]});win.webContents.debugger.detach();
-    pass('hello离线可变字体压力动画实际改变字重和宽度');
+    const identity = await win.webContents.executeJavaScript(`(()=>{const title=document.querySelector('.welcome-title'),intro=document.querySelector('.empty-conversation');return {copy:title.textContent,extras:intro.querySelectorAll('img,p,small').length,weight:getComputedStyle(title).fontWeight,animations:intro.getAnimations({subtree:true}).length};})()`);
+    assert.equal(identity.copy,'Thus begins the story.');assert.equal(identity.extras,0);assert.equal(identity.weight,'400');assert.equal(identity.animations,0);
+    pass('欢迎区仅展示居中单句和统一常规字体，无图标、小字或额外动画',identity);
     await win.webContents.executeJavaScript(`window.__umiMaterial=document.documentElement.dataset.material;document.documentElement.dataset.material='solid'`);
     await delay(120);writeFileSync(join(dataRoot,'welcome-preview.png'),(await captureFrame(true)).toPNG());
     await win.webContents.executeJavaScript(`window.__umiBrandTheme=document.documentElement.dataset.theme;document.documentElement.dataset.theme='dark'`);
     await delay(120);writeFileSync(join(dataRoot,'welcome-dark-preview.png'),(await captureFrame(true)).toPNG());
     await win.webContents.executeJavaScript(`document.documentElement.dataset.theme=window.__umiBrandTheme;delete window.__umiBrandTheme`);
-    pass('hello与顶部导航的浅深主题截图已保存');
+    pass('单句欢迎区与顶部导航的浅深主题截图已保存');
 
     await win.webContents.executeJavaScript(
       `document.documentElement.dataset.material=window.__umiMaterial;delete window.__umiMaterial`,
@@ -499,6 +498,10 @@ export async function verifyDesktop(
     assert.equal(uiState.messages[0]!.attachments.length, 3);
     assert.equal(Object.values(uiState.state.turns).length, 1);
     pass('真实页面 20 次快速提交仅一条消息、一个模型轮，附件保持身份');
+    const activeComposer = await win.webContents.executeJavaScript(`(()=>{const main=document.querySelector('.main-area'),m=main.getBoundingClientRect(),c=document.querySelector('.composer').getBoundingClientRect();return {welcoming:main.classList.contains('is-welcome'),welcomeHeading:!!document.querySelector('.empty-conversation'),bottomGap:m.bottom-c.bottom,count:document.querySelectorAll('.composer textarea').length,sameNode:window.__umiWelcomeInput===document.querySelector('.composer textarea')};})()`);
+    assert.equal(activeComposer.welcoming,false);assert.equal(activeComposer.welcomeHeading,false);assert.equal(activeComposer.count,1);assert.equal(activeComposer.sameNode,true);assert(activeComposer.bottomGap<70);
+    await win.webContents.executeJavaScript('delete window.__umiWelcomeInput');
+    pass('首条消息发送后复用同一输入区并回到底部，欢迎标题移除',activeComposer);
     const pasted = uiState.messages[0]!.attachments.find(
       (a) => a.name === '已粘贴的文本.txt',
     )!;
@@ -629,8 +632,9 @@ export async function verifyDesktop(
     assert.deepEqual(categories, ['个人资料', '模型设置', '会话', '执行环境', '归档']);
     pass('设置按五个独立分类展示', categories);
     const settingsHover = await hoverStyle('.settings-page-nav-item[data-category="model"]');
-    assert.equal(settingsHover.shadow,'none');assert.equal(settingsHover.background,'rgba(0, 0, 0, 0)');
-    pass('设置分类悬停无投影或灰色浮起底板，深浅主题色由统一变量提供',settingsHover);
+    assert.equal(settingsHover.shadow,'none');assert.notEqual(settingsHover.background,'rgba(0, 0, 0, 0)');
+    assert.equal(settingsHover.radius,await win.webContents.executeJavaScript("getComputedStyle(document.documentElement).getPropertyValue('--control-radius').trim()"));
+    pass('设置分类悬停使用统一导航底色和圆角，无额外投影',settingsHover);
     assert.equal(
       await win.webContents.executeJavaScript(
         `getComputedStyle(document.querySelector('.app-shell')).visibility`,
