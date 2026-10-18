@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [0.2.0-alpha.3] - 2026-10-18
+
+### 界面
+
+- 移除侧栏展开按钮常驻灰底与原生标题按钮的独立灰色底板，统一轻微悬停反馈，使顶栏与窗口材质连贯。
+
+### 修复
+
+- 区分开发与发行顶栏：发行构建隐藏开发菜单并禁用开发者工具；移除重复原生菜单栏和左上角图标，保留紧凑应用/编辑菜单及 Windows 原生窗口按钮。
+
 ## [0.2.0-alpha.2] - 2026-10-18
 
 ### 修复
@@ -46,6 +56,7 @@
 
 这是实验性预发布。HTML 首帧偶发空白、启动写者标记、部分预算终止正文及迁移就绪标识问题仍待处理；宿主命令没有 OS 文件/网络沙箱。详见[已知问题](docs/known-issues.zh-CN.md)和[本版发布说明](docs/releases/0.2.0-alpha.1.zh-CN.md)。
 
-[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.2...HEAD
+[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.3...HEAD
+[0.2.0-alpha.3]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.1

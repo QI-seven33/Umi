@@ -42,6 +42,7 @@ jobs:
           dist/tests/text-write.test.js
           dist/tests/tool-modules.test.js
           dist/tests/ui-flow.test.js
+          dist/tests/window-chrome.test.js
           dist/tests/web-search.test.js
           dist/tests/web-fetch.test.js
       - run: node scripts/build-desktop.mjs

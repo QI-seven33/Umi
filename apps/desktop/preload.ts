@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld(
     //Object.freeze —— 冻结对象：属性不能再增、删、改  作用：防止页面代码篡改 window.umi，比如不能 window.umi.request = 恶意函数
     request: (c: unknown) => invoke('umi:request', c),
     setTheme: (theme: unknown) => invoke('umi:theme', theme),
+    windowInfo: () => invoke('umi:window-info'),
+    showMenu: (request: unknown) => invoke('umi:menu', request),
     chooseWorkspace: () => invoke('umi:choose'),
     chooseOutputTarget: (conversationId: unknown, outputId: unknown) =>
       invoke('umi:output-target', { conversationId, outputId }),

@@ -1,5 +1,6 @@
 /* 桌面控件的统一边界：按钮无投影，浮层靠描边区分，大面板仅保留轻微层级。 */
 :root {
+  --titlebar-height: 40px;
   --control-radius: 10px;
   --card-radius: 18px;
   --sidebar-row-height: 34px;
@@ -68,8 +69,8 @@ body,
 }
 
 .app-shell {
-  padding: 8px 8px 8px 0;
-  grid-template-rows: 28px minmax(0, 1fr);
+  padding: 0 8px 8px 0;
+  grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
 }
 
 .app-shell.left-collapsed {
@@ -594,7 +595,7 @@ body,
 
 .settings-page {
   grid-template-columns: 240px minmax(0, 1fr);
-  padding: 12px 14px 14px 0;
+  padding: var(--titlebar-height) 14px 14px 0;
 }
 
 .settings-page-nav {
@@ -799,7 +800,7 @@ body,
   .settings-page {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
-    padding: 8px
+    padding: var(--titlebar-height) 8px 8px
   }
 
   .settings-page-nav {
@@ -1143,8 +1144,33 @@ body,
 }
 
 /* 左按钮保留顶部位置；右按钮跟随工作卡片，定位由 file-preview.css 管理。 */
-.app-titlebar { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; height: 28px; padding-left: 16px; -webkit-app-region: drag; }
-.app-titlebar button { -webkit-app-region: no-drag; width: 28px; height: 28px; border: 0; }
+/* 保持在设置页的 inert 工作台之外；右侧由 Windows 原生按钮占位。
+   env 来自 Window Controls Overlay，最大化和 DPI 变化后无需 JS 追踪尺寸。 */
+.app-titlebar {
+  position: fixed; z-index: 110; top: 0;
+  left: env(titlebar-area-x, 0px);
+  width: env(titlebar-area-width, calc(100% - 138px));
+  height: var(--titlebar-height); padding-left: 16px;
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text-secondary); -webkit-app-region: drag;
+}
+.app-titlebar nav { display: flex; align-items: center; gap: 2px; -webkit-app-region: no-drag; }
+.app-titlebar button {
+  -webkit-app-region: no-drag; height: 28px; border: 0; box-shadow: none;
+  border-radius: 6px; background: transparent; color: inherit;
+}
+.app-titlebar .left-title-toggle { width: 28px; padding: 0; }
+.app-titlebar .titlebar-menu { width: auto; padding: 0 10px; font: inherit; font-size: 13px; font-weight: 400; }
+/* 展开侧栏只是布局状态，不是选中按钮；只有悬停或菜单真正打开时给轻微叠色。 */
+.app-titlebar button:hover:not(:disabled),
+.app-titlebar .titlebar-menu[aria-expanded=true] {
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  color: var(--text-primary);
+}
+.app-titlebar button:active:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 10%, transparent); }
+.app-titlebar button:disabled { opacity: .4; background: transparent; }
+.app-titlebar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.titlebar-error { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--danger); }
 .app-shell > .left-sidebar { grid-column: 1; grid-row: 2; }
 .app-shell > .work-surface { grid-column: 2; grid-row: 2; }
 .left-title-toggle { position: relative; flex: none; }

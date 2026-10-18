@@ -90,6 +90,15 @@ export async function verifyDesktop(
         const original = await win.webContents.debugger.sendCommand('DOM.describeNode',{nodeId:node.nodeId});
         await win.webContents.debugger.sendCommand('CSS.forcePseudoState',{nodeId:node.nodeId,forcedPseudoClasses:['hover']});
         await delay(100);
+        // 原有颜色过渡为120～200ms；测量最终悬停对比度前等待目标及祖先的过渡结束。
+        // 保留真实过渡和4.5阈值，不把中间帧偶然取样当成最终颜色。
+        await win.webContents.executeJavaScript(`(async()=>{
+          const node=document.querySelector(${JSON.stringify(probe)}),chain=[];
+          for(let p=node;p;p=p.parentElement){getComputedStyle(p).color;chain.push(p);}
+          await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+          const transitions=chain.flatMap(p=>p.getAnimations().filter(a=>a instanceof CSSTransition));
+          await Promise.allSettled(transitions.map(a=>a.finished));
+        })()`);
         const currentDocument = await win.webContents.debugger.sendCommand('DOM.getDocument');
         const current = await win.webContents.debugger.sendCommand('DOM.querySelector',{nodeId:currentDocument.root.nodeId,selector});
         if(!current.nodeId)continue;
@@ -323,6 +332,8 @@ export async function verifyDesktop(
       ),
       false,
     );
+    const { verifyWindowChrome } = await import('./verification-window-chrome.js');
+    await verifyWindowChrome(win, dataRoot, pass);
     await win.webContents.executeJavaScript(`document.fonts.ready`);
     const welcome = await win.webContents.executeJavaScript(`(() => {
       const heading=document.querySelector('.text-pressure'),left=document.querySelector('.left-title-toggle'),sidebar=document.querySelector('.left-sidebar'),profile=document.querySelector('.profile-trigger');
@@ -627,6 +638,9 @@ export async function verifyDesktop(
       'hidden',
     );
     pass('设置打开时工作台不再绘制，不透出底层内容');
+    const settingsChrome = await win.webContents.executeJavaScript(`(()=>{const h=document.querySelector('.app-titlebar'),p=document.querySelector('.settings-page');return {visible:getComputedStyle(h).visibility,inert:!!h.closest('[inert]'),headerBottom:h.getBoundingClientRect().bottom,panelTop:p.querySelector('.settings-page-panel').getBoundingClientRect().top};})()`);
+    assert.equal(settingsChrome.visible,'visible');assert.equal(settingsChrome.inert,false);assert(settingsChrome.panelTop>=settingsChrome.headerBottom);
+    pass('设置页保留顶栏菜单且内容不遮挡原生窗口控制',settingsChrome);
     // Chromium 截图不包含 DWM 原生材质，证据图明确使用静态降级外壳。
     await win.webContents.executeJavaScript(
       `window.__umiMaterial=document.documentElement.dataset.material;document.documentElement.dataset.material='solid'`,

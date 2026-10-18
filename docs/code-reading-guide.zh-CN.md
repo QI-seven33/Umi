@@ -1,5 +1,7 @@
 # Umi 代码学习与开发指南
 
+当前顶栏阅读：[开发/发行区分](desktop-titlebar-20261018.zh-CN.md)。沿 TitleBar → 固定 preload → 严格菜单 DTO → 主进程原生菜单阅读；app.isPackaged 决定开发入口，Windows 控制按钮保留原生实现。
+
 ## 2026-10-18：文件预览生命周期
 
 从FilePreview/FrozenFilePreview读取和preview-page同版本拼接进入FileContent；HTML完整后才清理并挂载HtmlPreview，其他格式保持滚动补读。独立Electron验收在verification-file-preview.ts，通过CDP文字框和截图验证真实排版。复现、实现取舍与复跑步骤见[本轮学习说明](html-preview-repair-20261018.zh-CN.md)。

@@ -198,7 +198,16 @@ export const desktopConfigSchema = z
   })
   .strict();
 export type DesktopConfig = z.infer<typeof desktopConfigSchema>;
+// 页面只能选择固定菜单和弹出坐标，不能定义菜单动作或执行任意窗口命令。
+export const desktopMenuRequestSchema = z.object({
+  menu: z.enum(['app', 'edit', 'development']),
+  x: z.number().int().min(0).max(32768),
+  y: z.number().int().min(0).max(32768),
+}).strict();
+export type DesktopMenuRequest = z.infer<typeof desktopMenuRequestSchema>;
 export type DesktopBridge = {
+  windowInfo: () => Promise<{ development: boolean }>;
+  showMenu: (request: DesktopMenuRequest) => Promise<void>;
   request: (command: DesktopInput) => Promise<unknown>;
   setTheme: (
     theme: 'light' | 'dark' | 'system',

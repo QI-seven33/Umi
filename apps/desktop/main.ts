@@ -28,11 +28,13 @@ import { execFile } from 'node:child_process';
 import {
   desktopCommandSchema,
   desktopConfigSchema,
+  desktopMenuRequestSchema,
 } from '../../packages/protocol/src/desktop.js';
 import type { DesktopConfig } from '../../packages/protocol/src/desktop.js';
 import { UmiError } from '../../packages/protocol/src/model.js';
 import { safeRoot, rootIdentity } from '../../packages/adapters/src/host-files/paths.js';
 import { AgentBroker } from './broker.js';
+import { desktopMenuTemplate, TITLE_BAR_HEIGHT } from './window-chrome.js';
 
 // 注册自定义协议。
 // 这行必须在 app.whenReady() 之前执行，这是 Electron 的硬性要求。
@@ -208,7 +210,36 @@ function handle(
   });
 }
 
+// 原生窗口控制覆盖页面右上角；主题变化时同步图标和背景。
+function titleBarOverlay() {
+  return {
+    // 透出同一层窗口材质；固定灰底会在渐变/Mica 顶栏形成独立色块。
+    color: '#00000000',
+    symbolColor: nativeTheme.shouldUseDarkColors ? '#e8e8e8' : '#292b30',
+    height: TITLE_BAR_HEIGHT,
+  };
+}
+
 function installIPC() {
+  handle('umi:window-info', () => ({ development: !app.isPackaged }));
+  handle('umi:menu', async (_e, raw) => {
+    const parsed = desktopMenuRequestSchema.safeParse(raw);
+    if (!parsed.success) throw new UmiError('PROTOCOL_INVALID', '菜单请求无效');
+    const arg = parsed.data, current = win!;
+    const menu = Menu.buildFromTemplate(desktopMenuTemplate(arg.menu, !app.isPackaged, {
+      about: () => { void dialog.showMessageBox(current, {
+        type: 'info', title: '关于 Umi', message: 'Umi',
+        detail: '版本 ' + app.getVersion() + (app.isPackaged ? '' : '（开发版）'),
+      }); },
+      quit: () => app.quit(),
+    }));
+    const [width = 1, height = 1] = current.getContentSize();
+    await new Promise<void>(resolveMenu => menu.popup({
+      window: current,
+      x: Math.min(arg.x, width - 1), y: Math.min(arg.y, height - 1),
+      callback: resolveMenu,
+    }));
+  });
   // umi:theme：校验主题值，设置 nativeTheme.themeSource，
   // 返回当前窗口材质（Mica 或纯色）。
   handle('umi:theme', (_e, arg) => {
@@ -412,6 +443,8 @@ function createWindow() {
     minWidth: 840,
     minHeight: 620,
     title: 'Umi',
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'win32' ? { titleBarOverlay: titleBarOverlay() } : {}),
     backgroundColor: micaSupported ? '#00000000' : '#eef2f0',
     ...(micaSupported ? { backgroundMaterial: 'mica' as const } : {}),
     show: false,
@@ -422,8 +455,15 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      devTools: !app.isPackaged,
     },
   });
+
+  if (process.platform === 'win32') {
+    const updateOverlay = () => { if (win && !win.isDestroyed()) win.setTitleBarOverlay(titleBarOverlay()); };
+    nativeTheme.on('updated', updateOverlay);
+    win.once('closed', () => nativeTheme.removeListener('updated', updateOverlay));
+  }
 
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
@@ -485,21 +525,8 @@ if (!app.requestSingleInstanceLock()) {
         return net.fetch(pathToFileURL(path).toString());
       });
 
-      Menu.setApplicationMenu(
-        Menu.buildFromTemplate([
-          {
-            label: 'Umi',
-            submenu: [
-              { label: '显示窗口', click: () => win?.show() },
-              { label: '退出 Umi', click: () => app.quit() },
-            ],
-          },
-          {
-            label: '开发',
-            submenu: [{ role: 'reload' }, { role: 'toggleDevTools' }],
-          },
-        ]),
-      );
+      // 统一由紧凑顶栏打开固定原生菜单，避免 Electron 默认菜单进入发行包。
+      Menu.setApplicationMenu(null);
 
       config = loadConfig();
       broker = new AgentBroker(
