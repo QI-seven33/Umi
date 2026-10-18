@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.2.0-alpha.2] - 2026-10-18
+
 ### 修复
 
 - HTML预览在完整正文到达后再创建子页面，避免初始空文档与连续分页反复导航导致的空白或不完整显示；补充多格式真实桌面回归。
@@ -44,4 +46,6 @@
 
 这是实验性预发布。HTML 首帧偶发空白、启动写者标记、部分预算终止正文及迁移就绪标识问题仍待处理；宿主命令没有 OS 文件/网络沙箱。详见[已知问题](docs/known-issues.zh-CN.md)和[本版发布说明](docs/releases/0.2.0-alpha.1.zh-CN.md)。
 
+[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.2...HEAD
+[0.2.0-alpha.2]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.1

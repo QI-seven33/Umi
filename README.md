@@ -10,7 +10,7 @@ Umi 把自然语言目标连接到实际工作：理解要求、查找资料、�
 
 [下载](https://github.com/QI-seven33/Umi/releases) · [快速开始](#快速开始) · [开发与验证](#开发与验证) · [更新记录](CHANGELOG.md) · [报告问题](https://github.com/QI-seven33/Umi/issues)
 
-> Umi 仍处于实验性 alpha 阶段。`main` 包含尚未发布的功能；GitHub Releases 中的安装包以各版本说明为准。当前模型与联网服务使用 DeepSeek API，需要自己的凭据；本地运行不代表离线模型推理。
+> Umi 仍处于实验性 alpha 阶段。当前 Windows 预发布为 [0.2.0-alpha.2](https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.2)；`main` 可能包含后续未发布改动，安装包以各版本说明为准。当前模型与联网服务使用 DeepSeek API，需要自己的凭据；本地运行不代表离线模型推理。
 
 ## Umi 可以做什么
 
@@ -105,7 +105,7 @@ npm run demo
 - 通用 skill/插件加载、任务内宿主信任、自动免批准执行和自选托管工作根仍待设计。
 - 当前授权状态为 `UNLICENSED`，没有项目级开源许可；说明见[授权状态](LICENSING.md)。
 
-尚待修复的问题和发布差异见[已知问题](docs/known-issues.zh-CN.md)与[版本说明](docs/releases/0.2.0-alpha.1.zh-CN.md)。
+尚待修复的问题和发布差异见[已知问题](docs/known-issues.zh-CN.md)与[版本说明](docs/releases/0.2.0-alpha.2.zh-CN.md)。
 
 ## 开发与验证
 
