@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, existsSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { hash } from '../../../agent/src/identity.js';
 import type { Environment, ToolResult } from '../../../agent/src/persistence.js';
@@ -15,7 +15,7 @@ import {
   bytesHash,
 } from '../host-files/paths.js';
 import { hostContext } from '../host-files/scratch.js';
-import { resolveProgram } from './programs.js';
+import { observeProgram } from './programs.js';
 import { commandCwd } from './cwd.js';
 
 type Observation = {
@@ -96,19 +96,8 @@ export class ExecutionInspection {
     const programs = args.programs.map((program) => {
       check();
       try {
-        let path: string;
-        if (program === 'npm') {
-          const parent = dirname(resolveProgram('node'));
-          path =
-            [
-              join(parent, 'npm.cmd'),
-              ...(process.env.PATH ?? '')
-                .split(';')
-                .filter(Boolean)
-                .map((p) => join(p, 'npm.cmd')),
-            ].find((p) => existsSync(p)) ?? '';
-          if (!path) throw new UmiError('PROGRAM_NOT_FOUND', '没有找到 npm.cmd');
-        } else path = resolveProgram(program);
+        const location = observeProgram(program, undefined, check),
+          path = location.path;
         safeRoot(dirname(path));
         const s = lstatSync(path, { bigint: true });
         // Windows 系统程序可能由 WinSxS 正常硬链接；入口只 stat，执行仍走原程序 hash 与批准。
@@ -117,7 +106,7 @@ export class ExecutionInspection {
         return {
           program,
           status: 'located' as const,
-          path,
+          ...location,
           identity: fileIdentity(path),
           size: Number(s.size),
           stamp: `${s.mtimeNs}:${s.ctimeNs}`,
@@ -131,7 +120,14 @@ export class ExecutionInspection {
               : 'not-executed',
         };
       } catch (error) {
-        return { program, status: 'unavailable' as const, reason: message(error) };
+        // 预算/取消属于整次观察，不能吞成某个程序未安装。
+        signal?.throwIfAborted();
+        if (error instanceof UmiError && error.code === 'PREFLIGHT_LIMIT') throw error;
+        return {
+          program, status: 'unavailable' as const,
+          code: error instanceof UmiError ? error.code : 'OBSERVATION_FAILED',
+          reason: message(error),
+        };
       }
     });
     const directories = ['node_modules', '.venv'].map((path) => {
@@ -160,7 +156,7 @@ export class ExecutionInspection {
     for (const entry of programs.filter((p) => p.status === 'unavailable'))
       issues.push({
         code: 'PROGRAM_UNAVAILABLE',
-        message: `未定位 ${entry.program}；不要反复启动，先决定工具准备方式`,
+        message: `本次有限范围未定位 ${entry.program}；不代表整机未安装。根据明确绝对路径或准备需求决定下一步，不反复盲试`,
       });
     for (const file of observations) {
       if (file.status === 'limited' || file.status === 'unsafe')
@@ -260,8 +256,12 @@ export class ExecutionInspection {
         message: '依赖目录有联接或无法核验，未跟随读取',
       });
     const snapshot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       environmentId: env.id,
+      host: {
+        platform: process.platform, arch: process.arch,
+        runtime: process.versions.electron ? 'electron' : 'node',
+      },
       cwd: args.cwd,
       root,
       rootIdentity: rootIdentity(root),
@@ -294,7 +294,7 @@ export class ExecutionInspection {
         maxMs: 1500,
       },
       instruction:
-        '这是只读观察，不是运行就绪或隔离证明。外部程序未执行，不推测版本；依赖目录仅观察存在，不验证依赖完整。准备需具体批准，完成后重新检查并运行实际测试。宿主网络声明不构成强制网络边界。',
+        '这是只读观察，不是运行就绪或隔离证明。invocation 给出明确入口，执行仍需原批准与程序核验；npm.cmd 通过 run_shell 的 CMD 模式调用。pathLookup 仅表示同名文件在当前进程绝对 PATH 项的查找结果，不模拟 Shell 别名/扩展规则；umi-node 可直接执行不代表 Shell 能找到 node。未扫描整机或启动外部程序，不推测版本；依赖目录仅观察存在，不验证依赖完整。准备需具体批准，完成后重新检查并运行实际测试。宿主网络声明不构成强制网络边界。',
     };
   }
 

@@ -31,6 +31,17 @@ jobs:
           dist/tests/boundaries.test.js
           dist/tests/bounded-context.test.js
           dist/tests/core.test.js
+          dist/tests/model-stream.test.js
+          dist/tests/repeated-reasoning.test.js
+          dist/tests/image-observation.test.js
+          dist/tests/architecture.test.js
+          dist/tests/office-attachments.test.js
+          dist/tests/attachments.test.js
+          dist/tests/length-startup.test.js
+          dist/tests/reliability-usage.test.js
+          dist/tests/cache-and-repeat.test.js
+          dist/tests/program-observation.test.js
+          dist/tests/process-feedback.test.js
           dist/tests/conversation-deletion.test.js
           dist/tests/deepseek-request.test.js
           dist/tests/file-discovery.test.js

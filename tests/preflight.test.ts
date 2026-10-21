@@ -68,12 +68,13 @@ function setup(
         installScripts: false,
       };
     },
-    pending: () =>
+    pending: (timeout=4000) =>
       eventually(
         () =>
           Object.entries(app.store.snapshot(c.conversationId).approvals).find(
             ([, a]) => a.status === 'pending',
           )?.[0],
+        timeout,
       ),
     async close() {
       await app.close();
@@ -121,7 +122,9 @@ test('准备观察：不假设外部工具版本，缺失工具与副本文件�
       requiredFiles: ['输入.txt'],
     });
     assert.equal(report.programs[0]!.status, 'unavailable');
-    assert.equal(report.programs[1]!.version, null);
+    const external = report.programs[1]!;
+    assert(external.status === 'located');
+    assert.equal(external.version, null);
     assert(report.issues.some((i) => i.code === 'REQUIRED_FILE_MISSING'));
     assert.equal(report.status, 'needs_attention');
   } finally {
@@ -355,10 +358,11 @@ test(
         }),
         text('完成'),
       );
+      // 原生命令本身允许10秒，批准等待还包括固定程序核验；不使用4秒通用轮询期限。
       const r = f.app.send(f.c.conversationId, uid(), '准备再运行'),
-        first = await f.pending();
+        first = await f.pending(15000);
       f.app.approve(f.c.conversationId, first, 'allow');
-      const second = await f.pending();
+      const second = await f.pending(15000);
       assert.notEqual(first, second);
       f.app.approve(f.c.conversationId, second, 'allow');
       await f.app.wait(r.runId);
@@ -716,3 +720,46 @@ test(
     }
   },
 );
+
+test('准备观察：回执明确入口来源与 PATH 范围，不泄漏环境变量或创建进程', async () => {
+  const f = setup(), priorPath = process.env.PATH;
+  try {
+    process.env.PATH = f.workspace;
+    const tool = await f.observation();
+    const report = f.app.store.readArtifact<any>(tool.result_ref!).data;
+    assert.equal(report.schemaVersion, 2);
+    assert.deepEqual(report.host, { platform: process.platform, arch: process.arch, runtime: 'node' });
+    assert.equal(report.programs[0].source, 'umi-node');
+    assert.deepEqual(report.programs[0].invocation, { tool: 'run_command', program: process.execPath });
+    assert.equal(report.programs[0].pathLookup.status, 'not-found');
+    assert.equal(report.programs[0].versionBasis, 'umi-process');
+    assert(!Object.hasOwn(report.host, 'env'));
+    assert.equal(f.app.store.all('SELECT * FROM process_executions').length, 0);
+    assert.equal(Object.keys(f.app.store.snapshot(f.c.conversationId).approvals).length, 0);
+  } finally {
+    if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath;
+    await f.close();
+  }
+});
+
+test('准备观察：PATH 同名入口在批准前变化，使绑定观察过期而不启动', async () => {
+  const f = setup(), priorPath = process.env.PATH;
+  try {
+    process.env.PATH = f.workspace;
+    const observed = await f.observation();
+    writeFileSync(join(f.workspace, 'node.exe'), 'inert PATH entry');
+    f.steps.push(call('run_command', {
+      program: 'node', argv: ['-e', 'process.exit(99)'], cwd: f.cwd,
+      preparation: f.preparation(observed.id),
+    }), text('观察过期'));
+    const run = await f.run();
+    const tool = f.app.store.tools(run.runId)[0]!;
+    assert.equal(tool.state, 'failed');
+    assert.equal(f.app.store.readArtifact<any>(tool.result_ref!).data.code, 'PREFLIGHT_STALE');
+    assert.equal(f.app.store.all('SELECT * FROM process_executions').length, 0);
+    assert.equal(Object.keys(f.app.store.snapshot(f.c.conversationId).approvals).length, 0);
+  } finally {
+    if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath;
+    await f.close();
+  }
+});

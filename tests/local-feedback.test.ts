@@ -73,11 +73,12 @@ class BurstModel extends ScriptModel {
     this.requests.push(request);
     for (let n = 0; n < this.count; n++) {
       signal.throwIfAborted(); this.emitted++;
-      yield { kind: 'delta', channel: 'reasoning', key: 'thinking', text: '中文🙂' };
+      // 压测片段批次/停止响应，使用不同编号避免把夹具本身构造成模型逐字回环。
+      yield { kind: 'delta', channel: 'reasoning', key: 'thinking', text: `中文🙂${n};` };
     }
     if (this.pause) await delay(10000, undefined, { signal });
     yield { kind: 'delta', channel: 'text', key: 'text', text: '完成' };
-    yield { kind: 'response', message: { ...text('完成'), reasoning_content: '中文🙂'.repeat(this.count) }, finishReason: 'stop', usage: null, raw: { fixture: true } };
+    yield { kind: 'response', message: { ...text('完成'), reasoning_content: Array.from({ length: this.count }, (_, i) => `中文🙂${i};`).join('') }, finishReason: 'stop', usage: null, raw: { fixture: true } };
   }
 }
 function appFixture(model: ScriptModel) {
@@ -92,9 +93,9 @@ test('本地反馈：2048 帧经过唯一循环，块边界、完整模型响应
     const r = f.app.send(f.c.conversationId, uid(), '回答'); await f.app.wait(r.runId);
     assert.equal(f.app.store.getRun(r.runId).status, 'completed');
     const state = f.app.store.snapshot(f.c.conversationId);
-    assert.equal(state.blocks.find(b => b.kind === 'reasoning')!.text, '中文🙂'.repeat(2048));
+    assert.equal(state.blocks.find(b => b.kind === 'reasoning')!.text, Array.from({ length: 2048 }, (_, i) => `中文🙂${i};`).join(''));
     const deltas = f.app.store.events(f.c.conversationId).filter(e => e.type === 'model.delta'); assert.equal(deltas.length, 2049);
-    assert.equal(model.requests.length, 1); assert.equal(f.app.store.messages(f.c.conversationId).at(-1)!.payload.reasoning_content, '中文🙂'.repeat(2048));
+    assert.equal(model.requests.length, 1); assert.equal(f.app.store.messages(f.c.conversationId).at(-1)!.payload.reasoning_content, Array.from({ length: 2048 }, (_, i) => `中文🙂${i};`).join(''));
   } finally { await f.close(); }
 });
 test('本地反馈：高频缓冲帧不阻塞停止计时器，停止后不产生完整响应或工具派发', async () => {
@@ -108,7 +109,7 @@ test('本地反馈：高频缓冲帧不阻塞停止计时器，停止后不产�
     assert(emittedAtStop < 10000, '停止应在全部缓冲帧消费完之前到达');
     assert.equal(f.app.store.getRun(r.runId).status, 'stopped');
     assert.equal(f.app.store.tools(r.runId).length, 0);
-    assert.equal(f.app.store.messages(f.c.conversationId).filter(m => m.role === 'assistant').length, 0);
+    assert.equal(f.app.store.messages(f.c.conversationId).filter(m => m.role === 'assistant' && m.modelAttemptId).length, 0);
     assert(f.app.store.snapshot(f.c.conversationId).blocks.some(b => b.text && b.status === 'interrupted'));
   } finally { await f.close(); }
 });

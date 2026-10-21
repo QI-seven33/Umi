@@ -1,4 +1,5 @@
 export type PreviewPage = {
+  sourceNote?:string;
   displayPath?: string | undefined; text?: string; dataUrl?: string; hash?: string; startByte?: number; endByte?: number;
   totalBytes?: number; size?: number; nextStartByte?: number | null; truncated?: boolean;
   previewSupported?: boolean; deleted?: boolean;

@@ -1,8 +1,11 @@
 # Umi 核心契约 v1
 
-日期：2026-10-04（Asia/Shanghai）。契约覆盖整个重构路线。阶段 2—4 已实现唯一循环、受控资源与交付、宿主命令及上下文维护。实际运行时 schema 以 `packages/protocol/src` 为准，最新范围见 [阶段 4 报告](stage-4-report.md)。
+> 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
-配套文件：[架构](architecture-v1.md)、[迁移验收](migration-and-acceptance.md)。内部开发说明和模型可读规则采用中文；字段、枚举、工具名及协议键保留英文。
+
+日期：2026-10-04（Asia/Shanghai）。契约覆盖整个重构路线。阶段 2—4 已实现唯一循环、受控资源与交付、宿主命令及上下文维护。实际运行时 schema 以 `packages/protocol/src` 为准，最新范围见 [当前技术说明](current-state.zh-CN.md)。
+
+配套文件：[当前技术说明](current-state.zh-CN.md)、[迁移验收](migration-and-acceptance.md)。内部开发说明和模型可读规则采用中文；字段、枚举、工具名及协议键保留英文。
 
 修订记录：2026-10-04 根据阶段 2 反馈明确历史检索、执行批准修订、窗口维护触发条件、缓存取舍及公开阶段正文的呈现契约；同日登记阶段 2、3A、3B 的实施证据。阶段 4 实施规则见本文末尾；桌面契约仍待阶段 5。
 
@@ -505,7 +508,7 @@ C09：宿主批准由 dispatch 强制验证工具/run/hash/allow，CommandTools 
 
 C11/C12：schema 4 仅新增 memory_entries 与 context_maintenance，维护计划、原始响应、清单与 usage 复用 artifacts，窗口提交沿原事务和纯归约。启动只对账 started 维护，不自动续跑；已记录笔记依原 executionId 核验，不重复新增。原有历史、事件游标和执行定位不改写。
 
-实际文件、字段、函数、验收范围与剩余限制见 [阶段 4 报告](stage-4-report.md)。桌面 UI 与 IPC 仍属阶段 5。
+实际文件、字段、函数、验收范围与剩余限制见 [当前技术说明](current-state.zh-CN.md)。桌面 UI 与 IPC 仍属阶段 5。
 
 
 ## 阶段 5 实施对齐（2026-10-04）
@@ -535,13 +538,13 @@ A38—A41/A44：已验实时/历史、持久设置、IPC 与实例边界、窗�
 - 最新输入及明确保留内容自身超限仍明示阻塞，不静默剪裁。UTF-8 保守估算不是实测 token；有界投影不保证语义召回或任务完成。
 - 不新增表或修改历史 SQL。新代码兼容旧清单，旧程序读取新归档用户原话清单不作保证；降级需要显式数据兼容安排。
 
-实现与本轮检查见 [有界上下文记录](bounded-context-20261010.zh-CN.md)。本轮 93/93 相关测试通过（新增 13 项包含其中），并通过类型检查与桌面构建；没有真实模型、生产会话库或发布验收。
+实现与本轮检查见 [当前技术说明](current-state.zh-CN.md)。本轮 93/93 相关测试通过（新增 13 项包含其中），并通过类型检查与桌面构建；没有真实模型、生产会话库或发布验收。
 
 ## 2026-10-11 当前文本写入补充
 
 write_file 默认 mode=create，仅新建；wx 独占名称，目标已存在或晚到时不覆盖。mode=replace 必须绑定当前会话同环境成功的完整 read_file 执行回执、哈希和对象身份；完整读取单次最多 64000 字节，部分读取不授权整文件替换。edit_file 继续处理实际读取范围内的唯一片段，两者共享只读证据校验。
 
-派发后再次核验位置/版本，no-op 不落盘；写后回读才结算成功。新建中断可能留部分文件/父目录，恢复只观察原冻结目标，不删除或重放；旧已经派发且没有 fileWrite 快照的执行仍只核验原目标状态。应用层路径与替换复查不是 OS 沙箱或原子 CAS；源交付继续独立批准。详见 [学习文档](text-write-20261011.zh-CN.md)。
+派发后再次核验位置/版本，no-op 不落盘；写后回读才结算成功。新建中断可能留部分文件/父目录，恢复只观察原冻结目标，不删除或重放；旧已经派发且没有 fileWrite 快照的执行仍只核验原目标状态。应用层路径与替换复查不是 OS 沙箱或原子 CAS；源交付继续独立批准。详见 [当前技术说明](current-state.zh-CN.md)。
 
 ## 2026-10-11 独立成果与导出补充
 
@@ -549,13 +552,13 @@ create_output/capture_output 仅在当前会话 Umi 自有成果范围创建冻�
 
 export_outputs 冻结具体成果及本地绝对目标、父目录身份，批准前无导出副作用；dispatch 强制原请求 allow/hash，不能靠变更 effect 绕过。批准后的晚到目标不覆盖；逐项 intent/receipt 不可改写，批次可部分完成。unknown/重启只核验原目标，不重放或清理。新输入后 inspect_export 提供只读当前证据，export_receipt 与生成证据严格区分。
 
-固定桌面 list/preview/inspect/open_export 不向页面开放任意文件路径或执行；open_export 核验原目标后仅定位文件。本轮不新增表/迁移、renderer 控件、覆盖/删除权限或 OS 沙箱。预算、竞态及留存限制和本次 117/117 检查见 [学习文档](outputs-export-20261011.zh-CN.md)。
+固定桌面 list/preview/inspect/open_export 不向页面开放任意文件路径或执行；open_export 核验原目标后仅定位文件。本轮不新增表/迁移、renderer 控件、覆盖/删除权限或 OS 沙箱。预算、竞态及留存限制和本次 117/117 检查见 [技术记录](outputs-export-20261011.zh-CN.md)。
 
 ## 2026-10-11 历史执行准备补充（cwd 指纹已被下文修订）
 
 inspect_execution 不运行工具或安装，返回有界观察和真实 inspectionExecutionId；located/observed 不是就绪或版本验证。preparation 可绑定当前会话同 cwd 的成功检查，清单/入口/选定输入漂移及不完整观察拒绝。具体批准展示完整命令、准备目的、联网/脚本声明和任务缓存；缓存祖先安全复查，无准备前建目录。声明和缓存变量不构成强制宿主网络/文件隔离。同 run 拒绝不能更换检查回执/描述重复申请。
 
-原实际程序 hash/cwd 完整指纹/派发强制批准/挂起复查/Job/回执恢复保持。准备完成后需重新观察和实际测试，不拿退出 0 当用户目标完成。cwd 增加 artifacts，旧调用/快照继续兼容；没有新 SQL 迁移或 UI 控件。大依赖树受既有完整指纹预算限制，本次验出并保留，不用浅元数据替代内容保护。场景、学习链及实际 191/191 检查见 [执行准备文档](execution-preparation-20261011.zh-CN.md)。
+原实际程序 hash/cwd 完整指纹/派发强制批准/挂起复查/Job/回执恢复保持。准备完成后需重新观察和实际测试，不拿退出 0 当用户目标完成。cwd 增加 artifacts，旧调用/快照继续兼容；没有新 SQL 迁移或 UI 控件。大依赖树受既有完整指纹预算限制，本次验出并保留，不用浅元数据替代内容保护。场景、学习链及实际 191/191 检查见 [当前技术说明](current-state.zh-CN.md)。
 
 ## 2026-10-11 Desktop output UI
 
@@ -567,4 +570,4 @@ The fixed chooseOutputTarget bridge validates the same-conversation output throu
 
 command_exit 核验同一执行真实退出 0、gate 已释放且 Job inactive，并保留原任务的参数/来源/最新输入约束；不再核验整个 cwd 当前内容。它不代替当前 file_hash、delivery 或 export_receipt。修改后测试须在修改后执行，未新增自动时间依赖推理。inspect_execution/preparation 可选，显式绑定的清单/输入仍需复查；联网声明不是网络开关。
 
-DesktopService 查询用户原话并复用一次 reducer 状态；模型消息完整组与 applied 排序不变。Timeline 首屏近期 8 条用户消息，按需展开和导航，未渲染不等于删除或模型上下文归档。性能证据与范围见 [学习记录](streamline-and-session-loading-20261011.zh-CN.md)。
+DesktopService 查询用户原话并复用一次 reducer 状态；模型消息完整组与 applied 排序不变。Timeline 首屏近期 8 条用户消息，按需展开和导航，未渲染不等于删除或模型上下文归档。性能证据与范围见 [阶段技术记录](streamline-and-session-loading-20261011.zh-CN.md)。

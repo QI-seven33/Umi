@@ -464,6 +464,8 @@ export async function verifyDesktop(
       (value) => value === 2,
     );
     pass('真实文件拖放上传文本与图片，附件预览卡片恢复就绪');
+    const {verifyOfficeAttachments}=await import('./verification-office.js');
+    for(const name of await verifyOfficeAttachments(win))pass(name);
     const longPaste =
       '长粘贴完整原文\n' +
       '<span>{value === "中文" ? "保持原文" : "继续"}</span>\n'.repeat(140);
@@ -624,13 +626,98 @@ export async function verifyDesktop(
         win.webContents.executeJavaScript(
           `document.querySelectorAll('.settings-page-nav-item').length`,
         ),
-      (value) => value === 5,
+      (value) => value === 6,
     );
     const categories = await win.webContents.executeJavaScript(
       `Array.from(document.querySelectorAll('.settings-page-nav-item')).map(node=>node.innerText)`,
     );
-    assert.deepEqual(categories, ['个人资料', '模型设置', '会话', '执行环境', '归档']);
-    pass('设置按五个独立分类展示', categories);
+    assert.deepEqual(categories, ['个人资料', '模型设置', '会话', '执行环境', '技能', '归档']);
+    pass('设置按六个独立分类展示', categories);
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=conversation]').click()");
+    await until(async () => win.webContents.executeJavaScript("document.querySelector('.settings-content').innerText"), value => String(value).includes('最近一轮用量'));
+    const usagePanel = await win.webContents.executeJavaScript("document.querySelector('.settings-content').innerText");
+    assert(String(usagePanel).includes('官方账单'));
+    assert(String(usagePanel).includes('未知'));
+    assert(String(usagePanel).includes('模型请求 / 尝试'));
+    pass('最近运行用量在设置中可见，缺失字段明确未知且不冒充官方账单');
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=profile]').click()");
+
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=skills]').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('[data-skill]').length"),n=>n===3);
+    const skills=await broker.request({type:'skills_list',refresh:false}) as any;
+    assert.equal(skills.skills.length,3);
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=umi-code] .settings-skill-inspect').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.settings-skill-preview pre')?.textContent"),v=>String(v).includes('代码任务'));
+    pass('技能设置通过固定桥显示内置目录及真实正文，兼容性说明可见');
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=umi-code] input').click()");
+    await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='umi-code').enabled;},v=>v===false);
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('[data-skill=umi-code] input').disabled"),Boolean);
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=umi-code] input').click()");
+    await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='umi-code').enabled;},Boolean);
+    pass('技能开关实际保存且可恢复，未执行任何技能脚本');
+    const settingsBounds=win.getBounds();
+    for(const theme of ['light','dark']){
+      await win.webContents.executeJavaScript("document.documentElement.dataset.theme="+JSON.stringify(theme)+";document.querySelector('[data-category=skills]').click()");
+      await delay(150);
+      writeFileSync(join(dataRoot,'settings-skills-'+theme+'.png'),(await captureFrame(true)).toPNG());
+      for(const category of ['profile','model','conversation','plugins','skills','archive']){
+        await win.webContents.executeJavaScript("document.querySelector('[data-category="+category+"]').click()");
+        await delay(80);
+        const layout=await win.webContents.executeJavaScript(`(() => {
+          const p=document.querySelector('.settings-content'),heading=p.querySelector('h1'),controls=[...p.querySelectorAll('.settings-row input,.settings-row select')];
+          return {overflow:p.scrollWidth>p.clientWidth,heading:parseFloat(getComputedStyle(heading).fontSize),controls:controls.map(c=>({height:c.getBoundingClientRect().height,font:parseFloat(getComputedStyle(c).fontSize)}))};
+        })()`);
+        assert.equal(layout.overflow,false,theme+' '+category);
+        assert(layout.heading<=18);
+        assert(layout.controls.every((c:any)=>c.height<=33&&c.font<=12));
+      }
+    }
+    win.setSize(620,760);
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=skills]').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('[data-skill]').length"),n=>n===3);
+    await delay(150);
+    const narrowSettings=await win.webContents.executeJavaScript(`(() => {const p=document.querySelector('.settings-page'),c=document.querySelector('.settings-content');return {page:p.scrollWidth<=p.clientWidth,content:c.scrollWidth<=c.clientWidth};})()`);
+    assert(narrowSettings.page&&narrowSettings.content,JSON.stringify(narrowSettings));
+    writeFileSync(join(dataRoot,'settings-skills-narrow.png'),(await captureFrame(true)).toPNG());
+    win.setBounds(settingsBounds);
+    await win.webContents.executeJavaScript("document.documentElement.dataset.theme='light';document.querySelector('[data-category=profile]').click()");
+    pass('设置六类页面在明暗主题保持紧凑字号和32px控件，窄窗口无横向溢出');
+
+
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=skills]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.settings-skill-import')"),Boolean);
+    await win.webContents.executeJavaScript(`(() => {
+      const d=document.querySelector('.settings-skill-import');d.open=true;
+      const values={'技能仓库链接':'https://github.com/umi-verification/skill-fixture','技能子目录':'skills/import-example','技能修订':'main'};
+      for(const [label,value]of Object.entries(values)){const input=document.querySelector('[aria-label="'+label+'"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));}
+    })()`);
+    await delay(100);
+    await win.webContents.executeJavaScript("document.querySelector('.settings-skill-import form').requestSubmit()");
+    const staged=await until(async()=>{const r=await broker.request({type:'skills_import_list'}) as any;return r.records.find((r:any)=>r.state==='staged');},Boolean) as any;
+    const stagedLibrary=await broker.request({type:'skills_list',refresh:false}) as any;
+    assert(!stagedLibrary.skills.some((s:any)=>s.name==='import-example'));
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.settings-import-install')"),Boolean);
+    const importText=await win.webContents.executeJavaScript("document.querySelector('.settings-import-detail').textContent");
+    assert(importText.includes('d'.repeat(40)));assert(importText.includes('MIT'));assert(importText.includes('references/check.md'));
+    writeFileSync(join(dataRoot,'settings-skill-import-review.png'),(await captureFrame(true)).toPNG());
+    pass('GitHub技能获取先显示固定提交/完整清单和许可，确认前不进入技能库（离线来源）');
+    await win.webContents.executeJavaScript("document.querySelector('.settings-import-install').click()");
+    await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='import-example');},Boolean);
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-skill=import-example] input')"),Boolean);
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] input').checked"),false);
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] input').click()");
+    await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='import-example').enabled;},Boolean);
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-inspect').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.settings-skill-origin')?.textContent"),v=>String(v).includes('skill-fixture'));
+    writeFileSync(join(dataRoot,'settings-skill-import-installed.png'),(await captureFrame(true)).toPNG());
+    pass('GitHub原包导入默认停用，启用及原始来源展示均接真实管理桥');
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.settings-import-actions button')?.textContent"),v=>String(v).includes('保留技能'));
+    await win.webContents.executeJavaScript("document.querySelector('.settings-import-actions button').click()");
+    await until(async()=>{const r=await broker.request({type:'skills_import_list'}) as any;return r.records.length===0;},Boolean);
+    assert((await broker.request({type:'skills_list',refresh:false}) as any).skills.some((s:any)=>s.name==='import-example'));
+    pass('移除获取记录仅清理托管记录，已导入技能继续保留');
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=profile]').click()");
+
     const settingsHover = await hoverStyle('.settings-page-nav-item[data-category="model"]');
     assert.equal(settingsHover.shadow,'none');assert.notEqual(settingsHover.background,'rgba(0, 0, 0, 0)');
     assert.equal(settingsHover.radius,await win.webContents.executeJavaScript("getComputedStyle(document.documentElement).getPropertyValue('--control-radius').trim()"));
@@ -980,8 +1067,8 @@ export async function verifyDesktop(
     assert.equal((await snapshot()).state.runs[running.runId]?.status, 'running');
     pass('窗口隐藏不会停止任务');
     broker.killForVerification();
-    await delay(250);
-    const restarted = await broker.ready();
+    // kill是异步请求；等待新身份到达，不能把固定250ms当成旧进程已退出的证据。
+    const restarted = await until(() => broker.ready(), value => value.instanceId !== ready.instanceId);
     assert.notEqual(restarted.instanceId, ready.instanceId);
     state = await snapshot();
     assert.equal(state.state.runs[running.runId]?.status, 'interrupted');
@@ -1222,7 +1309,11 @@ export async function verifyDesktop(
     for(let i=0;i<6;i++){await win.webContents.executeJavaScript(`document.querySelector('.work-preview-tab-close')?.click()`);await delay(30);}
     assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.delivery-panel').innerText`),'');
     pass('关闭最后一个文件后右侧恢复完全留白');
+    const {verifyOfficeRecovery}=await import('./verification-office.js');
+    pass('Office待发草稿刷新后保留原件大小、附件身份及文本类型',await verifyOfficeRecovery(broker,win,c.conversationId));
     writeFileSync(join(dataRoot,'file-empty-preview.png'),(await captureFrame(true)).toPNG());
+    const { verifyRunContinuity } = await import('./verification-run-continuity.js');
+    for (const name of await verifyRunContinuity(broker,win,c.conversationId,dataRoot)) pass(name);
     writeFileSync(
       report,
       JSON.stringify(

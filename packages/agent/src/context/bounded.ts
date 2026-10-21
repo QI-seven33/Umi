@@ -4,7 +4,7 @@ import { modelToolContent } from '../tools/result.js';
 import type { HistoryRow } from './projection.js';
 
 export const PROJECTION_VERSION = 'bounded-v1' as const;
-export const TOOL_PROJECTION_VERSION = 'tool-stable-v3' as const;
+export const TOOL_PROJECTION_VERSION = 'tool-stable-v4-image-observation' as const;
 
 // 所有位置都能回到原始 UTF-8 字节；不将残缺字符写入索引或工具摘录。
 export function byteExcerpt(text: string, startByte: number, byteLength: number) {

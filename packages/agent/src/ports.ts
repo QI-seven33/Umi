@@ -31,7 +31,8 @@ export interface ModelPort {
     settings: Settings,
     maxOutputTokens: number,
   ): PreparedRequest;
-  stream(request: PreparedRequest, signal: AbortSignal): AsyncIterable<ModelFrame>;
+  // activity 只报告真实传输数据（含心跳），不生成对话或执行事实。
+  stream(request: PreparedRequest, signal: AbortSignal, activity?: () => void): AsyncIterable<ModelFrame>;
 }
 export type ModelResponse = {
   message: WireMessage;

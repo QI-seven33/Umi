@@ -1,3 +1,10 @@
+import { runOutputBudget } from '../../../packages/agent/src/loop/run-output-budget.js';
+import { SkillImports } from '../../../packages/adapters/src/skills/imports.js';
+import { GithubSkillSource } from '../../../packages/adapters/src/skills/github.js';
+import { LocalSkillLibrary } from '../../../packages/adapters/src/skills/library.js';
+import { registerSkills } from '../../../packages/agent/src/tools/skills.js';
+import { registerImageObservation } from '../../../packages/adapters/src/host-files/image-observation.js';
+import { runDiagnostics } from '../../../packages/agent/src/loop/run-diagnostics.js';
 import { FrozenPreview } from '../../../packages/adapters/src/host-files/frozen-preview.js';
 import { registerDeliveredOpen } from '../../../packages/adapters/src/host-files/delivered-open.js';
 import type { DocumentOpener } from '../../../packages/protocol/src/native-open.js';
@@ -65,6 +72,8 @@ import { fileEditModule } from '../../../packages/adapters/src/host-files/text-e
 import { fileReadEvidencePort } from '../../../packages/adapters/src/host-files/read-evidence.js';
 
 export class UmiApplication {
+  readonly skills: LocalSkillLibrary;
+  readonly skillImports: SkillImports;
   readonly questions: UserQuestions;
   readonly frozenPreview: FrozenPreview;
   readonly store: SqliteStore;
@@ -85,6 +94,7 @@ export class UmiApplication {
     dataRoot: string,
     model: ModelPort,
     options: {
+      skillFetch?: typeof fetch;
       outputBoundary?: (point: OutputBoundary, index: number) => void | Promise<void>;
       limits?: EngineLimits;
       context?: ContextManager;
@@ -103,6 +113,8 @@ export class UmiApplication {
   ) {
     this.store = new SqliteStore(dataRoot, options.clock);
     this.registry = new ToolRegistry();
+    this.skills = new LocalSkillLibrary(this.store.dataRoot);
+    this.skillImports = new SkillImports(this.store.dataRoot,this.skills,new GithubSkillSource(options.skillFetch));
     this.files = new ResourceFiles(new ResourceRepository(this.store));
     this.commands = new CommandTools(
       this.files,
@@ -121,8 +133,10 @@ export class UmiApplication {
     this.frozenPreview = new FrozenPreview(this.files);
     const webPages = new WebPageRepository(this.store);
     const modules: ToolModule[] = [
+      toolModule('umi.skills', '1.0.0', [], r => registerSkills(r, this.skills, hostContext)),
       toolModule('umi.web-pages', '1.0.0', [], r => registerWebPageReading(r, webPages, hostContext)),
       toolModule('umi.questions', '1.0.0', [], r => registerQuestions(r, this.questions, hostContext)),
+      toolModule('umi.image-observation', '1.0.0', ['umi.files', 'umi.outputs'], r => registerImageObservation(r, this.files, this.outputs)),
       toolModule('umi.outputs', '1.0.0', [], (r) => registerOutputs(r, this.outputs)),
       toolModule('umi.tasks', '1.0.0', [], (r) =>
         registerTasks(r, this.tasks, hostContext),
@@ -187,6 +201,7 @@ export class UmiApplication {
       options.limits,
       this.files,
       this.tasks,
+      this.skills,
     );
   }
   createConversation(workspace: string, settings: Partial<Settings> = {}) {
@@ -202,8 +217,10 @@ export class UmiApplication {
   }
   contextStatistics(conversationId: string, projection?: ConversationState) {
     const state = projection ?? this.store.snapshot(conversationId);
+    const latestRun = runDiagnostics(state, ref => this.store.readArtifact(ref));
     return {
       latestRequest: state.context,
+      latestRun: latestRun ? { ...latestRun, outputBudget: runOutputBudget(state, ref => this.store.readArtifact(ref), latestRun.runId, this.store.settings(conversationId).runOutputTokenLimit) } : null,
       lastActualUsage: state.context.lastUsageRef
         ? this.store.readArtifact(state.context.lastUsageRef)
         : null,
@@ -467,6 +484,7 @@ export class UmiApplication {
     for (const task of tasks)
       task.controller.abort(new UmiError('APP_SHUTDOWN', '应用正在退出'));
     await Promise.allSettled(tasks.map((t) => t.done));
+    await this.skillImports.close();
     this.store.close();
   }
 }

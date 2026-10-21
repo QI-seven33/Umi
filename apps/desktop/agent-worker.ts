@@ -1,3 +1,4 @@
+import { verificationSkillFetch } from './verification-skill-source.js';
 import { NativeOpenClient } from './native-open-client.js';
 import { z } from 'zod';
 import { WorkerCommandQueue } from './command-queue.js';
@@ -48,6 +49,7 @@ port.on('message', ({ data }: Electron.MessageEvent) => {
             ? new DesktopVerificationModel()
             : new DeepSeekAdapter(() => key, c.config.baseUrl),
           {
+            ...(c.verification?{skillFetch:verificationSkillFetch}:{}),
             search: { key: () => key, baseUrl: c.config.baseUrl },
             openDocument: nativeOpen.open,
             toolModules: [

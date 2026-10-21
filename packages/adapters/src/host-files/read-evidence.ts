@@ -17,13 +17,15 @@ export interface FileReadEvidence {
 }
 export interface FileReadEvidencePort {
   read(executionId: string): FileReadEvidence | undefined;
+  find(environmentId: string, mountId: string, path: string): string[];
 }
 
 // 模块只取得读取事实的端口，不能通过它写 SQL、批准或修改旧回执。
 export function fileReadEvidencePort(
-  store: Pick<PersistencePort, 'tool' | 'getRun' | 'readArtifact' | 'modelReceivedToolResult'>,
+  store: Pick<PersistencePort, 'tool' | 'getRun' | 'readArtifact' | 'modelReceivedToolResult' | 'fileEvidenceExecutions'>,
 ): FileReadEvidencePort {
   return {
+    find: (environmentId,mountId,path)=>store.fileEvidenceExecutions(environmentId,mountId,path),
     read(executionId) {
       let tool: ToolRow;
       try {
@@ -38,7 +40,7 @@ export function fileReadEvidencePort(
         context: store.readArtifact<ExecutionContext>(tool.context_ref),
         resultRef: tool.result_ref,
         result: store.readArtifact<ToolResult>(tool.result_ref),
-        modelReceived: store.modelReceivedToolResult(executionId),
+        get modelReceived() { return store.modelReceivedToolResult(executionId); },
       };
     },
   };

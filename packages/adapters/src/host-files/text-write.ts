@@ -9,7 +9,7 @@ import {
 } from '../../../protocol/src/file-write.js';
 import type { ToolRegistry } from '../../../agent/src/tools/registry.js';
 import type { FileReadEvidencePort } from './read-evidence.js';
-import { requireTextRead } from './read-evidence.js';
+import { textSources, mergeKnownRanges } from './text-knowledge.js';
 import {
   createExclusive,
   atomicWrite,
@@ -55,31 +55,18 @@ export class FileWriteTools {
           '目标已存在；新建不会覆盖，请完整读取后显式 replace 或局部 edit_file',
         );
     } else {
-      const bound = requireTextRead(
-        this.reads,
-        {
-          mountId: a.mountId,
-          path: a.path,
-          readExecutionId: a.readExecutionId!,
-          expectedReadHash: a.expectedReadHash!,
-        },
-        env.id,
-        this.files.repo.scope(env.id).conversationId,
-      );
-      const r = bound.receipt;
-      if (r.startByte !== 0 || r.endByte !== r.size || r.truncated)
-        throw new UmiError(
-          'FULL_READ_REQUIRED',
-          '整文件替换需要完整读取；大于单次读取预算时请使用 edit_file',
-        );
-      if (loc.beforeHash !== r.hash || loc.beforeIdentity !== r.identity)
-        throw new UmiError('READ_STALE', '读后内容或对象身份已变化，请重新读取');
       const m = this.files.repo.mount(a.mountId, env.id);
       const current = readFileSync(safeFile(m.root, a.path, m.rootIdentity));
-      if (bytesHash(current) !== r.hash || !current.equals(Buffer.from(r.text)))
-        throw new UmiError('READ_STALE', '准备期间读取版本变化或回执字节不完整');
-      readExecutionId = a.readExecutionId;
-      readResultRef = bound.resultRef;
+      const sources = textSources(this.reads,a,ctx,this.files.repo.scope(env.id).conversationId,current), r = sources[0]!.receipt;
+      const ranges = mergeKnownRanges(sources.map(s=>s.receipt));
+      if (ranges.length!==1 || ranges[0]!.startByte!==0 || ranges[0]!.endByte!==current.length)
+        throw new UmiError('FULL_READ_REQUIRED','整文件替换需要完整已见原文；请补读缺少范围，或用 edit_file 只改已见片段');
+      if (loc.beforeHash!==r.hash || loc.beforeIdentity!==r.identity || sources.some(s=>s.receipt.hash!==r.hash || s.receipt.identity!==r.identity))
+        throw new UmiError('READ_STALE','读后内容或对象身份已变化，请重新读取');
+      if (bytesHash(current)!==r.hash || sources.some(s=>!current.subarray(s.receipt.startByte,s.receipt.endByte).equals(Buffer.from(s.receipt.text))))
+        throw new UmiError('READ_STALE','准备期间读取版本变化或回执字节不完整');
+      readExecutionId = r.readExecutionId;
+      readResultRef = sources[0]!.resultRef;
     }
     return {
       ...ctx,
@@ -254,7 +241,7 @@ export function registerTextWrite(
   registry.register({
     name: 'write_file',
     description:
-      '写 UTF-8 工作副本文本。mode=create（默认）只新建，存在时拒绝；mode=replace 必须先完整 read_file 并绑定 readExecutionId/expectedReadHash。部分修改用 edit_file；新建可创建父目录。无变化不写；源交付独立批准。',
+      '写 UTF-8 工作副本文本。mode=create（默认）只新建，存在时拒绝；mode=replace 需完整已见原文，宿主自动绑定版本，自己成功写入的正文无需重读。readExecutionId/expectedReadHash 是可省略的兼容参数，若提供则严格核对。部分修改用 edit_file；可创建父目录，无变化不写，源交付独立批准。',
     schema: writeFileSchema,
     effect: 'copy-write',
     prepare: (a, env, id) => writes.prepare(a, env, id),

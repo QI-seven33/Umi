@@ -33,6 +33,9 @@
     "react-dom": "19.2.8",
     "react-markdown": "10.1.0",
     "remark-gfm": "4.0.1",
+    "saxes": "6.0.0",
+    "yaml": "2.9.1",
+    "yauzl": "3.4.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -40,6 +43,7 @@
     "@types/node": "24.10.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
+    "@types/yauzl": "3.4.0",
     "7zip-bin": "5.2.0",
     "electron": "44.5.1",
     "electron-builder": "26.15.3",

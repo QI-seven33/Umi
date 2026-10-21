@@ -27,8 +27,8 @@ function validateTools(body: any) {
   }
   assert(names.has('ask_user_question')); assert(names.has('edit_file')); assert(names.has('open_delivered_file'));
   const edit = body.tools.find((t: any) => t.function.name === 'edit_file').function.parameters;
-  assert.deepEqual(edit.required, ['mountId', 'path', 'expectedReadHash']);
-  assert(!edit.anyOf && !edit.oneOf);
+  assert.deepEqual(edit.required, ['mountId', 'path']);
+  assert(!edit.anyOf);assert.equal(edit.oneOf.length,2); // 根仍为object，形态互斥显式出现在模型规格。
   for (const field of ['readExecutionId', 'oldText', 'newText', 'readExecutionIds', 'edits']) assert(edit.properties[field]);
   const question = body.tools.find((t: any) => t.function.name === 'ask_user_question').function.parameters;
   assert.deepEqual(question.properties.questions.items.properties.options.items.required, ['label']);

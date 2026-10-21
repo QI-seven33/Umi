@@ -1,5 +1,8 @@
 # Umi 阶段 3B：宿主命令与进程生命周期
 
+> 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
+
+
 日期：2026-10-04，Asia/Shanghai。产品名称为 **Umi**，开发目录为 `E:\SOME_SEVEN_PROJECT-57\Umi_v2.0`。
 
 本阶段在原有 TS 核心中实现 Windows 命令与 Shell 工具，沿用唯一 Agent 循环、权限入口、SQLite 写入者、事件日志、归约函数和会话游标。没有引入大型框架、第二套 Agent 或 Python 服务。阶段 4 的长任务记忆和阶段 5 的前端、Electron 尚未实施。
@@ -134,7 +137,7 @@
 
 ## 4. 验收与证据
 
-最终验收记录见 [阶段 3B 工程证据](evidence/stage-3b-validation.json)，真实模型记录见 [DeepSeek 阶段 3B 证据](evidence/deepseek-stage3b.json)。
+最终验收记录见 阶段 3B 工程证据（维护者本地证据/生成产物，不随源码仓库分发），真实模型记录见 DeepSeek 阶段 3B 证据（维护者本地证据/生成产物，不随源码仓库分发）。
 
 - 自动套件共 94 个：既有 66 个，加 22 个进程用例和 6 个真实父进程强制退出用例。
 - 新用例覆盖真实 Node/argv、PowerShell、CMD、Git、批准拒绝、auto 模式仍阻塞、目录/依赖漂移、PID 复用、输出范围与脱敏、非零退出、停止和超时进程树清理、事务失败、schema 2→3 升级、实时/历史归约一致。

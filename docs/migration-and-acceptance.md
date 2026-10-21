@@ -1,6 +1,9 @@
 # Umi 迁移与验收计划
 
-阶段 1 设计基线，日期：2026-10-04。配套文档：[架构](architecture-v1.md)、[核心契约](contracts-v1.md)。
+> 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
+
+
+阶段 1 设计基线，日期：2026-10-04。配套文档：[当前技术说明](current-state.zh-CN.md)、[核心契约](contracts-v1.md)。
 
 ## 1. 当前交付范围
 

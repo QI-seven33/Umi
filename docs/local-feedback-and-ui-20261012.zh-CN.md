@@ -1,5 +1,8 @@
 # Umi 本地反馈与界面对象修复（2026-10-12）
 
+> 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
+
+
 用户授权“立刻修复本地阻塞，让反馈及时、界面对象正确”。本阶段完成流式消费、历史查询、IPC 错误传递、按需正文与对象预览修复，继续沿唯一 AgentEngine 和既有桌面适配器。实施前完整备份 227 个非忽略源码/文档文件及 Git 状态，目录：E:\Codex\Workspace\output\umi-local-feedback-20261012\before。没有 reset/clean，没有删除既有源码文件，保留多阶段修改与学习注释。
 
 实施前契约与根因

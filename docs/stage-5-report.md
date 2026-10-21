@@ -1,5 +1,8 @@
 # Umi 阶段 5：桌面对接与预算阻塞恢复
 
+> 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
+
+
 日期：2026-10-04。产品名称为 **Umi**。开发目录为 `E:\SOME_SEVEN_PROJECT-57\Umi_v2.0`，旧 Umi 项目未修改。
 
 ## 1. 本阶段结果

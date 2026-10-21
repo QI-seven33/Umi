@@ -130,6 +130,7 @@ export class DeepSeekAdapter implements ModelPort {
   async *stream(
     request: PreparedRequest,
     signal: AbortSignal,
+    activity?: () => void,
   ): AsyncGenerator<ModelFrame> {
     if (request.adapterId !== 'deepseek' || request.endpointProfileId !== this.baseUrl)
       throw new UmiError('PROTOCOL_INVALID', '请求快照不属于当前适配器');
@@ -160,7 +161,7 @@ export class DeepSeekAdapter implements ModelPort {
     const calls = new Map<number, { id: string; name: string; arguments: string }>(),
       raw: unknown[] = [];
     let responseBytes = 0;
-    for await (const data of readSse(response.body, signal)) {
+    for await (const data of readSse(response.body, signal, 2_000_000, activity)) {
       responseBytes += Buffer.byteLength(data);
       if (responseBytes > 16_000_000)
         throw new UmiError('PROTOCOL_INVALID', '模型响应总量超过阶段 2 限制');
@@ -221,7 +222,7 @@ export class DeepSeekAdapter implements ModelPort {
     }
     if (!sawDone || !finish)
       throw new UmiError('PROVIDER_INTERRUPTED', '模型流未完整结束', true);
-    if (!['stop', 'tool_calls'].includes(finish))
+    if (!['stop', 'tool_calls', 'length'].includes(finish))
       throw new UmiError('PROVIDER_TRUNCATED', `模型响应未完整生成：${finish}`);
     const toolCalls: ProviderCall[] = [...calls.entries()]
       .sort(([a], [b]) => a - b)
@@ -230,12 +231,12 @@ export class DeepSeekAdapter implements ModelPort {
         type: 'function',
         function: { name: t.name, arguments: t.arguments },
       }));
-    if (
+    if (finish !== 'length' && (
       toolCalls.some((t) => !t.id || !t.function.name) ||
       new Set(toolCalls.map((t) => t.id)).size !== toolCalls.length
-    )
+    ))
       throw new UmiError('PROTOCOL_INVALID', '工具调用身份或名称不完整');
-    if ((finish === 'tool_calls') !== Boolean(toolCalls.length))
+    if (finish !== 'length' && (finish === 'tool_calls') !== Boolean(toolCalls.length))
       throw new UmiError('PROTOCOL_INVALID', '结束原因与工具调用不一致');
     const message = messageSchema.parse({
       role: 'assistant',
@@ -243,8 +244,12 @@ export class DeepSeekAdapter implements ModelPort {
       ...(reasoning || request.settings.thinking !== 'off'
         ? { reasoning_content: reasoning }
         : {}),
-      ...(toolCalls.length ? { tool_calls: toolCalls } : {}),
+      ...(finish !== 'length' && toolCalls.length ? { tool_calls: toolCalls } : {}),
     });
-    yield { kind: 'response', message, finishReason: finish, usage, raw };
+    // 草稿不是工具调用。原始分片单独保留，便于按来源补读；不拼接不同请求。
+    const responseRaw = finish === 'length'
+      ? { kind: 'output-limit', draft: { content, toolCalls }, providerChunks: raw }
+      : raw;
+    yield { kind: 'response', message, finishReason: finish, usage, raw: responseRaw };
   }
 }

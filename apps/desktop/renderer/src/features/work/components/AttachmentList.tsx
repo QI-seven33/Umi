@@ -19,7 +19,7 @@ export function AttachmentList({
           <div className="attachment-info">
             <button type="button" className="attachment-name" disabled={a.state!=="done"} onClick={()=>onPreview(a.id)}>{a.name}</button>
             <div className="attachment-meta">
-              {(a.state === "done" || a.state === "selected") && formatSize(a.size)}
+              {(a.state === "done" || a.state === "selected") && (formatSize(a.size)+(/\.(docx|xlsx)$/i.test(a.name)?" · 本地提取文本":""))}
               {a.state === "uploading" && "上传中…"}
               {a.state === "error" && (a.error || "上传失败")}
             </div>

@@ -1,3 +1,5 @@
+import { imageObservationViews } from './image-observations.js';
+import { streamWithIdleTimeout } from '../model-stream.js';
 import { estimateInput } from './estimate.js';
 import { ContextBudgetError } from '../../../protocol/src/budget.js';
 import type { BudgetDetails } from '../../../protocol/src/budget.js';
@@ -39,7 +41,7 @@ export class ContextManager {
   constructor(
     readonly contextWindow = 1_000_000,
     readonly safetyHeadroom = 16_384,
-    readonly outputBudgets = { off: 8192, normal: 32768, high: 65536 },
+    readonly outputBudgets = { off: 8192, normal: 65536, high: 65536 },
     readonly pressureRatio = 0.75,
     readonly targetRatio = 0.5,
   ) {
@@ -78,7 +80,8 @@ export class ContextManager {
     const retained = applied.filter((m) => !memory.archivedIds.includes(m.id));
     const projected = toolResultViews(retained, inputCeiling);
     const history = projected.messages;
-    validatePairs(history);
+    const historyViews = imageObservationViews(retained, history);
+    validatePairs(historyViews.flat());
     const protectedIds = protectedUserIds(applied, memory.archivedIds, inputCeiling);
     const freshIds = freshToolIds(applied);
     for (const group of messageGroups(applied))
@@ -93,9 +96,9 @@ export class ContextManager {
             for (const row of group) protectedIds.add(row.id);
       }
     const protectedMessages = retained
-      .map((row, index) => ({ row, message: history[index]! }))
+      .map((row, index) => ({ row, messages: historyViews[index]! }))
       .filter(({ row }) => protectedIds.has(row.id))
-      .map(({ message }) => message);
+      .flatMap(({ messages }) => messages);
     const summary: WireMessage[] = memory.summary
       ? [
           {
@@ -119,8 +122,8 @@ export class ContextManager {
     } else reasons.push('initial');
     const reusable = carry && !reasons.length;
     const messages = reusable
-      ? [...structuredClone(carry.messages), ...history.slice(carry.sources.length)]
-      : [prefix, ...summary, ...history];
+      ? [...structuredClone(carry.messages), ...historyViews.slice(carry.sources.length).flat()]
+      : [prefix, ...summary, ...historyViews.flat()];
     const updates = factUpdates(domains, reusable ? carry.metrics?.cache?.factHashes : undefined);
     if (Object.keys(updates.values).length) messages.push(suffixFor(updates.values));
     validatePairs(messages);
@@ -133,7 +136,7 @@ export class ContextManager {
       64 * tools.length +
       128;
     const estimatedInputTokens = estimate(messages),
-      estimateBasis = history.some((m) => m.images?.length)
+      estimateBasis = messages.some((m) => m.images?.length)
         ? ('utf8-vision-v2' as const)
         : ('utf8-conservative-v1' as const);
     if (enforce && estimatedInputTokens > inputCeiling)
@@ -333,7 +336,9 @@ export class ContextManager {
           archiveIds.includes(m.id) &&
           !memory.archivedIds.includes(m.id),
       );
-      const modelLimitReached = store.maintenanceCount(runId, true) >= 4;
+      // 崩溃中的维护已有收费请求事实；新增宿主说明不构成再收费的理由。
+      const interruptedMaintenance = store.interruptedMaintenance(runId, memory.window.version);
+      const modelLimitReached = interruptedMaintenance || store.maintenanceCount(runId, true) >= 4;
       if (
         modelLimitReached &&
         !foldedUsers && !refreshOnly &&
@@ -458,10 +463,7 @@ export class ContextManager {
               'CONTEXT_BUDGET_EXCEEDED',
               '维护请求自身超过安全预算，未调用 API',
             );
-          for await (const frame of model.stream(
-            summaryRequest,
-            AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
-          )) {
+          for await (const frame of streamWithIdleTimeout(model, summaryRequest, signal, timeoutMs)) {
             store.checkLease(runId, generation);
             signal.throwIfAborted();
             if (frame.kind === 'response') {

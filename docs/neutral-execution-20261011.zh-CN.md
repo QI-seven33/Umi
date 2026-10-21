@@ -1,10 +1,13 @@
 # 中立执行 V2：2026-10-11 实施与验收
 
+> 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
+
+
 ## 本轮范围与原始状态
 
 修改前读取 AGENTS、交接、项目报告、阅读指南，保存 Git 状态、完整 diff 及 175 个 tracked/非忽略文件的 SHA/字节备份。实际源码在 E:\SOME_SEVEN_PROJECT-57\Umi_v2.0；保留已存在的排版、学习注释、资源/上下文/编辑/端口变更。没有在发布中转目录开发。
 
-本轮新增可选 providerModules 组装、中立 Plan/Locator/Observation 运行时 schema、唯一工具执行器的复用、窄的证据端口和持久事件。默认 Windows V1 命令没有切换，SDK 不进产品 package/lock；本轮不是通用 MXC adapter 发布。关联概念和阅读链见 [当前开发状态与研究归档](development-status.zh-CN.md)。
+本轮新增可选 providerModules 组装、中立 Plan/Locator/Observation 运行时 schema、唯一工具执行器的复用、窄的证据端口和持久事件。默认 Windows V1 命令没有切换，SDK 不进产品 package/lock；本轮不是通用 MXC adapter 发布。关联概念和阅读链见 [当前技术说明](current-state.zh-CN.md)。
 
 ## 实施前约定与实际契约
 

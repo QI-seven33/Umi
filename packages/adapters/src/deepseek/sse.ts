@@ -5,6 +5,7 @@ export async function* readSse(
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
   maxEventBytes = 2_000_000,
+  activity?: () => void,
 ): AsyncGenerator<string> {
   const reader = body.getReader(),
     decoder = new TextDecoder('utf-8', { fatal: true });
@@ -36,6 +37,7 @@ export async function* readSse(
       signal.throwIfAborted();
       const { value, done } = await reader.read();
       signal.throwIfAborted();
+      if (value?.byteLength) activity?.();
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
       if (Buffer.byteLength(buffer) > maxEventBytes)
         throw new UmiError('PROTOCOL_INVALID', '流式行超过大小限制');

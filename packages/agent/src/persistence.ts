@@ -1,3 +1,5 @@
+import type { SentAttachment,AttachmentReadOptions } from '../../protocol/src/attachments.js';
+import type { HostImageObservation } from '../../protocol/src/image-observation.js';
 import type { QuestionRequest } from '../../protocol/src/question.js';
 import type {
   Settings,
@@ -108,15 +110,20 @@ export interface PersistencePort {
   messageById(conversationId: string, messageId: string): MessageRow | undefined;
   runtimeFacts(environmentId: string): unknown;
   messageAttachments(conversationId: string, messageId: string): AttachmentSummary[];
+  imageObservations(conversationId: string, messageIds: string[]): Record<string, HostImageObservation>;
   messageImages(
     conversationId: string,
     messageId: string,
   ): NonNullable<WireMessage['images']>;
+  sentAttachment(conversationId: string, id: string): SentAttachment;
+  listAttachments(conversationId: string, input: unknown): unknown;
+  searchAttachment(conversationId: string, input: unknown): unknown;
   readAttachment(
     conversationId: string,
     id: string,
     startByte?: number,
     byteLength?: number,
+    options?: AttachmentReadOptions,
   ): unknown;
   contextMemory(conversationId: string): ContextMemory;
   contextCarry(conversationId: string): ContextCarry | null;
@@ -142,12 +149,14 @@ export interface PersistencePort {
     usage?: unknown,
   ): void;
   maintenanceCount(runId: string, modelOnly?: boolean): number;
+  interruptedMaintenance(runId: string, baseVersion: number): boolean;
   commit(scope: EventScope, body: EventBody): WorkEvent;
   commitModelDeltas(scope: EventScope, generation: number, deltas: Extract<EventBody, { type: 'model.delta' }>[]): void;
   readArtifact<T>(id: string): T;
   tool(id: string): ToolRow;
   tools(runId: string): ToolRow[];
   modelReceivedToolResult(executionId: string): boolean;
+  fileEvidenceExecutions(environmentId: string, mountId: string, path: string): string[];
   approval(id: string): ApprovalRow;
   checkLease(runId: string, generation: number): void;
   claim(runId: string, recovery?: boolean): number;
@@ -169,7 +178,7 @@ export interface PersistencePort {
     generation: number,
     finishReason: string,
   ): string;
-  persistFailureSummary(runId: string, text: string, generation: number): string;
+  persistFailureSummary(runId: string, text: string, generation: number, code?: string): string;
   requestApproval(
     toolId: string,
     context: ExecutionContext,

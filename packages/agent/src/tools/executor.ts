@@ -1,4 +1,5 @@
 import { hash } from '../identity.js';
+import { commandRepeatsSinceChange } from './repeat-observation.js';
 import type { PersistencePort, ToolResult } from '../persistence.js';
 import type { ExecutionContext } from '../../../protocol/src/model.js';
 import { UmiError, executionContextSchema } from '../../../protocol/src/model.js';
@@ -81,7 +82,7 @@ export class ToolExecutor {
         {
           outcome: 'failed',
           content: e instanceof UmiError ? e.message : '工具参数无效',
-          data: null,
+          data: e instanceof ToolPreparationError ? {code:e.code,...e.details} : e instanceof UmiError ? {code:e.code} : null,
         },
         generation,
       );
@@ -164,9 +165,10 @@ export class ToolExecutor {
       );
       return;
     }
-    // 原次数限制保留；有真实读取目标时，比较同一对象版本，不把编辑后的复读误判为停滞。
+    // 原次数限制保留；比较同一对象版本，不把编辑后的复读或省略哈希后的必要修改误判为停滞。
     let equivalent = previous.length;
-    if (equivalent >= 3 && definition.effect === 'read') {
+    if (equivalent >= 3 && (definition.effect === 'read' ||
+        (definition.effect === 'copy-write' && ['edit_file','write_file'].includes(t.name)))) {
       try {
         const observed = executionContextSchema.parse(definition.prepare(args, this.store.environment(t.environment_id), t.id));
         if (observed.locations.some(location => location.beforeHash !== null)) {
@@ -176,6 +178,16 @@ export class ToolExecutor {
         }
       } catch {
         // 不能证明版本变化时不豁免；原拒绝/未知执行检查已经在上面执行。
+      }
+    }
+    // 同一命令在已观察到的文件变更后可重新验证；仍必须经过下方的新批准与未知执行核验。
+    // 不扫描目录，也不把程序退出造成的环境修订当作内容变化。
+    if (equivalent >= 3 && definition.effect === 'host-code') {
+      try {
+        const observed = executionContextSchema.parse(definition.prepare(args, this.store.environment(t.environment_id), t.id));
+        if (observed.process) equivalent = commandRepeatsSinceChange(this.store, this.registry, t, previous, observed);
+      } catch {
+        // 无法证明输入变化时维持原计数；不凭猜测放宽执行。
       }
     }
     if (equivalent >= 3) {

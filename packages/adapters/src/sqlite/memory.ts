@@ -137,7 +137,11 @@ export class MemoryRepository {
       AND ((t.name='fetch_webpage' AND page.kind='web-page')
         OR (t.name='search_web' AND page.kind='web-search'))
       AND json_extract(result.content,'$.data.snapshotId')=page.id
-      UNION ALL SELECT id FROM context_maintenance WHERE (plan_ref=? OR summary_ref=? OR manifest_ref=?) AND conversation_id=? LIMIT 1`,
+      UNION ALL SELECT id FROM context_maintenance WHERE (plan_ref=? OR summary_ref=? OR manifest_ref=?) AND conversation_id=?
+      UNION ALL SELECT e.event_id FROM events e WHERE e.conversation_id=?
+      AND json_extract(e.payload,'$.type')='model.attempt_completed'
+      AND json_extract(e.payload,'$.payload.finishReason')='length'
+      AND json_extract(e.payload,'$.payload.responseRef')=? LIMIT 1`,
       artifactId,
       conversationId,
       artifactId,
@@ -154,6 +158,8 @@ export class MemoryRepository {
       artifactId,
       artifactId,
       conversationId,
+      conversationId,
+      artifactId,
     );
     if (!owned) throw new UmiError('PERMISSION_DENIED', '资料不属于当前会话的可读记录');
     return this.store.readArtifact(artifactId);

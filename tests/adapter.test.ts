@@ -33,7 +33,7 @@ test('A09：流式工具参数完整重组，多调用按提供方 index 归属'
   const last=frames.at(-1)!;assert(last.kind==='response');assert.deepEqual(last.message.tool_calls?.map(c=>[c.id,c.function.name,JSON.parse(c.function.arguments)]),[['call-a','first',{a:1}],['call-b','second',{b:2}]]);
 });
 test('A09：缺少 DONE、截断及错误结构不提交完整模型响应',async()=>{
-  for(const input of [event({content:'部分'},'stop'),event({content:'截断'},'length')+'data: [DONE]\n\n','data: {not-json}\n\n',
+  for(const input of [event({content:'部分'},'stop'),'data: {not-json}\n\n',
     event({tool_calls:[{index:0,function:{name:'write_scratch',arguments:'{}'}}]},'tool_calls')+'data: [DONE]\n\n']) {
     await assert.rejects(()=>collect(new DeepSeekAdapter(()=> 'test-only','https://api.deepseek.com',fixtureFetch(input))));
   }

@@ -4,6 +4,28 @@
 
 ## [Unreleased]
 
+### 新增
+
+- DOCX/XLSX原件及本地有界文本提取，附件目录、全文搜索、按行/字节读取；原件与派生版本分开。
+- 获准工作副本和冻结成果的图片观察，保留来源与版本；没有桌面操纵能力。
+- 可选本地Skill及公开GitHub固定提交的草稿、预览、确认导入与恢复，默认停用。
+- 可选本轮累计输出预算，包含思考与付费维护，恢复同一运行不清零。
+
+### 修复与调整
+
+- 移除默认24轮隐藏硬停；异常、停止和恢复时保存本地执行说明及历史，正常答复不额外请求模型收尾。
+- 模型流使用空闲超时，保留length事实/usage及有限续作；部分输出中断不原样自动重试，增加逐字重复保护。
+- 文件编辑自动绑定已见版本，成功自写与连续编辑无需反复读回或搬运回执；外部变化、对象替换、未读范围与歧义保护保留。
+- read_file支持单独lineCount，参数错误反馈具体字段；必要复测与同参数编辑按实际版本比较。
+- 改善启动写者恢复、命令首尾反馈、执行入口观察、附件恢复、运行用量与只读缓存诊断；设置页和暂停历史保持现有视觉约定。
+- 文档区分正式技术记录、更新日志与仅本地学习/对照探索稿，新增当前状态和运行契约。
+
+### 验证与限制
+
+- 当前本机完整离线核心653项通过，开发桌面99项通过；新Schema和省读流程未做新付费DeepSeek验收，不能据此证明真实复杂任务可用。
+- 跨run外部资源连续性、构建产物断链、语义完成/取消与大历史性能仍待处理；auto和宿主OS沙箱未实现。详见[当前技术记录](docs/changes/20261021.zh-CN.md)及[已知问题](docs/known-issues.zh-CN.md)。
+- 本地构建不等于新版本发布，现有0.2.0标签及远程资产未被本次提交改写。
+
 ## [0.2.0] - 2026-10-18
 
 ### 界面
@@ -70,7 +92,8 @@
 
 这是实验性预发布。HTML 首帧偶发空白、启动写者标记、部分预算终止正文及迁移就绪标识问题仍待处理；宿主命令没有 OS 文件/网络沙箱。详见[已知问题](docs/known-issues.zh-CN.md)和[本版发布说明](docs/releases/0.2.0-alpha.1.zh-CN.md)。
 
-[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.3...HEAD
+[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/QI-seven33/Umi/releases/tag/v0.2.0
 [0.2.0-alpha.3]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/QI-seven33/Umi/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/QI-seven33/Umi/releases/tag/v0.2.0-alpha.1

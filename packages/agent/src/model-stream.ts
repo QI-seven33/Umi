@@ -1,0 +1,57 @@
+import type { ModelPort, PreparedRequest, ModelFrame } from './ports.js';
+import { UmiError } from '../../protocol/src/model.js';
+import { ReasoningRepetitionGuard } from './loop/repeated-reasoning.js';
+
+// 只限制等待提供商数据的空闲时间。持续生成、SSE 心跳和拆开的字节都续期；
+// 交还调用者处理/落库时停止计时，避免把本地处理耗时算成网络失联。
+export async function* streamWithIdleTimeout(
+  model: ModelPort, request: PreparedRequest, signal: AbortSignal, timeoutMs: number,
+): AsyncGenerator<ModelFrame> {
+  signal.throwIfAborted();
+  const controller = new AbortController();
+  const repetition = new ReasoningRepetitionGuard();
+  const combined = AbortSignal.any([signal, controller.signal]);
+  let timer: ReturnType<typeof setTimeout> | undefined, waiting = false;
+  const clear = () => { if (timer) clearTimeout(timer); timer = undefined; };
+  const activity = () => {
+    if (!waiting || combined.aborted) return;
+    clear();
+    timer = setTimeout(() => controller.abort(new UmiError('PROVIDER_TIMEOUT',
+      '模型连接连续 ' + timeoutMs / 1000 + ' 秒未收到数据，已暂停；已显示内容保留，未完成工具未执行。', true)), timeoutMs);
+  };
+  const iterator = model.stream(request, combined, activity)[Symbol.asyncIterator]();
+  try {
+    while (true) {
+      combined.throwIfAborted();
+      waiting = true;
+      activity();
+      let next: IteratorResult<ModelFrame>;
+      try { next = await iterator.next(); combined.throwIfAborted(); }
+      finally { waiting = false; clear(); }
+      if (next.done) return;
+      const frame = next.value;
+      // 先交给原消费方保存本片段；检测不裁剪原稿，也不将残缺调用提升为完整响应。
+      yield frame;
+      combined.throwIfAborted();
+      if (frame.kind === 'delta' && frame.channel === 'reasoning') {
+        const repeated = repetition.observe(frame.text);
+        if (repeated) {
+          const reason = new UmiError('PROVIDER_REPETITION',
+            `思考内容出现至少 ${repeated.repeatedBytes} 字节的连续逐字重复，已暂停本轮生成；原稿保留，未完成工具未执行，不自动重试。`);
+          controller.abort(reason);
+          throw reason;
+        }
+      }
+    }
+  } catch (error) {
+    // 用户停止优先；适配器的取消异常不应掩盖真正的空闲超时原因。
+    if (signal.aborted) throw signal.reason;
+    if (controller.signal.aborted) throw controller.signal.reason;
+    throw error;
+  } finally {
+    waiting = false;
+    clear();
+    controller.abort();
+    try { await iterator.return?.(); } catch { /* 取消清理不覆盖原完成/失败原因。 */ }
+  }
+}

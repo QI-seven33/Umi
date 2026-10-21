@@ -10,8 +10,8 @@ const singleEditSchema = z
   .object({
     mountId: id,
     path: filePath,
-    readExecutionId: id,
-    expectedReadHash: digest,
+    readExecutionId: id.optional(),
+    expectedReadHash: digest.optional(),
     oldText: z.string().min(1).max(MAX_REPLACEMENT_BYTES),
     newText: z.string().max(MAX_REPLACEMENT_BYTES),
   })
@@ -20,8 +20,8 @@ const singleEditSchema = z
 export type EditFileArgs = z.infer<typeof singleEditSchema>;
 const editItemSchema = z.object({ oldText: z.string().min(1).max(MAX_REPLACEMENT_BYTES), newText: z.string().max(MAX_REPLACEMENT_BYTES) }).strict();
 const batchEditSchema = z.object({
-  mountId: id, path: filePath, expectedReadHash: digest,
-  readExecutionIds: z.array(id).min(1).max(64).refine(ids => new Set(ids).size === ids.length, '读取回执不能重复'),
+  mountId: id, path: filePath, expectedReadHash: digest.optional(),
+  readExecutionIds: z.array(id).min(1).max(64).refine(ids => new Set(ids).size === ids.length, '读取回执不能重复').optional(),
   edits: z.array(editItemSchema).min(1).max(32),
 }).strict();
 // 模型端是一个参数对象；执行端继续严格区分单项/批量，禁止混用或缺项。
@@ -29,18 +29,21 @@ const batchEditSchema = z.object({
 export const editFileSchema = z.object({
   ...singleEditSchema.partial().shape,
   ...batchEditSchema.partial().shape,
-}).strict().required({ mountId: true, path: true, expectedReadHash: true })
+}).strict().required({ mountId: true, path: true })
   .transform((value, ctx) => {
     // 独立解析两种形态。当前 Zod 的 object.pipe(union) 会丢弃入口 strict 错误，
     // transform 保留入口检查，同时把输出准确收窄为单项或批量参数。
-    const parsed = z.union([singleEditSchema, batchEditSchema]).safeParse(value);
+    const parsed = (value.edits !== undefined ? batchEditSchema : singleEditSchema).safeParse(value);
     if (!parsed.success) {
       for (const issue of parsed.error.issues)
         ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
       return z.NEVER;
     }
     return parsed.data;
-  });
+  }).meta({oneOf:[
+    {required:['oldText','newText'],not:{anyOf:[{required:['edits']},{required:['readExecutionIds']}]}},
+    {required:['edits'],not:{anyOf:[{required:['oldText']},{required:['newText']},{required:['readExecutionId']}]}}
+  ]});
 export type EditFileInput = z.infer<typeof editFileSchema>;
 
 // 仅成功的 read_file 工具回执可作为编辑来源；stat/preview/search 不代替读取。
@@ -65,9 +68,12 @@ export const textFileReadReceiptSchema = z
   .refine((r) => r.startByte <= r.endByte && r.endByte <= r.size, '读取范围无效');
 export type TextFileReadReceipt = z.infer<typeof textFileReadReceiptSchema>;
 
+// 宿主内部的修改后已见范围：原文范围随编辑平移，新片段由模型提供；不是新读取或批准。
+const knownRanges = z.array(z.object({startByte:z.number().int().nonnegative(),endByte:z.number().int().nonnegative()}).strict()).max(64).optional();
 const singleEditSnapshotSchema = z
   .object({
     schemaVersion: z.literal(1),
+    knownRanges,
     executionId: id,
     readExecutionId: id,
     readResultRef: id,
@@ -79,7 +85,7 @@ const singleEditSnapshotSchema = z
   .strict();
 
 export const fileEditSnapshotSchema = z.discriminatedUnion('schemaVersion', [singleEditSnapshotSchema, z.object({
-  schemaVersion: z.literal(2), executionId: id,
+  schemaVersion: z.literal(2), executionId: id, knownRanges,
   reads: z.array(z.object({ readExecutionId: id, readResultRef: id }).strict()).min(1).max(64),
   edits: z.array(z.object({ index: z.number().int().nonnegative(), startByte: z.number().int().nonnegative(), oldByteLength: z.number().int().positive().max(MAX_REPLACEMENT_BYTES), newByteLength: z.number().int().nonnegative().max(MAX_REPLACEMENT_BYTES) }).strict()).min(1).max(32),
   noOp: z.boolean(),

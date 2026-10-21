@@ -1,3 +1,9 @@
+import { runConclusion } from '../../../agent/src/loop/run-conclusion.js';
+import { attachmentTextProblem } from '../../../protocol/src/attachments.js';
+import { AttachmentRepository } from './attachments.js';
+import type { AttachmentReadOptions } from '../../../protocol/src/attachments.js';
+import { loadImageObservations } from './image-observations.js';
+import { WriterLock } from './writer-lock.js';
 import { DATABASE_VERSION } from '../../../protocol/src/database.js';
 import { CONVERSATION_DELETION_SQL } from './conversation-deletion-schema.js';
 import { ConversationDeletion } from './conversation-deletion.js';
@@ -18,12 +24,8 @@ import type {
 import { DatabaseSync } from 'node:sqlite';
 import {
   mkdirSync,
-  readFileSync,
-  writeFileSync,
-  unlinkSync,
   realpathSync,
   statSync,
-  rmdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { canonical, hash, uid } from '../../../agent/src/identity.js';
@@ -56,7 +58,7 @@ type Row = Record<string, string | number | null>;
 export class SqliteStore {
   readonly db!: DatabaseSync;
   readonly dataRoot: string;
-  private readonly lockPath: string;
+  private readonly writerLock: WriterLock;
   readonly instanceId = uid();
   private closed = false;
   private readonly states = new Map<string, ConversationState>();
@@ -66,51 +68,7 @@ export class SqliteStore {
   ) {
     mkdirSync(directory, { recursive: true });
     this.dataRoot = realpathSync(directory);
-    this.lockPath = join(this.dataRoot, 'writer.lock');
-    const startupGuard = join(this.dataRoot, 'writer.starting');
-    try {
-      mkdirSync(startupGuard);
-      writeFileSync(
-        join(startupGuard, 'owner.json'),
-        canonical({ pid: process.pid, instanceId: this.instanceId }),
-        { flag: 'wx' },
-      );
-    } catch {
-      throw new UmiError('WRITER_LOCKED', '另一个实例正在启动，或上次启动尚需核验');
-    }
-    try {
-      try {
-        writeFileSync(
-          this.lockPath,
-          canonical({ pid: process.pid, instanceId: this.instanceId }),
-          { flag: 'wx' },
-        );
-      } catch {
-        let owner: { pid: number };
-        try {
-          owner = JSON.parse(readFileSync(this.lockPath, 'utf8')) as { pid: number };
-        } catch {
-          throw new UmiError('WRITER_LOCKED', '写入锁无法核验，禁止启动另一个执行者');
-        }
-        let live = true;
-        try {
-          process.kill(owner.pid, 0);
-        } catch (e) {
-          if ((e as NodeJS.ErrnoException).code === 'ESRCH') live = false;
-        }
-        if (live)
-          throw new UmiError('WRITER_LOCKED', '另一个写入进程仍可能存活，禁止并发运行');
-        unlinkSync(this.lockPath);
-        writeFileSync(
-          this.lockPath,
-          canonical({ pid: process.pid, instanceId: this.instanceId }),
-          { flag: 'wx' },
-        );
-      }
-    } finally {
-      unlinkSync(join(startupGuard, 'owner.json'));
-      rmdirSync(startupGuard);
-    }
+    this.writerLock = new WriterLock(this.dataRoot, this.instanceId);
     try {
       this.db = new DatabaseSync(join(this.dataRoot, 'umi.sqlite'));
       this.db.exec(
@@ -227,6 +185,8 @@ export class SqliteStore {
         this.db.exec('ROLLBACK');
         throw e;
       }
+      // 可重建的辅助索引，不改变逻辑表/版本或旧迁移指纹。首次构建有一次扫描，后续启动只读少量生命周期事件。
+      this.db.exec("CREATE INDEX IF NOT EXISTS events_attempt_lifecycle ON events(conversation_id,log_epoch,sequence) WHERE json_extract(payload,'$.type') IN('model.attempt_started','model.attempt_completed','model.attempt_failed')");
       for (const row of this.all(
         "SELECT * FROM context_maintenance WHERE state='started'",
       )) {
@@ -291,11 +251,18 @@ export class SqliteStore {
           true,
         );
       // 进程硬退出没有机会结算 attempt；启动时补充中断事实，不等待用户点击恢复才结束 loading。
+      const lifecycleByConversation = new Map<string, WorkEvent[]>();
       for (const r of this.all(
         "SELECT * FROM runs WHERE status IN('interrupted','stopped','waiting_permission','recovery_required')",
       ) as unknown as RunRow[]) {
         const open = new Map<string, WorkEvent>();
-        for (const e of this.events(r.conversation_id).filter((e) => e.runId === r.id)) {
+        let lifecycle = lifecycleByConversation.get(r.conversation_id);
+        if (!lifecycle) {
+          lifecycle = this.all("SELECT payload FROM events WHERE conversation_id=? AND log_epoch=? AND json_extract(payload,'$.type') IN('model.attempt_started','model.attempt_completed','model.attempt_failed') ORDER BY sequence", r.conversation_id, this.conversation(r.conversation_id).log_epoch as string)
+            .map(row => eventSchema.parse(JSON.parse(row.payload as string)));
+          lifecycleByConversation.set(r.conversation_id, lifecycle);
+        }
+        for (const e of lifecycle.filter((e) => e.runId === r.id)) {
           if (e.type === 'model.attempt_started') open.set(e.modelAttemptId!, e);
           if (e.type === 'model.attempt_completed' || e.type === 'model.attempt_failed')
             open.delete(e.modelAttemptId!);
@@ -322,12 +289,7 @@ export class SqliteStore {
       try {
         this.db!.close();
       } catch {}
-      try {
-        const owner = JSON.parse(readFileSync(this.lockPath, 'utf8')) as {
-          instanceId: string;
-        };
-        if (owner.instanceId === this.instanceId) unlinkSync(this.lockPath);
-      } catch {}
+      this.writerLock.release();
       throw e;
     }
   }
@@ -427,7 +389,7 @@ export class SqliteStore {
       `SELECT c.id,c.workspace_id workspaceId,w.source_root workspace,c.environment_id environmentId,
       EXISTS(SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.role='user') hasMessages,
       COALESCE(v.title,(SELECT substr(json_extract(m.payload,'$.content'),1,60) FROM messages m WHERE m.conversation_id=c.id AND m.role='user' ORDER BY m.rowid LIMIT 1),'新对话') title,
-      (SELECT max(json_extract(e.payload,'$.occurredAt')) FROM events e WHERE e.conversation_id=c.id) updatedAt
+      (SELECT json_extract(e.payload,'$.occurredAt') FROM events e WHERE e.conversation_id=c.id AND e.log_epoch=c.log_epoch ORDER BY e.sequence DESC LIMIT 1) updatedAt
       FROM conversations c JOIN workspaces w ON w.id=c.workspace_id LEFT JOIN conversation_views v ON v.conversation_id=c.id WHERE COALESCE(v.archived,0)=? ORDER BY updatedAt DESC,c.rowid DESC`,
       archived ? 1 : 0,
     ).map((row) => ({ ...row, hasMessages: Boolean(row.hasMessages) }));
@@ -502,6 +464,8 @@ export class SqliteStore {
   }
   uploadAttachment(conversationId: string, name: string, mime: string, text: string) {
     this.conversation(conversationId);
+    const problem = attachmentTextProblem(text);
+    if (problem) throw new UmiError('PROTOCOL_INVALID', problem);
     const id = uid(),
       bytes = Buffer.byteLength(text);
     if (
@@ -509,11 +473,15 @@ export class SqliteStore {
       name.length > 180 ||
       /[\\/\x00-\x1f]/.test(name) ||
       !['text/plain', 'text/markdown', 'application/json', 'text/csv'].includes(mime) ||
-      bytes > 1_000_000
+      bytes > 1_000_000 ||
+      Buffer.from(text,'utf8').toString('utf8') !== text ||
+      /[\x00-\x08\x0e-\x1f]/.test(text)
     )
       throw new UmiError('PROTOCOL_INVALID', '附件名称、类型或大小不支持');
     return this.transaction(() => {
-      const ref = this.artifact({ text }, 'attachment');
+      // 同会话重复内容复用资料；每次上传仍有独立附件身份/显示名，不混淆同名版本。
+      const old = this.get("SELECT a.artifact_ref FROM attachments a JOIN artifacts r ON r.id=a.artifact_ref WHERE a.conversation_id=? AND r.kind='attachment' AND r.hash=? LIMIT 1", conversationId, hash({ text }));
+      const ref = old ? String(old.artifact_ref) : this.artifact({ text }, 'attachment');
       this.run(
         'INSERT INTO attachments VALUES(?,?,?,?,?,?)',
         id,
@@ -526,6 +494,7 @@ export class SqliteStore {
       return { id, name, mime, byteLength: bytes };
     });
   }
+  uploadDocument(conversationId:string,input:unknown){return new AttachmentRepository(this).uploadDocument(conversationId,input);}
   uploadImage(conversationId: string, name: string, base64: string) {
     this.conversation(conversationId);
     if (!name || name.length > 180 || /[\\/\x00-\x1f]/.test(name))
@@ -558,6 +527,9 @@ export class SqliteStore {
       };
     return this.readAttachment(conversationId, id, startByte, byteLength);
   }
+  imageObservations(conversationId: string, messageIds: string[]) {
+    return loadImageObservations(this, conversationId, messageIds);
+  }
   messageImages(conversationId: string, messageId: string) {
     return this.messageAttachments(conversationId, messageId)
       .filter((a) => a.mime.startsWith('image/'))
@@ -567,42 +539,11 @@ export class SqliteStore {
           .dataUrl,
       }));
   }
-  readAttachment(conversationId: string, id: string, startByte = 0, byteLength = 8192) {
-    const a = this.attachment(conversationId, id);
-    if (String(a.mime).startsWith('image/'))
-      return {
-        id,
-        name: a.name,
-        mime: a.mime,
-        totalBytes: Number(a.byte_length),
-        text: '这是图片附件，Flash 通过用户消息的图片块读取，不能按文本字节读取。',
-        truncated: false,
-      };
-    const bytes = Buffer.from(
-      this.readArtifact<{ text: string }>(a.artifact_ref as string).text,
-    );
-    if (
-      !Number.isInteger(startByte) ||
-      startByte < 0 ||
-      !Number.isInteger(byteLength) ||
-      byteLength < 1 ||
-      byteLength > 64000
-    )
-      throw new UmiError('PROTOCOL_INVALID', '附件读取范围无效');
-    const start = Math.min(startByte, bytes.length);
-    if (start < bytes.length && (bytes[start]! & 0xc0) === 0x80)
-      throw new UmiError('PROTOCOL_INVALID', '读取起点切开 UTF-8 字符');
-    let end = Math.min(bytes.length, start + byteLength);
-    while (end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
-    return {
-      id,
-      name: a.name,
-      startByte: start,
-      endByte: end,
-      totalBytes: bytes.length,
-      truncated: end < bytes.length,
-      text: bytes.subarray(start, end).toString('utf8'),
-    };
+  sentAttachment(conversationId: string, id: string) { return new AttachmentRepository(this).sent(conversationId,id); }
+  listAttachments(conversationId: string, input: unknown) { return new AttachmentRepository(this).list(conversationId,input); }
+  searchAttachment(conversationId: string, input: unknown) { return new AttachmentRepository(this).search(conversationId,input); }
+  readAttachment(conversationId: string, id: string, startByte = 0, byteLength = 8192, options: AttachmentReadOptions = {}) {
+    return new AttachmentRepository(this).read(conversationId,id,startByte,byteLength,options);
   }
   // append 仅允许在事务内调用；快照校验在提交前执行，错误不会留下半条事实。
   append(scope: EventScope, body: EventBody, key: string = uid()): WorkEvent {
@@ -698,13 +639,27 @@ export class SqliteStore {
           scope.runId,
         );
     }
+    if (scope.runId && ['run.interrupted', 'run.stopped', 'run.recovery_required', 'run.failed', 'tool.settled', 'tool.reconciled'].includes(e.type)) this.recordTerminalNotice(scope.runId);
     return e;
   }
   commit(scope: EventScope, body: EventBody, update?: () => void): WorkEvent {
-    return this.transaction(() => {
-      update?.();
-      return this.append(scope, body);
-    });
+    try {
+      return this.transaction(() => {
+        update?.();
+        return this.append(scope, body);
+      });
+    } catch (error) {
+      // 执行说明写入失败时，回滚整份说明，仍尝试保存诚实的中断/停止事实。
+      // 若连这个事实也不能落库，原错误继续向上传递，不能宣称保存成功。
+      if (!scope.runId || !['run.interrupted', 'run.stopped', 'run.recovery_required', 'run.failed'].includes(body.type) ||
+          !String((error as { code?: string }).code ?? '').includes('SQLITE')) throw error;
+      this.recordingFailureSummary = true;
+      try {
+        return this.transaction(() => this.append(scope, body.type === 'run.stopped'
+          ? { type: 'run.stopped', payload: { reason: '用户停止已记录；执行说明未能完整保存。' } }
+          : { type: 'run.interrupted', payload: { code: 'PERSISTENCE_FAILED', reason: '执行说明未能完整保存；已有记录保留，需恢复核验。' } }));
+      } finally { this.recordingFailureSummary = false; }
+    }
   }
   commitModelDeltas(scope: EventScope, generation: number, deltas: Extract<EventBody, { type: 'model.delta' }>[]): void {
     if (!deltas.length || deltas.length > 64 || deltas.some(d => d.type !== 'model.delta'))
@@ -732,9 +687,10 @@ export class SqliteStore {
         throw new UmiError('CURSOR_INVALID', '重连游标与持久会话不一致');
     }
     return this.all(
-      'SELECT payload FROM events WHERE conversation_id=? AND sequence>? ORDER BY sequence' +
+      'SELECT payload FROM events WHERE conversation_id=? AND log_epoch=? AND sequence>? ORDER BY sequence' +
         (limit === undefined ? '' : ' LIMIT ?'),
       conversationId,
+      c.log_epoch as string,
       BigInt(after?.sequence ?? '0'),
       ...(limit === undefined ? [] : [limit]),
     ).map((r) => eventSchema.parse(JSON.parse(r.payload as string)));
@@ -743,10 +699,11 @@ export class SqliteStore {
     let state = this.states.get(conversationId);
     if (!state) {
       const c = this.conversation(conversationId);
-      state = this.events(conversationId).reduce(
-        reduceConversation,
-        initialState(conversationId, c.log_epoch as string),
-      );
+      state = initialState(conversationId, c.log_epoch as string);
+      // 冷重放逐条校验并消费，避免同时保留所有数据库行和解析后的巨大事件数组。
+      // 运行态与历史仍使用同一个纯归约器，原始片段不合并、不删除。
+      for (const row of this.db.prepare('SELECT payload FROM events WHERE conversation_id=? AND log_epoch=? ORDER BY sequence').iterate(conversationId, c.log_epoch as string))
+        state = reduceConversation(state, eventSchema.parse(JSON.parse(row.payload as string)));
       this.states.set(conversationId, state);
     }
     return state;
@@ -931,6 +888,13 @@ export class SqliteStore {
   ) {
     new MemoryRepository(this).fail(plan, code, generation, raw, usage);
   }
+  interruptedMaintenance(runId: string, baseVersion: number) {
+    // 适配器内只读维护投影，不向领域暴露可变状态，也不复制完整会话历史。
+    const maintenance = this.projectionState(this.getRun(runId).conversation_id).memory.maintenance;
+    return Object.values(maintenance).some(m =>
+      m.runId === runId && m.status === 'failed' && m.code === 'MAINTENANCE_INTERRUPTED' &&
+      this.readArtifact<MaintenancePlan>(m.planRef).baseVersion === baseVersion);
+  }
   maintenanceCount(runId: string, modelOnly = false) {
     if (modelOnly)
       return this.all(
@@ -1109,6 +1073,34 @@ export class SqliteStore {
     if (!r) throw new UmiError('NOT_FOUND', '批准请求不存在');
     return r as unknown as ApprovalRow;
   }
+  private recordingFailureSummary = false;
+  // 终态事务保存可见说明；未闭合的工具组先结算，避免插断历史配对。
+  private recordTerminalNotice(runId: string) {
+    if (this.recordingFailureSummary) return;
+    const run = this.getRun(runId);
+    if (!['interrupted', 'stopped', 'recovery_required', 'failed'].includes(run.status)) return;
+    const messages = this.messages(run.conversation_id);
+    if (run.status !== 'stopped' && messages.some(m => m.runId === runId && !m.applied)) return;
+    const input = messages.findLast(m => m.runId === runId && m.role === 'user' && (m.applied || run.status === 'stopped'));
+    if (!input) return;
+    const state = this.snapshot(run.conversation_id).runs[runId]!;
+    // 新输入和存储故障不能被旧收尾覆盖；存储失败时只保留可确认的错误状态。
+    if (['CONTEXT_SOURCE_CHANGED', 'PERSISTENCE_FAILED'].includes(state.code ?? '')) return;
+    if (state.finalMessageId && messages.some(m => m.id === state.finalMessageId && m.payload.content.trim())) return;
+    const code = run.status === 'stopped' ? 'STOPPED' : run.status === 'recovery_required' ? 'TOOL_OUTCOME_UNKNOWN' : state.code ?? 'PROVIDER_INTERRUPTED';
+    if (state.failureSummary?.inputId === input.id && state.failureSummary.code === code && BigInt(state.failureSummary.sequence) > BigInt(state.activationSequence ?? '0')) return;
+    const tools = this.tools(runId);
+    if (tools.some(t => ['prepared', 'dispatched', 'unknown'].includes(t.state) && !t.result_ref)) return;
+    const reason = state.reason ?? (run.status === 'stopped' ? '用户已停止执行。' : '执行进程退出，等待核验恢复。');
+    const scope = { conversationId: run.conversation_id, runId };
+    const text = runConclusion(run, reason, code, tools);
+    if (state.failureSummary?.inputId === input.id && state.failureSummary.text === text) return;
+    this.recordingFailureSummary = true;
+    try {
+      const messageId = this.message(scope, { role: 'assistant', content: text });
+      this.append(scope, { type: 'run.failure_summary', payload: { messageId, inputId: input.id, text } });
+    } finally { this.recordingFailureSummary = false; }
+  }
   checkLease(runId: string, generation: number) {
     const r = this.getRun(runId),
       e = this.environment(r.environment_id);
@@ -1186,6 +1178,14 @@ export class SqliteStore {
     // 旧快照保持只读；迁移前缺少来源或窗口身份时建立新视图。
     return Array.isArray(value.messages) && Array.isArray(value.sources) && value.projection
       ? value : null;
+  }
+  fileEvidenceExecutions(environmentId: string, mountId: string, path: string): string[] {
+    // 只查询当前环境、同一文件成功的既有执行，不重放整段对话或读取其它文件正文。
+    return this.all(`SELECT id FROM tool_executions WHERE environment_id=? AND state='succeeded'
+      AND name IN('read_file','write_file','edit_file')
+      AND CASE WHEN json_valid(args) THEN json_extract(args,'$.mountId') END=?
+      AND CASE WHEN json_valid(args) THEN json_extract(args,'$.path') END=? ORDER BY rowid DESC`,
+      environmentId,mountId,path).map(row=>String(row.id));
   }
   modelReceivedToolResult(executionId: string): boolean {
     const tool = this.tool(executionId);
@@ -1344,16 +1344,22 @@ export class SqliteStore {
     });
   }
   // 本地受阻正文有真实消息和事件，不冒充模型响应或增加计费 usage。
-  persistFailureSummary(runId: string, text: string, generation: number): string {
+  persistFailureSummary(runId: string, text: string, generation: number, code?: string): string {
     return this.transaction(() => {
       this.checkLease(runId, generation);
       const run = this.getRun(runId), scope = { conversationId: run.conversation_id, runId };
       if (this.messages(run.conversation_id).some(m => m.runId === runId && !m.applied))
         throw new UmiError('CONTEXT_SOURCE_CHANGED', '新要求阻止提交旧收尾');
-      const inputId = this.messages(run.conversation_id).filter(m => m.role === 'user' && m.applied).at(-1)?.id;
+      const inputId = this.messages(run.conversation_id).filter(m => m.runId === runId && m.role === 'user' && m.applied).at(-1)?.id;
       if (!inputId) throw new UmiError('PROTOCOL_INVALID', '受阻说明缺少用户原话');
       const existing = this.snapshot(run.conversation_id).runs[runId]?.failureSummary;
-      if (existing?.inputId === inputId) return existing.messageId;
+      if (existing?.inputId === inputId && existing.text === text && (!code || existing.code === code)) return existing.messageId;
+      // 与正文同事务保存可恢复的终止原因；不新增事件类型或计费请求。
+      if (code) {
+        this.recordingFailureSummary = true;
+        try { this.append(scope, { type: 'run.interrupted', payload: { code, reason: '正在保存本轮执行说明。' } }); }
+        finally { this.recordingFailureSummary = false; }
+      }
       const messageId = this.message(scope, { role: 'assistant', content: text });
       this.append(scope, { type: 'run.failure_summary', payload: { messageId, inputId, text } });
       return messageId;
@@ -1621,13 +1627,8 @@ export class SqliteStore {
   }
   close() {
     if (this.closed) return;
-    this.closed = true;
     this.db.close();
-    try {
-      const owner = JSON.parse(readFileSync(this.lockPath, 'utf8')) as {
-        instanceId: string;
-      };
-      if (owner.instanceId === this.instanceId) unlinkSync(this.lockPath);
-    } catch {}
+    this.writerLock.release();
+    this.closed = true;
   }
 }

@@ -4,6 +4,8 @@ import type {
 } from '../../../../packages/protocol/src/reducer.js';
 
 export const toolNames: Record<string, string> = {
+  list_skills: '查看技能目录',
+  read_skill: '读取技能',
   ask_user_question: '询问用户',
   open_delivered_file: '打开交付文件',
   list_resources: '查看工作副本',
@@ -23,6 +25,7 @@ export const toolNames: Record<string, string> = {
   discover_resource: '查找资源',
   request_resource: '申请资源访问',
   read_file: '读取文件',
+  read_image: '查看图片',
   write_file: '修改文件',
   edit_file: '编辑文件',
   list_files: '查看目录',
@@ -39,6 +42,8 @@ export const toolNames: Record<string, string> = {
   read_history: '读取历史',
   write_scratch: '写入任务资料',
   read_attachment: '读取附件',
+  list_attachments: '查找附件',
+  search_attachment: '搜索附件',
   search_web: '搜索网页',
   fetch_webpage: '读取网页',
   read_webpage: '读取网页快照',
@@ -51,7 +56,8 @@ export const toolNames: Record<string, string> = {
 };
 export type ActivityItem =
   | { kind: 'reasoning'; block: Block; sequence: string }
-  | { kind: 'tool'; id: string; sequence: string };
+  | { kind: 'tool'; id: string; sequence: string }
+  | { kind: 'tool-draft'; block: Block; sequence: string };
 export type ProcessItem =
   | { kind: 'activity'; id: string; items: ActivityItem[] }
   | { kind: 'text'; block: Block };
@@ -71,11 +77,11 @@ export function processItems(
         (b) =>
           b.runId === runId &&
           within(b.sequence) &&
-          b.kind !== 'tool' &&
+          (b.kind !== 'tool' || !Object.values(state.tools).some(t => t.attemptId === b.attemptId)) &&
           !(b.kind === 'text' && b.displayRole === 'final'),
       )
       .map((b) =>
-        b.kind === 'reasoning'
+        b.kind === 'tool' ? { kind: 'tool-draft' as const, block: b, sequence: b.sequence } : b.kind === 'reasoning'
           ? { kind: 'reasoning' as const, block: b, sequence: b.sequence }
           : { kind: 'text' as const, block: b, sequence: b.sequence },
       ),
@@ -101,13 +107,15 @@ export function processItems(
     else
       result.push({
         kind: 'activity',
-        id: item.kind === 'reasoning' ? item.block.id : item.id,
+        id: item.kind === 'tool' ? item.id : item.block.id,
         items: [item],
       });
   }
   return result;
 }
 const verbs: Record<string, string> = {
+  list_skills: '查看技能目录',
+  read_skill: '读取技能',
   ask_user_question: '询问用户',
   open_delivered_file: '打开交付文件',
   list_resources: '查看工作副本',
@@ -125,7 +133,10 @@ const verbs: Record<string, string> = {
   export_outputs: '导出成果',
   inspect_export: '核验导出',
   read_file: '读取文件',
+  read_image: '查看图片',
   read_attachment: '读取附件',
+  list_attachments: '查找附件',
+  search_attachment: '搜索附件',
   read_history: '读取历史',
   read_work_memory: '读取任务记录',
   read_artifact: '读取资料',
@@ -156,6 +167,9 @@ export function activityLabel(items: ActivityItem[], state: ConversationState) {
     )
   )
     return '等待你的批准';
+  const drafts = items.filter(i => i.kind === 'tool-draft');
+  const writing = drafts.find(i => i.block.status === 'running' && state.attempts[i.block.attemptId]?.status === 'running');
+  if (writing) return '正在生成工具请求（' + writing.block.text.length.toLocaleString() + ' 字符，尚未执行）';
   const active = tools.find((t) => t.status === 'running' || t.status === 'prepared');
   if (active) return `正在${verbs[active.name] ?? '使用工具'}`;
   if (
@@ -180,6 +194,7 @@ export function activityLabel(items: ActivityItem[], state: ConversationState) {
   ] as const;
   const exceptions = outcomes.filter(([status]) => tools.some(t => t.status === status)).map(([, label]) => label);
   labels.unshift(...exceptions);
+  if (!labels.length && drafts.length) return '工具请求未完成，未执行';
   if (!labels.length)
     return items.some((i) => i.kind === 'reasoning' && i.block.status === 'interrupted')
       ? '思考已中断'

@@ -266,7 +266,10 @@ test('停滞收尾：本地说明提交后收到新要求，旧说明不能遮�
     const run = f.app.send(f.c.conversationId, uid(), '读取'); await f.app.wait(run.runId);
     await eventually(() => next); await f.app.wait(next!.runId);
     assert.equal(f.app.store.getRun(next!.runId).status, 'completed');
-    assert(html(f).includes('新要求的完整答复')); assert(!html(f).includes('这一步仍未完成'));
+    const rendered=html(f);assert(rendered.includes('新要求的完整答复'));
+    // 旧受阻说明保留在旧交流段，不能覆盖新原话后的最终答复。
+    const current=rendered.slice(rendered.indexOf('id="msg-'+next!.messageId+'"'));
+    assert(current.includes('新要求的完整答复'));assert(!current.includes('这一步仍未完成'));
   } finally { await f.close(); }
 });
 

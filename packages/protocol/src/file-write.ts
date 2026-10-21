@@ -13,14 +13,9 @@ export const writeFileSchema = z
   })
   .strict()
   .superRefine((a, ctx) => {
-    if (a.mode === 'replace' && (!a.readExecutionId || !a.expectedReadHash))
-      ctx.addIssue({
-        code: 'custom',
-        message: 'replace 必须绑定 readExecutionId/expectedReadHash',
-      });
     if (a.mode === 'create' && (a.readExecutionId || a.expectedReadHash))
       ctx.addIssue({ code: 'custom', message: 'create 不接受替换回执' });
-  });
+  }).meta({if:{properties:{mode:{const:'create'}}},then:{not:{anyOf:[{required:['readExecutionId']},{required:['expectedReadHash']}]}}});
 export type WriteFileArgs = z.infer<typeof writeFileSchema>;
 export const fileWriteSnapshotSchema = z
   .object({

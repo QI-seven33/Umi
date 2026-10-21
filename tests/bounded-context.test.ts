@@ -377,7 +377,11 @@ test('有界上下文：事务失败不发布窗口，重启后核验索引且�
       next.store.contextMemory(f.c.conversationId).userIndex!.length,
       ids.length,
     );
-    assert.deepEqual(next.store.messages(f.c.conversationId), before);
+    const restored=next.store.messages(f.c.conversationId);
+    assert.deepEqual(restored.slice(0,before.length),before);
+    assert.equal(restored.length,before.length+1);
+    assert.equal(restored.at(-1)!.modelAttemptId,null);
+    assert.equal(restored.at(-1)!.id,next.store.snapshot(f.c.conversationId).runs[f.runId]!.failureSummary!.messageId);
     const facts = {
       ...previousFacts,
       messages: next.store.messages(f.c.conversationId),

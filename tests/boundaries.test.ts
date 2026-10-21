@@ -72,13 +72,13 @@ test('A17：模型响应尚未完成时明确停止，保留前缀且不形成�
   try {
     const c=app.createConversation(directory),r=app.send(c.conversationId,uid(),'等待生成');await eventually(()=>app.store.snapshot(c.conversationId).blocks[0]);
     await app.stop(c.conversationId,r.runId);assert.equal(app.store.getRun(r.runId).status,'stopped');assert.equal(app.store.snapshot(c.conversationId).blocks[0]?.status,'interrupted');
-    assert.equal(app.store.messages(c.conversationId).filter(m=>m.role==='assistant').length,0);
+    assert.equal(app.store.messages(c.conversationId).filter(m=>m.role==='assistant'&&m.modelAttemptId).length,0);
   }finally{await app.close();removeTestRoot(directory);}
 });
-test('A19：有限模型重试使用同一请求、独立 attempt，并保留中断正文',async()=>{
+test('A19：尚无输出的有限模型重试使用同一请求和独立 attempt',async()=>{
   class RetryModel extends ScriptModel {
     override async* stream(request:PreparedRequest,signal:AbortSignal):AsyncGenerator<ModelFrame> {
-      if(!this.requests.length){this.requests.push(structuredClone(request));yield {kind:'delta',channel:'text',key:'text',text:'第一次部分响应'};
+      if(!this.requests.length){this.requests.push(structuredClone(request));
         throw new UmiError('PROVIDER_INTERRUPTED','测试中断',true);}
       yield* super.stream(request,signal);
     }
@@ -87,7 +87,7 @@ test('A19：有限模型重试使用同一请求、独立 attempt，并保留中
   try {
     const c=app.createConversation(directory),r=app.send(c.conversationId,uid(),'有限重试');assert.equal((await app.wait(r.runId)).status,'completed');
     assert.deepEqual(model.requests[0],model.requests[1]);assert.equal(model.requests.length,2);
-    const state=app.store.snapshot(c.conversationId);assert.equal(state.blocks[0]?.status,'interrupted');
+    const state=app.store.snapshot(c.conversationId);assert.equal(state.blocks.filter(b=>b.status==='interrupted').length,0);
     assert.equal(Object.values(state.turns)[0]?.attemptIds.length,2);assert.equal(app.store.getRun(r.runId).model_turns,1);
     assert.equal(app.store.messages(c.conversationId).some(m=>m.payload.content==='第一次部分响应'),false);
   }finally{await app.close();removeTestRoot(directory);}
@@ -121,7 +121,7 @@ test('A03/A06：完整响应事务失败不留下半个消息或可派发工具'
     const c=app.createConversation(directory);
     app.store.db.exec("CREATE TRIGGER inject_tool_failure BEFORE INSERT ON tool_executions BEGIN SELECT RAISE(ABORT,'完整响应提交失败'); END;");
     const r=app.send(c.conversationId,uid(),'提交失败样本');assert.equal((await app.wait(r.runId)).status,'failed');
-    assert.equal(app.store.tools(r.runId).length,0);assert.equal(app.store.messages(c.conversationId).filter(m=>m.role==='assistant').length,0);
+    assert.equal(app.store.tools(r.runId).length,0);assert.equal(app.store.messages(c.conversationId).filter(m=>m.role==='assistant'&&m.modelAttemptId).length,0);
     assert.equal(app.store.events(c.conversationId).filter(e=>e.type==='model.attempt_completed').length,0);
     assert.equal(app.store.snapshot(c.conversationId).blocks[0]?.status,'interrupted');
   }finally{await app.close();removeTestRoot(directory);}

@@ -24,7 +24,9 @@ const mountId = z.string().min(1).max(160),
       lineCount: z.number().int().min(1).max(10000).optional(),
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     })
-    .strict().refine(a => !(a.startLine !== undefined && a.startByte !== undefined) && !(a.lineCount !== undefined && a.startLine === undefined), '行范围和字节起点互斥，lineCount 必须同时指定 startLine');
+    .strict().refine(a => a.startByte === undefined || (a.startLine === undefined && a.lineCount === undefined),
+      {message:'行范围和字节起点互斥：startByte 不能同时搭配 startLine/lineCount；请选择一种定位方式',path:['startByte']})
+    .meta({not:{allOf:[{required:['startByte']},{anyOf:[{required:['startLine']},{required:['lineCount']}]}]}});
 const fileSchema = z.object({ mountId, path: filePath }).strict();
 function dataResult(data: unknown, content = '') {
   return { outcome: 'succeeded' as const, content, data };
@@ -236,7 +238,7 @@ export function registerFiles(
   registry.register({
     name: 'read_file',
     description:
-      '读取副本原文，可选 1-based startLine/lineCount（默认 200 行）或 startByte；byteLength 为范围上限（字节模式默认 8192，行模式默认 64000）。范围内正文完整；长行用 nextStartByte/expectedHash 连续续读，不自己计算中文偏移。返回 hash、对象身份、readExecutionId 可绑定编辑；二进制仅元数据。',
+      '读取副本原文。startLine/lineCount 为1-based行选择（省略 startLine 从第1行，省略 lineCount 取200行），不能与 startByte 混用；byteLength 为范围上限（字节模式默认 8192，行模式默认 64000）。范围内正文完整；长行用 nextStartByte/expectedHash 连续续读，不自己计算中文偏移。返回 hash、对象身份、readExecutionId 可绑定编辑；二进制仅元数据。',
     schema: readSchema,
     effect: 'read',
     prepare(input, env, executionId) {
@@ -253,9 +255,9 @@ export function registerFiles(
         repo.mount(a.mountId, ctx.environmentId),
         a.path,
         a.startByte ?? 0,
-        a.byteLength ?? (a.startLine !== undefined ? 64000 : 8192),
+        a.byteLength ?? (a.startLine !== undefined || a.lineCount !== undefined ? 64000 : 8192),
         a.expectedHash,
-        a.startLine !== undefined ? { startLine: a.startLine, lineCount: a.lineCount ?? 200 } : undefined,
+        a.startLine !== undefined || a.lineCount !== undefined ? { startLine: a.startLine ?? 1, lineCount: a.lineCount ?? 200 } : undefined,
       );
       return dataResult({
         ...data,

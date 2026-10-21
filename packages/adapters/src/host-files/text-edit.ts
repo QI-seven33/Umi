@@ -16,7 +16,7 @@ import type { Environment, ToolResult } from '../../../agent/src/persistence.js'
 import { toolModule } from '../../../agent/src/tools/modules.js';
 import type { ToolModule } from '../../../agent/src/tools/modules.js';
 import { ToolPreparationError } from '../../../agent/src/tools/registry.js';
-import { requireTextRead } from './read-evidence.js';
+import { textSources, editedKnownRanges } from './text-knowledge.js';
 import type { FileReadEvidencePort } from './read-evidence.js';
 import { ResourceFiles } from './resources.js';
 import { atomicWrite, bytesHash, observe, sameEntry, safeFile } from './paths.js';
@@ -92,11 +92,6 @@ export class FileEditTools {
     private readonly reads: FileReadEvidencePort,
   ) {}
 
-  private sources(a: EditFileInput, env: Environment) {
-    const ids = 'readExecutionIds' in a ? a.readExecutionIds : [a.readExecutionId];
-    return ids.map(readExecutionId => requireTextRead(this.reads, { ...a, readExecutionId }, env.id, this.files.repo.scope(env.id).conversationId));
-  }
-
   // 每项均对原版本定位。先收集全部失败，再拼接一次；不能让前项成功掩盖后项失败。
   private replacement(a: EditFileInput, bytes: Buffer, receipts?: TextFileReadReceipt[]) {
     validateTextBytes(bytes);
@@ -144,13 +139,13 @@ export class FileEditTools {
 
   prepare(input: unknown, env: Environment, executionId?: string): ExecutionContext {
     if (!executionId) throw new UmiError('PROTOCOL_INVALID', '局部编辑缺少原执行身份');
-    const a = editFileSchema.parse(input), sources = this.sources(a, env), r = sources[0]!.receipt;
+    const a = editFileSchema.parse(input), ctx = this.files.mountContext(input, env, a.mountId, a.path, undefined, true), loc = ctx.locations[0]!;
+    const m = this.files.repo.mount(a.mountId, env.id), bytes = readFileSync(safeFile(m.root, a.path, m.rootIdentity));
+    const sources = textSources(this.reads,a,ctx,this.files.repo.scope(env.id).conversationId,bytes), r = sources[0]!.receipt;
     if (sources.some(s => s.receipt.hash !== r.hash || s.receipt.identity !== r.identity || s.receipt.size !== r.size))
       throw new UmiError('READ_RECEIPT_MISMATCH', '批量读取回执不是同一个文件版本与对象');
-    const ctx = this.files.mountContext(input, env, a.mountId, a.path, undefined, true), loc = ctx.locations[0]!;
     if (loc.beforeHash !== r.hash || loc.beforeIdentity !== r.identity)
       throw new UmiError('READ_STALE', '读后文件内容或对象身份已变化；请重新读取后编辑');
-    const m = this.files.repo.mount(a.mountId, env.id), bytes = readFileSync(safeFile(m.root, a.path, m.rootIdentity));
     const entry = observe(m.root, a.path, m.rootIdentity);
     if (!entry || entry.hash !== r.hash || entry.identity !== r.identity || bytesHash(bytes) !== r.hash || bytes.length !== r.size)
       throw new UmiError('READ_STALE', '准备期间读取版本已变化');
@@ -159,11 +154,11 @@ export class FileEditTools {
         throw new UmiError('READ_RECEIPT_MISMATCH', '读取字节范围与原回执不一致');
     const desired = this.replacement(a, bytes, sources.map(s => s.receipt));
     return { ...ctx, locations: [{ ...loc, desiredHash: desired.desiredHash }],
-      fileEdit: 'readExecutionIds' in a ? {
-        schemaVersion: 2, executionId, reads: sources.map(s => ({ readExecutionId: s.receipt.readExecutionId, readResultRef: s.resultRef })),
+      fileEdit: 'edits' in a || !a.readExecutionId ? {
+        schemaVersion: 2, executionId, knownRanges: editedKnownRanges(sources,desired.edits), reads: sources.map(s => ({ readExecutionId: s.receipt.readExecutionId, readResultRef: s.resultRef })),
         edits: desired.edits, noOp: desired.noOp,
       } : {
-        schemaVersion: 1, executionId, readExecutionId: a.readExecutionId, readResultRef: sources[0]!.resultRef,
+        schemaVersion: 1, executionId, knownRanges: editedKnownRanges(sources,desired.edits), readExecutionId: a.readExecutionId!, readResultRef: sources[0]!.resultRef,
         startByte: desired.edits[0]!.startByte, oldByteLength: desired.edits[0]!.oldByteLength, newByteLength: desired.edits[0]!.newByteLength, noOp: desired.noOp,
       },
     };
@@ -259,6 +254,7 @@ export class FileEditTools {
         ...(plan.schemaVersion === 1 ? { readExecutionId: plan.readExecutionId } : { readExecutionIds: plan.reads.map(r => r.readExecutionId) }),
         beforeHash: loc.beforeHash,
         afterHash: after.hash,
+        observed: after,
         noOp: plan.noOp,
         ...(plan.schemaVersion === 1 ? { startByte: plan.startByte, oldByteLength: plan.oldByteLength, newByteLength: plan.newByteLength } : { edits: plan.edits }),
       },
@@ -283,7 +279,7 @@ export class FileEditTools {
       loc.physicalRoot !== m.root ||
       loc.physicalRootIdentity !== m.rootIdentity ||
       loc.rootRef.bindingVersion !== m.bindingVersion ||
-      (plan.schemaVersion === 1 ? !('readExecutionId' in a) || plan.readExecutionId !== a.readExecutionId : !('readExecutionIds' in a) || hash(plan.reads.map(r => r.readExecutionId)) !== hash(a.readExecutionIds))
+      (plan.schemaVersion === 1 ? 'readExecutionId' in a && a.readExecutionId !== undefined && plan.readExecutionId !== a.readExecutionId : 'readExecutionIds' in a && a.readExecutionIds !== undefined && hash(plan.reads.map(r => r.readExecutionId)) !== hash(a.readExecutionIds))
     )
       throw new UmiError('RESOURCE_CHANGED', '原编辑定位无法对应当前挂载');
     const observed = observe(m.root, a.path, m.rootIdentity);
@@ -301,6 +297,7 @@ export class FileEditTools {
           path: a.path,
           beforeHash: loc.beforeHash,
           afterHash: observed.hash,
+          observed,
           noOp: plan.noOp,
         },
       };
@@ -331,7 +328,7 @@ export function fileEditModule(
     registry.register({
       name: 'edit_file',
       description:
-        '精确编辑获准副本。单项用 readExecutionId/oldText/newText；同文件多处优先用 readExecutionIds/edits（最多32项），所有回执及定位针对同一 expectedReadHash 原版本。oldText 全文件唯一且落在模型已见读取范围，片段不重叠；任一失败整批不写。原换行/UTF-8 不变，不模糊匹配、不自动全替换；交付另需批准。',
+        '精确编辑获准副本。单项用 oldText/newText，多处用 edits（最多32项），不能混用。宿主自动绑定当前版本的已见原文，自己成功写入的正文无需重读；回执/哈希是可省略的兼容参数，若提供则严格核对。oldText 必须全文件唯一并在已见范围内，片段不重叠；失败整批不写。保留原换行/UTF-8，源交付另需批准。',
       schema: editFileSchema,
       effect: 'copy-write',
       prepare: (a, env, id) => edits.prepare(a, env, id),

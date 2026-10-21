@@ -1,3 +1,4 @@
+import { streamWithIdleTimeout } from '../model-stream.js';
 import { requestDiagnostics } from './request-diagnostics.js';
 import { UmiError, type WireMessage } from '../../../protocol/src/model.js';
 import type { EventScope } from '../../../protocol/src/events.js';
@@ -49,7 +50,8 @@ export async function finalizeStalled(
   const latestInputId = store.messages(scope.conversationId).filter(m => m.role === 'user' && m.applied).at(-1)?.id;
   let messageId = (notice?.inputId === latestInputId ? notice?.messageId : undefined) ?? store.messages(scope.conversationId)
     .findLast(m => m.role === 'assistant' && m.modelTurnId && laterTurns.includes(m.modelTurnId) &&
-      m.payload.content.trim() && !m.payload.tool_calls?.length)?.id;
+      m.payload.content.trim() && !m.payload.tool_calls?.length &&
+      state.attempts[m.modelAttemptId!]?.finishReason !== 'length')?.id;
   if (!messageId && !laterTurns.length) {
     try {
       const current = facts();
@@ -102,6 +104,7 @@ async function streamSummary(
   const stream = new StreamBuffer(deltas => store.commitModelDeltas(scope, generation, deltas));
   const blocks: { id: string; channel: 'reasoning' | 'text' | 'tool'; key: string; index: number }[] = [];
   let answer: WireMessage | undefined, messageId: string | undefined, yieldedAt = Date.now();
+  let lengthLimited = false;
   const started = performance.now();
   let firstFrameMs: number | null = null, firstReasoningMs: number | null = null, firstTextMs: number | null = null, measured = false;
   const measure = (outcome: 'completed' | 'interrupted') => {
@@ -111,7 +114,7 @@ async function streamSummary(
     measured = true;
   };
   try {
-    for await (const frame of model.stream(request, AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]))) {
+    for await (const frame of streamWithIdleTimeout(model, request, signal, timeoutMs)) {
       checkCurrent();
       if (Date.now() - yieldedAt >= 8) { stream.flush(); await yieldToHost(); checkCurrent(); yieldedAt = Date.now(); }
       firstFrameMs ??= performance.now() - started;
@@ -130,15 +133,17 @@ async function streamSummary(
           deltaIndex: block.index++, text: frame.text } });
       } else {
         stream.flush();
-        if (!frame.message.content.trim() || frame.message.tool_calls?.length)
+        if ((frame.finishReason !== 'length' && !frame.message.content.trim()) || frame.message.tool_calls?.length)
           throw new UmiError('PROTOCOL_INVALID', '受阻收尾需要无工具的可见正文');
         answer = frame.message;
+        lengthLimited = frame.finishReason === 'length';
         for (const block of blocks) store.commit(scope, { type: 'model.block_completed', payload: { blockId: block.id } });
         measure('completed');
         messageId = store.persistResponse(scope, answer, frame.raw, frame.usage, requestId, generation, frame.finishReason);
       }
     }
     stream.flush();
+    if (lengthLimited) throw new UmiError('PROVIDER_TRUNCATED', '收尾响应达到输出上限，改用本地说明');
     if (!messageId) throw new UmiError('PROVIDER_INTERRUPTED', '模型收尾没有形成完整响应');
     return messageId;
   } catch (error) {
@@ -146,7 +151,7 @@ async function streamSummary(
     if (!messageId) store.commit(scope, { type: 'model.attempt_failed', payload: {
       code: error instanceof UmiError ? error.code : 'PROVIDER_INTERRUPTED', reason: '模型收尾未完成，保留已收到的文字。' } });
     // 完整响应已提交后断流，直接采用已有正文；不重复请求。
-    if (messageId) return messageId;
+    if (messageId && !lengthLimited) return messageId;
     throw error;
   }
 }

@@ -35,7 +35,13 @@ export class DesktopVerificationModel implements ModelPort {
       settled = messages.slice(lastUser + 1).some((m) => m.role === 'tool');
     const final = !request.body.tools;
     let message: WireMessage;
-    if (raw.includes('紧凑问答验证') && !settled) {
+    if (raw.includes('只有思考结束验证')) {
+      message = { role: 'assistant', content: '', reasoning_content: '思考不能代替用户答复。' };
+    } else if (raw.includes('预算结束验证') && !settled) {
+      message = { role: 'assistant', content: '查看相关资料。', tool_calls: [{ id: 'budget-history', type: 'function', function: { name: 'search_history', arguments: JSON.stringify({query:'预算验证'}) } }] };
+    } else if (raw.includes('结束说明继续验证')) {
+      message = { role: 'assistant', content: '按新要求继续完成。' };
+    } else if (raw.includes('紧凑问答验证') && !settled) {
       message = { role: 'assistant', content: '请确认这两项偏好。', tool_calls: [{ id: 'question-check', type: 'function', function: { name: 'ask_user_question', arguments: JSON.stringify({ questions: [
         { id: 'appearance', prompt: '你希望使用哪种界面风格？', options: [{ label: '简洁', description: '紧凑布局与轻量视觉。' }, { label: '宽松', description: '更大的留白。' }] },
         { id: 'detail', prompt: '报告需要哪些补充？', options: [{ label: '保留证据' }, { label: '只要结论' }] },

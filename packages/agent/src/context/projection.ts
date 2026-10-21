@@ -1,3 +1,4 @@
+import type { HostImageObservation } from '../../../protocol/src/image-observation.js';
 import type { WireMessage } from '../../../protocol/src/model.js';
 import { validatePairs, UmiError } from '../../../protocol/src/model.js';
 import type { ContextMemory, Summary } from '../../../protocol/src/memory.js';
@@ -10,6 +11,7 @@ export type HistoryRow = {
   applied: boolean;
   projectionSequence: string;
   sourceHash?: string;
+  imageObservation?: HostImageObservation;
 };
 export function ordered(rows: HistoryRow[]): HistoryRow[] {
   return rows

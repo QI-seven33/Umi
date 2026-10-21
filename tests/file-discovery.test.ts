@@ -518,7 +518,7 @@ test('工具调用：模型通过结果游标列完整页，派发和只读恢�
             'discover_resource',
             JSON.stringify({ path: f.external, root: f.external }),
           ),
-        /参数不符合/,
+        /path 精确定位不能同时使用 root\/cursor/,
       );
       assert.throws(
         () =>
@@ -526,7 +526,7 @@ test('工具调用：模型通过结果游标列完整页，派发和只读恢�
             'discover_resource',
             JSON.stringify({ query: 'txt', match: 'extension' }),
           ),
-        /参数不符合/,
+        /扩展名匹配需 kind=file 和非空字面扩展名/,
       );
     } finally {
       await app.close();

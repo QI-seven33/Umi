@@ -47,6 +47,15 @@ export class DesktopService {
       throw new UmiError('PERMISSION_DENIED', '目录选择证据只能由桌面主进程解析');
     //switch (表达式) —— 拿 c.type 的值匹配下面每个 case
     switch (c.type) {
+      case 'skills_import_start': return this.app.skillImports.start(c.input);
+      case 'skills_import_list': return this.app.skillImports.list();
+      case 'skills_import_detail': return this.app.skillImports.detail(c.id);
+      case 'skills_import_install': return this.app.skillImports.install(c.id,c.planHash);
+      case 'skills_import_cancel': return this.app.skillImports.cancel(c.id);
+      case 'skills_import_remove': return this.app.skillImports.remove(c.id);
+      case 'skills_list': return c.refresh ? this.app.skills.refresh() : this.app.skills.library();
+      case 'skills_enable': return this.app.skills.setEnabled(c.name,c.enabled,c.version);
+      case 'skills_preview': return this.app.skills.preview(c.name,c.version);
       //新建会话，校验根目录后返回草稿或创建结果。
       case 'new_conversation': {
         const conv = s.conversation(c.conversationId),
@@ -166,7 +175,9 @@ export class DesktopService {
             ? { settings: s.settings(c.conversationId) }
             : {}),
           ...(batch.some(
-            (e) => e.type === 'usage.recorded' || e.type.startsWith('context.'),
+            (e) => e.type === 'usage.recorded' || e.type.startsWith('context.') ||
+              ['model.attempt_completed', 'model.attempt_failed', 'tool.measured', 'approval.decided', 'approval.invalidated',
+                'run.completed', 'run.failed', 'run.interrupted', 'run.stopped'].includes(e.type),
           )
             ? { context: a.contextStatistics(c.conversationId) }
             : {}),
@@ -277,6 +288,8 @@ export class DesktopService {
       case 'preview_changeset':
         return a.previewChangeSet(c.conversationId, c.changeSetId);
       //上传图片
+      case 'upload_document':
+        return s.uploadDocument(c.conversationId,{name:c.name,format:c.format,base64:c.base64});
       case 'upload_image':
         return s.uploadImage(c.conversationId, c.name, c.base64);
       //预览附件

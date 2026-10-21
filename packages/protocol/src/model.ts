@@ -20,6 +20,8 @@ export const id = z.string().min(1).max(160);
 export const settingsSchema = z
   .object({
     contextWindow: z.number().int().min(4096).max(1_000_000).optional(),
+    // 用户显式设置；null/缺省不限，同一运行恢复后继续累计。
+    runOutputTokenLimit: z.number().int().min(1).max(100_000_000).nullable().optional(),
     model: z.enum(['deepseek-flash', 'deepseek-v4-pro']).default('deepseek-flash'),
     thinking: z.enum(['off', 'normal', 'high']).default('off'),
     executionPolicy: z.enum(['ask', 'auto']).default('ask'),

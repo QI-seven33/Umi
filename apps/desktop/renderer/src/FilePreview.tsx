@@ -65,6 +65,7 @@ function LiveFilePreview({ conversationId, target, revision }: { conversationId:
   };
   return <div className="work-preview-content" aria-busy={busy}>
     <PreviewToolbar path={preview?.displayPath ?? (target.attachmentId ? '附件 / ' + target.path : target.path)} mode={mode} onMode={setMode} busy={busy} onReload={() => setReload(n => n + 1)} actions={target.attachmentId ? [] : [{ label: '在文件夹中显示', kind: 'folder', run: () => window.umi.request({ type: 'open_file', conversationId, mountId: target.mountId, path: target.path }) }]} />
+    {preview?.sourceNote && <p className="file-preview-unsupported" role="note">{preview.sourceNote}</p>}
     <FileContent path={target.path} mode={mode} text={preview?.text ?? ''} dataUrl={preview?.dataUrl} unsupported={preview?.previewSupported === false} busy={busy} error={error} hasMore={Boolean(preview?.truncated)} onMore={loadMore} />
   </div>;
 }

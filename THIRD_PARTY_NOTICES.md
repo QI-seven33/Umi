@@ -10,6 +10,10 @@ Umi retains the original licenses for bundled third-party material. This documen
 
 Language and product marks in file icons belong to their respective owners. They indicate file types and do not imply endorsement.
 
+The local DOCX/XLSX text reader uses yauzl (MIT), saxes (ISC), and their pend/xmlchars dependencies; their license files remain in node_modules in the shipped application. Office content is read as data without executing macros or resolving external resources.
+
+Skill frontmatter is parsed with yaml 2.9.1 (ISC, https://github.com/eemeli/yaml); the original license remains in its package. Third-party skill packages are not bundled or automatically executed.
+
 Electron, Node.js, React, Zod, Lucide, highlight.js, and other dependencies retain the license files shipped in their packages. The Windows application includes the Electron license and Chromium notices; development and installer tools retain their own notices. Dependency versions are fixed by package-lock.json.
 
 React Bits material has an additional Commons Clause condition and must not be relabeled as plain MIT. Review each original notice before reuse or redistribution. Umi's own authorization status is described in [LICENSING.md](LICENSING.md).

@@ -21,13 +21,16 @@ export type Block = {
 export type ConversationState = {
   cursor: Cursor;
   environmentRevision?: number;
+  latestRunId?: string; // 最近创建/启动/显式恢复，不能仅按对象的创建顺序选择。
   runs: Record<
     string,
     {
       status: RunStatus;
       phase: Phase;
       finalMessageId?: string;
-      failureSummary?: { messageId: string; inputId: string; text: string };
+      activationSequence?: string;
+      failureSummary?: { messageId: string; inputId: string; text: string; code?: string | undefined; sequence: string };
+      failureSummaries?: { messageId: string; inputId: string; text: string; code?: string | undefined; sequence: string }[];
       acceptance?: { status: string; artifactRef: string };
       reason?: string;
       code?: string;
@@ -48,6 +51,8 @@ export type ConversationState = {
       status: 'running' | 'completed' | 'interrupted';
       finishReason?: string;
       responseRef?: string;
+      usageRef?: string;
+      measurement?: Extract<WorkEvent, { type: 'model.attempt_measured' }>['payload'];
     }
   >;
   blocks: Block[];
@@ -63,6 +68,7 @@ export type ConversationState = {
       resultRef?: string;
       verification?: string;
       status: 'prepared' | 'running' | ToolOutcome;
+      measurement?: Extract<WorkEvent, { type: 'tool.measured' }>['payload'];
     }
   >;
   questions?: Record<string, QuestionRequest>;
@@ -72,6 +78,8 @@ export type ConversationState = {
       callId: string;
       description: string;
       status: 'pending' | 'allow' | 'deny' | 'invalidated';
+      requestedAt?: string;
+      decidedAt?: string;
     }
   >;
   messages: {
@@ -382,6 +390,7 @@ export function reduceConversation(
       };
       break;
     case 'usage.recorded':
+      if (e.modelAttemptId) requireAttempt().usageRef = e.payload.usageRef;
       s.context.lastUsageRef = e.payload.usageRef;
       s.context.lastUsageRequestId = e.payload.requestId;
       break;
@@ -565,10 +574,13 @@ export function reduceConversation(
       break;
     }
     case 'run.created':
+      s.latestRunId = e.runId!;
       s.runs[e.runId!] = { status: 'queued', phase: 'execute', startedAt: e.occurredAt };
       break;
     case 'run.started':
     case 'run.resumed':
+      requireRun().activationSequence = e.sequence;
+      s.latestRunId = e.runId!;
       requireRun().status = 'running';
       delete requireRun().reason;
       delete requireRun().code;
@@ -585,6 +597,8 @@ export function reduceConversation(
       requireRun().status = 'stopping';
       break;
     case 'run.stopped':
+      requireRun().reason = e.payload.reason;
+      delete requireRun().code;
       requireRun().status = 'stopped';
       requireRun().finishedAt = e.occurredAt;
       break;
@@ -595,6 +609,8 @@ export function reduceConversation(
       if (e.payload.code) requireRun().code = e.payload.code;
       break;
     case 'run.recovery_started':
+      requireRun().activationSequence = e.sequence;
+      s.latestRunId = e.runId!;
       requireRun().status = 'recovering';
       break;
     case 'run.recovery_required':
@@ -604,7 +620,13 @@ export function reduceConversation(
     case 'run.failure_summary':
       if (!s.messages.some(m => m.id === e.payload.messageId && m.runId === e.runId))
         throw new UmiError('PROTOCOL_INVALID', '受阻说明缺少本轮正文');
-      requireRun().failureSummary = e.payload;
+      // 序号和原因由已有事实派生；历史说明按原位置展示，恢复后不改写。
+      {
+        const run = requireRun(), code = run.status === 'stopped' ? 'STOPPED' : run.status === 'recovery_required' ? 'TOOL_OUTCOME_UNKNOWN' : run.code ?? (run.status === 'interrupted' ? 'PROVIDER_INTERRUPTED' : undefined);
+        const notice = { ...e.payload, sequence: e.sequence, ...(code ? { code } : {}) };
+        run.failureSummary = notice;
+        run.failureSummaries = [...(run.failureSummaries ?? []), notice];
+      }
       break;
     case 'run.failed':
       if (e.payload.messageId) {
@@ -716,6 +738,7 @@ export function reduceConversation(
       const attempt = requireAttempt();
       if (attempt.status !== 'running' || s.turns[e.modelTurnId!]?.requestId !== e.payload.requestId)
         throw new UmiError('PROTOCOL_INVALID', '模型测量归属或生命周期错误');
+      attempt.measurement = e.payload;
       break;
     }
     case 'model.attempt_failed':
@@ -767,7 +790,7 @@ export function reduceConversation(
       break;
     }
     case 'tool.measured':
-      requireTool(); // 观察耗时，不改变工具或批准状态。
+      requireTool().measurement = e.payload; // 观察耗时，不改变工具或批准状态。
       break;
     case 'approval.requested':
       if (requireTool().status !== 'prepared' || s.approvals[e.payload.approvalId])
@@ -776,6 +799,7 @@ export function reduceConversation(
         callId: e.callId!,
         description: e.payload.description,
         status: 'pending',
+        requestedAt: e.occurredAt,
       };
       break;
     case 'approval.decided':
@@ -785,6 +809,7 @@ export function reduceConversation(
       if (!a || a.callId !== e.callId)
         throw new UmiError('PROTOCOL_INVALID', '批准对象不存在或归属错误');
       a.status = e.type === 'approval.decided' ? e.payload.decision : 'invalidated';
+      a.decidedAt = e.occurredAt;
       break;
     }
   }

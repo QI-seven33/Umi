@@ -82,8 +82,10 @@ export class ToolRegistry {
       throw new UmiError('TOOL_ARGUMENTS_INVALID', '工具参数 JSON 不完整或不合法');
     }
     const r = this.get(name).schema.safeParse(value);
-    if (!r.success)
-      throw new UmiError('TOOL_ARGUMENTS_INVALID', '工具参数不符合已注册规格');
+    if (!r.success) {
+      const issues = r.error.issues.slice(0,6).map(i=>({path:i.path.map(String).join('.')||'(参数)',message:i.message.slice(0,240)}));
+      throw new ToolPreparationError('TOOL_ARGUMENTS_INVALID', name+' 参数错误：'+issues.map(i=>i.path+'：'+i.message).join('；'), {issues});
+    }
     return r.data;
   }
 }

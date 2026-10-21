@@ -36,7 +36,7 @@ Umi 把自然语言目标连接到实际工作：理解要求、查找资料、�
 
 ### 桌面阅读与会话管理
 
-按工作区组织会话，添加文本或图片附件，查看流式正文与执行过程。文件区支持标签切换、代码着色、Markdown 排版、静态 HTML 和常见图片预览；长文本按需续读。会话可重命名、归档、恢复，归档后可明确确认永久删除。
+按工作区组织会话，添加文本、图片或DOCX/XLSX附件，查看流式正文与执行过程。Office提供有界文本提取，不提供版式渲染或公式重算。文件区支持标签切换、代码着色、Markdown 排版、静态 HTML 和常见图片预览；长文本按需续读。会话可重命名、归档、恢复，归档后可明确确认永久删除。
 
 典型流程：选择工作区 → 描述目标 → 查找与读取资料 → 编辑或执行 → 检查结果 → 审阅并交付。问答与操作批准在各自需要时出现。
 
@@ -94,7 +94,7 @@ npm run dev
 npm run demo
 ```
 
-`npm run dev` 会重建桌面资源；`npm run desktop` 使用已有 `dist`。无界面入口及参数见[代码学习指南](docs/code-reading-guide.zh-CN.md)。
+`npm run dev` 会重建桌面资源；`npm run desktop` 使用已有 `dist`。无界面入口及模块边界见[当前技术状态](docs/current-state.zh-CN.md)。
 
 ## 当前边界
 
@@ -145,13 +145,13 @@ npm run verify:packaged
 | `packages/adapters/src/` | DeepSeek、SQLite、文件系统与进程适配器 |
 | `tests/` | 契约、故障注入、恢复、资源与界面逻辑验证 |
 
-- [代码学习指南](docs/code-reading-guide.zh-CN.md)：沿真实调用链阅读源码。
-- [当前项目报告](docs/current-project-report.zh-CN.md)：实现状态、开发路线及阶段证据。
-- [架构设计](docs/architecture-v1.md)与[核心契约](docs/contracts-v1.md)：理解设计基线及不变量；当前能力以源码和最新报告为准。
-- [开发交接](docs/handoff.zh-CN.md)：按日期保留探索、取舍与验证记录，历史计划不等于已实现能力。
+- [技术文档入口](docs/README.zh-CN.md)：当前状态、运行契约、构建和问题清单。
+- [当前技术状态](docs/current-state.zh-CN.md)与[运行契约](docs/runtime-contracts.zh-CN.md)：实际模块、数据、模型、工具和授权边界。
+- [源码更新技术记录](docs/changes/20261021.zh-CN.md)：最近已实现变化与实际验证范围。
 - [更新记录](CHANGELOG.md)：已发布与未发布的行为变化。
+- [文档维护规则](docs/documentation-policy.zh-CN.md)：公开技术记录与本地学习/探索资料的范围。
 
-阶段报告中的本机路径只用于定位维护者当时的证据。原始日志、截图、会话数据库、凭据、依赖和构建产物不提交到源码 Git；安装文件通过 Releases 分发。
+阶段技术记录中的路径只用于定位当时证据，不表示原始资料随仓库分发。个人学习、交接、应用对照和探索报告保留本地；原始日志、截图、数据库、凭据、依赖和构建产物不进入源码Git。安装文件通过独立发布流程分发。
 
 ## 参与项目
 

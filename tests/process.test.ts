@@ -721,3 +721,25 @@ test(
     }
   },
 );
+
+test('命令首尾反馈：真实原生输出尾部的凭据先脱敏，摘录与归档均不泄漏', { timeout: 40000 }, async () => {
+  const secret = 'umi-tail-fixture-secret-abcdef123456789', prior = process.env.UMI_FIXTURE_TAIL_API_KEY;
+  process.env.UMI_FIXTURE_TAIL_API_KEY = secret;
+  const f = setup(`process.stdout.write('progress '.repeat(2000)+${JSON.stringify(secret)}+'\\nEND-TAIL');`, { maxOutputBytes: 1024 });
+  try {
+    const run = f.app.send(f.c.conversationId, uid(), '检查尾部脱敏');
+    const id = await eventually(() => approval(f.app, f.c.conversationId));
+    f.app.approve(f.c.conversationId, id, 'allow'); await f.app.wait(run.runId);
+    const tool = f.app.store.tools(run.runId)[0]!, result = f.app.store.readArtifact<any>(tool.result_ref!);
+    const preview = JSON.parse(result.content);
+    assert(preview.stdoutTail.endsWith('END-TAIL'));
+    assert(preview.stdoutTail.includes('[已隐藏凭据]'));
+    assert(!result.content.includes(secret));
+    assert(!f.app.store.readArtifact<any>(result.data.stdoutRef).text.includes(secret));
+    assert(preview.outputPreview.keptBytes <= 1024);
+    assert.equal(result.data.archiveComplete, true);
+  } finally {
+    if (prior === undefined) delete process.env.UMI_FIXTURE_TAIL_API_KEY; else process.env.UMI_FIXTURE_TAIL_API_KEY = prior;
+    await f.close();
+  }
+});

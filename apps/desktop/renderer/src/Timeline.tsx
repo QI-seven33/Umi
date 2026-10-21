@@ -57,7 +57,7 @@ function Tool({ id, state, onPreview }: { id: string; state: ConversationState; 
     finally { pageLock.current = false; setPaging(false); }
   };
   const args = summary?.arguments, path = args?.relativePath ?? args?.path, target = summary?.file;
-  const hint = path ?? args?.query ?? args?.url ?? args?.find ?? args?.snapshotId ?? args?.program ?? args?.messageId ?? '', Icon = t.name.startsWith('run_') ? Terminal : t.name.includes('search') || t.name === 'discover_resource' ? Search : t.name.includes('file') || t.name === 'read_attachment' ? FileText : Sparkles;
+  const hint = path ?? args?.query ?? args?.url ?? args?.find ?? args?.snapshotId ?? args?.program ?? args?.messageId ?? args?.name ?? '', Icon = t.name.startsWith('run_') ? Terminal : t.name.includes('search') || t.name === 'discover_resource' ? Search : t.name.includes('file') || t.name === 'read_attachment' ? FileText : Sparkles;
   return <div className={`umi-tool ${['failed', 'denied', 'cancelled', 'unknown'].includes(t.status) ? 'has-error' : ''}`}><button className="umi-tool-toggle" data-outcome={t.status} aria-label={`${toolNames[t.name] ?? '调用工具'}，${outcome[t.status]}`} title={outcome[t.status]} aria-expanded={open} onClick={() => setOpen(!open)}><ChevronDown size={14} className="umi-disclosure-icon" /><Icon size={14} /><span>{toolNames[t.name] ?? '调用工具'}</span>{!target && hint && <span className="umi-tool-hint">{String(hint)}</span>}</button>{target && <button className="umi-tool-file" onClick={() => onPreview(target)}>{String(target.path)}</button>}{open && <div className="umi-tool-detail">{error && <p role="alert">{error}</p>}{detail ? <><InspectionSummary report={detail.inspection} /><pre>{detail.result?.content ?? JSON.stringify(detail.arguments, null, 2)}</pre>{detail.result?.truncated && <button type="button" disabled={paging} className="umi-history-load" onClick={() => void loadMore()}>{paging ? '正在读取…' : '继续显示工具结果'}</button>}</> : <span>正在读取执行信息…</span>}</div>}</div>;
 }
 const Reasoning = memo(function Reasoning({ block, compact = false, running = false }: { block: Block; compact?: boolean; running?: boolean }) {
@@ -66,7 +66,7 @@ const Reasoning = memo(function Reasoning({ block, compact = false, running = fa
 });
 function Activity({ items, state, onPreview }: { items: ActivityItem[]; state: ConversationState; onPreview: (f: FileTarget) => void }) {
   const [open, setOpen] = useState(false), label = activityLabel(items, state), active = label.startsWith('正在');
-  return <section className="umi-activity-group"><button className="umi-activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{active ? <GenerationLoader compact label="" /> : <ChevronDown size={14} className={open ? 'is-open' : ''} />}<span>{label}</span></button>{open && <div className="umi-activity-list">{items.map(item => item.kind === 'tool' ? <Tool key={item.id} id={item.id} state={state} onPreview={onPreview} /> : <Reasoning key={item.block.id} block={item.block} compact />)}</div>}</section>;
+  return <section className="umi-activity-group"><button className="umi-activity-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>{active ? <GenerationLoader compact label="" /> : <ChevronDown size={14} className={open ? 'is-open' : ''} />}<span>{label}</span></button>{open && <div className="umi-activity-list">{items.map(item => item.kind === 'tool' ? <Tool key={item.id} id={item.id} state={state} onPreview={onPreview} /> : item.kind === 'tool-draft' ? <p key={item.block.id} className="umi-recovery">{item.block.status === 'running' && state.attempts[item.block.attemptId]?.status === 'running' ? '正在生成工具请求，尚未执行' : '工具请求未完成，未执行'}（{item.block.text.length.toLocaleString()} 字符）</p> : <Reasoning key={item.block.id} block={item.block} compact />)}</div>}</section>;
 }
 function Run({ id, snapshot, onPreview, onError, from, to, last, onDraft }: { id: string; snapshot: Snapshot; onPreview: (f: FileTarget) => void; onError: (e: string) => void; from: string; to: string | null; last: boolean; onDraft?: ((text: string) => void) | undefined }) {
   const state = snapshot.state, r = state.runs[id]!, [expanded, setExpanded] = useState(false);
@@ -75,6 +75,9 @@ function Run({ id, snapshot, onPreview, onError, from, to, last, onDraft }: { id
   const tools = Object.entries(state.tools).filter(([, t]) => t.runId === id && within(t.sequence));
   const pending = last ? Object.entries(state.approvals).filter(([, a]) => a.status === 'pending' && state.tools[a.callId]?.runId === id) : [];
   const running = ['queued', 'running', 'recovering', 'stopping'].includes(r.status), complete = r.status === 'completed', mounts = snapshot.resources?.mounts ?? [];
+  const notices = (r.failureSummaries ?? (r.failureSummary ? [r.failureSummary] : [])).filter(n => within(n.sequence));
+  const hasNotice = notices.length > 0;
+  const budget = snapshot.context.latestRun?.runId === id ? snapshot.context.latestRun.outputBudget : undefined;
   const renderBlock = (b: Block) => b.kind === 'reasoning' ? <Reasoning key={b.id} block={b} running={b.status === 'running' && r.status === 'running'} /> : <div key={b.id} className="message-body"><Markdown text={b.text} mounts={mounts} onPreview={onPreview} />{b.status === 'interrupted' && <small>此段响应中断，尚未形成完整消息。</small>}</div>;
   if (!last && !blocks.length && !tools.length) return null;
   return <article className="message assistant" data-run-id={id}>
@@ -85,11 +88,14 @@ function Run({ id, snapshot, onPreview, onError, from, to, last, onDraft }: { id
     {last && snapshot.resources?.resourceFailures?.length>0 && <details className="umi-changes"><summary><ChevronDown size={14}/>资源物化结果</summary>{snapshot.resources.resourceFailures.map((f:any)=><p key={f.resourceId}>{resourceFailureLabel(f)}</p>)}</details>}
     {last && Object.entries(state.tools).filter(([,t])=>t.runId===id&&t.name==='request_resource'&&t.verification).map(([callId,t])=><p className="umi-recovery" role="status" key={callId}>{t.status==='succeeded'?'原资源挂载已核验，没有重新复制。':t.status==='failed'?'原资源物化未完成，保留原副本，没有重新复制。':'原资源效果仍未知，需要继续检查。'}</p>)}
     {last && r.budgetBlock && <section className="umi-budget" role="status"><strong>上下文预算阻塞</strong><p>{r.reason}</p><p>保守估算 {r.budgetBlock.estimatedInputTokens.toLocaleString()}，输入预算 {r.budgetBlock.inputCeiling.toLocaleString()}。用户原文仍完整保存。</p><small>直接恢复不会减少上下文。可在设置中调整有效预算；达到模型上限后仍不能容纳时，需要后续有预算的原文投影。</small></section>}
-    {last && ['interrupted', 'stopped', 'recovery_required'].includes(r.status) && <p className="umi-recovery">可以直接发消息继续、修改要求或开始其他任务。</p>}
+    {last && r.status === 'interrupted' && !r.budgetBlock && !hasNotice && r.reason && <p className="umi-recovery" role="status">{r.reason}</p>}
+    {last && !hasNotice && ['interrupted', 'stopped', 'recovery_required'].includes(r.status) && <p className="umi-recovery">可以直接发消息继续、修改要求或开始其他任务。</p>}
     {last && Object.keys(state.changesets).filter(cs => state.changesets[cs]?.runId === id).map(cs => <Changes key={cs} id={cs} conversationId={state.cursor.streamId} onPreview={onPreview} />)}
-    {r.failureSummary && r.failureSummary.messageId === r.finalMessageId ? <div className="message-body"><Markdown text={r.failureSummary.text} mounts={mounts} onPreview={onPreview} /></div> : final.map(renderBlock)}
+    {last && budget?.limit != null && <p className="umi-recovery" role="status">本轮输出预算：{budget.used.toLocaleString()} / {budget.limit.toLocaleString()} token{budget.missing > 0 ? "，另有用量未返回" : ""}（含思考与上下文维护，恢复不清零）</p>}
+    {notices.map(n => <div key={n.messageId} className="message-body" data-run-notice={n.messageId}><small>Umi 执行说明</small><Markdown text={n.text} mounts={mounts} onPreview={onPreview} /></div>)}
+    {final.map(renderBlock)}
     {complete && final.length > 0 && <MessageActions assistant onDraft={onDraft} storageKey={`umi.feedback.${state.cursor.streamId}.${r.finalMessageId ?? id}`} text={final.map(b => b.text).join('\n\n')} {...(r.finishedAt ? { time: r.finishedAt } : {})} onError={onError} />}
-    {last && r.status === 'failed' && !r.failureSummary && final.length === 0 && <p role="alert">{r.reason ?? '任务失败，原始记录仍保留。'}</p>}
+    {last && r.status === 'failed' && !hasNotice && final.length === 0 && <p role="alert">{r.reason ?? '任务失败，原始记录仍保留。'}</p>}
   </article>;
 }
 function ImageAttachment({ conversationId, attachmentId, name, onPreview }: { conversationId: string; attachmentId: string; name: string; onPreview: () => void }) {
