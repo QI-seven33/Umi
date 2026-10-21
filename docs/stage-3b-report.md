@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-日期：2026-10-04，Asia/Shanghai。产品名称为 **Umi**，开发目录为 `E:\SOME_SEVEN_PROJECT-57\Umi_v2.0`。
+日期：2026-10-04，Asia/Shanghai。产品名称为 **Umi**，开发目录为 `仓库根目录`。
 
 本阶段在原有 TS 核心中实现 Windows 命令与 Shell 工具，沿用唯一 Agent 循环、权限入口、SQLite 写入者、事件日志、归约函数和会话游标。没有引入大型框架、第二套 Agent 或 Python 服务。阶段 4 的长任务记忆和阶段 5 的前端、Electron 尚未实施。
 

@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-日期：2026-10-21。修改真实源码 `E:/SOME_SEVEN_PROJECT-57/Umi_v2.0`；版本仍为0.2.0、DB7、persona-20，未打包或发布。
+日期：2026-10-21。修改真实源码 `仓库根目录`；版本仍为0.2.0、DB7、persona-20，未打包或发布。
 
 ## 本次落地
 
@@ -30,7 +30,7 @@
 - 首次完整回归636项有3项失败：两项旧断言假定恢复不追加宿主说明，另一项原生命令批准等待仍用4秒通用期限。前两项改为核对原历史前缀完全保留且只追加既定事件；后者仅该原生命令用15秒等待，命令本身允许10秒，未放宽执行/批准断言。
 - 随后的窄读取优化曾误用不存在的事件字段，完整回归638项中24项失败；改为已有内部维护投影后，相关43/43及最终638/638通过。失败日志原样保留，不计为通过。
 
-证据与本轮改动前备份：`E:/Codex/Workspace/output/umi-run-continuity-20261021`。`core-regression-final.log`、`targeted-recovery-final.log`、`desktop-final-first.log`和`desktop-verification.json`对应上述结果；`core-regression-first.log`、`core-regression-query-error.log`保留失败过程；`change-manifest.json`区分本轮改动与原有未提交工作。
+证据与本轮改动前备份：`维护者本地证据目录（不随源码分发）`。`core-regression-final.log`、`targeted-recovery-final.log`、`desktop-final-first.log`和`desktop-verification.json`对应上述结果；`core-regression-first.log`、`core-regression-query-error.log`保留失败过程；`change-manifest.json`区分本轮改动与原有未提交工作。
 
 ## 尚未覆盖与下一批
 

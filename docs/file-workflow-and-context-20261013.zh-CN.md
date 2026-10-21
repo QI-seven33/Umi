@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-实施日期：2026-10-13。落实上一阶段计划的一、二项；不是 Git 的两次提交。仓库多阶段未提交修改及学习注释保留，没有把旧阶段修改混进新提交。实施前备份、差异和证据位于 E:\Codex\Workspace\output\umi-file-tools-context-20261013。没有真实付费 API、生产数据库、发布/便携同步、依赖安装或 Windows 配置修改。
+实施日期：2026-10-13。落实上一阶段计划的一、二项；不是 Git 的两次提交。仓库多阶段未提交修改及学习注释保留，没有把旧阶段修改混进新提交。实施前备份、差异和证据位于 维护者本地证据目录（不随源码分发）。没有真实付费 API、生产数据库、发布/便携同步、依赖安装或 Windows 配置修改。
 
 ## 契约与精度
 
@@ -49,7 +49,7 @@ approvalDecisionWaits 用既有 approval.requested/decided/invalidated 的持久
 2. file-edit.ts 约束输入和 v1/v2 快照 → read-evidence.requireTextRead 确认冻结请求中的完整可见回执 → FileEditTools.prepare/replacement 统一原版本定位 → executor 保存派发 → execute 最后重核验并 atomicWrite → settle 推进修订。交付仍走 DeliveryFiles。
 3. engine.facts 提供必要状态 → facts.factDomains/factUpdates 对比域 → manager.project 沿用 carry 并追加改变的域 → DeepSeekAdapter.prepare → persistRequest 冻结语义/编码与独立诊断 → 模型/工具测量事件。副作用依旧在适配器，主进程和 UI 不获得文件/SQL/Shell 新入口。
 
-建议阅读顺序：packages/protocol/src/file-edit.ts → packages/adapters/src/host-files/text-search.ts → resources.ts 的 read → text-edit.ts 的 replacement/prepare/execute/reconcile → packages/agent/src/context/facts.ts → manager.ts 的 project → engine.ts 的请求冻结/测量 → loop/request-diagnostics.ts → tests/file-workflow.test.ts。UI 只补 edit_file 的名称；批量结果已有一次修改摘要，没有新运行时面板。
+关联实现：packages/protocol/src/file-edit.ts → packages/adapters/src/host-files/text-search.ts → resources.ts 的 read → text-edit.ts 的 replacement/prepare/execute/reconcile → packages/agent/src/context/facts.ts → manager.ts 的 project → engine.ts 的请求冻结/测量 → loop/request-diagnostics.ts → tests/file-workflow.test.ts。UI 只补 edit_file 的名称；批量结果已有一次修改摘要，没有新运行时面板。
 
 ## 本次验收
 

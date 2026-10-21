@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-用户授权“立刻修复本地阻塞，让反馈及时、界面对象正确”。本阶段完成流式消费、历史查询、IPC 错误传递、按需正文与对象预览修复，继续沿唯一 AgentEngine 和既有桌面适配器。实施前完整备份 227 个非忽略源码/文档文件及 Git 状态，目录：E:\Codex\Workspace\output\umi-local-feedback-20261012\before。没有 reset/clean，没有删除既有源码文件，保留多阶段修改与学习注释。
+用户授权“立刻修复本地阻塞，让反馈及时、界面对象正确”。本阶段完成流式消费、历史查询、IPC 错误传递、按需正文与对象预览修复，继续沿唯一 AgentEngine 和既有桌面适配器。实施前完整备份 227 个非忽略源码/文档文件及 Git 状态，目录：维护者本地证据目录（不随源码分发）。没有 reset/clean，没有删除既有源码文件，保留多阶段修改与学习注释。
 
 实施前契约与根因
 
@@ -48,7 +48,7 @@
 
 对象专项另测 2 次压力流，并检查：审批等待无停止按钮/单层滚动/决定固定；工具折叠仅读摘要，展开约 105ms；8KiB 文件首屏约 50ms；15 万字节正文分页能看到末尾，真实 edit_file 后预览自动刷新；人为延迟旧文件请求 180ms 后切换另一文件不串内容；两个同名附件各自显示原文；冻结变更独立显示且不提供当前副本位置；拒绝交付后源文件仍为原文；实际 UI 设置失败路径不弹内部 commandId 提示。界面无 console error，并检查实际审批/预览截图。5 个预览标签均保持 144px 宽，活动标签可见，横向滚动且冻结类型提示正确；同名附件专项按实际附件 ID 验证，不把 DOM 序号当作身份。
 
-证据目录：E:\Codex\Workspace\output\umi-local-feedback-20261012。主要文件：full-tests-final.txt、ui-tests-final.txt、performance.json、desktop-probe.json（20 次）、desktop-objects.json（对象专项）、approval.png、preview.png、stage-changes.json。失败的诊断运行留在证据目录中，最终通过结果另有独立文件；早期归因“渲染停顿”经 CPU 采样纠正为后台历史查询，renderer 当时主要在 idle 等待。
+证据目录：维护者本地证据目录（不随源码分发）。主要文件：full-tests-final.txt、ui-tests-final.txt、performance.json、desktop-probe.json（20 次）、desktop-objects.json（对象专项）、approval.png、preview.png、stage-changes.json。失败的诊断运行留在证据目录中，最终通过结果另有独立文件；早期归因“渲染停顿”经 CPU 采样纠正为后台历史查询，renderer 当时主要在 idle 等待。
 
 边界与下一步
 

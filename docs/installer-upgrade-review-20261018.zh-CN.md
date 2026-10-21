@@ -41,7 +41,7 @@
 | asar | false |
 | differentialPackage | false |
 
-Setup 的 SHA-256 为 b6f93665f76a24b32650dc138a92e6b07264e5a7e0811882a9c49e80a1aef8b0。原始统计保存于 E:/Codex/Workspace/output/umi-welcome-surface-20261018/installer-observation.json。
+Setup 的 SHA-256 为 b6f93665f76a24b32650dc138a92e6b07264e5a7e0811882a9c49e80a1aef8b0。原始统计保存于 维护者本地证据目录（不随源码分发）。
 
 完整包解压、大量散文件的移动/创建/删除、杀毒扫描与进程占用重试，都可能增加耗时。这些是结合流程和包体作出的推断，没有阶段计时，不能确定哪一项主导了用户感受到的延迟。安装执行使用本地完整载荷，与模型 API 响应速度无关。
 

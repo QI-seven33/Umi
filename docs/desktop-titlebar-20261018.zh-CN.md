@@ -13,7 +13,7 @@
 
 类型检查与构建通过；本轮源码完整桌面83/83通过，实际便携完整桌面83/83也通过；195个运行文件hash一致，最终源码/构建/便携指纹为741839e7747dddb028a77bb860667f74908d1dce11f1b6959a957a1876f27379。增加了浅深主题下所有顶栏按钮静止透明、左侧已展开仍透明、悬停与移出复位的真实样式检查。未重复运行上一轮13项逻辑测试或484项核心全量。
 
-此前 capturePage 不包含原生窗口按钮，不能据此验收右上角色块。现在通过 Electron desktopCapturer 保存且仅保存本验收窗口的原生框架图，实际检查右侧三个按钮；Mica/DWM 材质不包含在窗口捕获内，透明部分在图片查看器中可能显示黑色，这不代表实际窗口变黑，也不把它当作壁纸材质完整视觉验收。证据与旧便携备份：E:/Codex/Workspace/output/umi-titlebar-surfaces-20261018。
+此前 capturePage 不包含原生窗口按钮，不能据此验收右上角色块。现在通过 Electron desktopCapturer 保存且仅保存本验收窗口的原生框架图，实际检查右侧三个按钮；Mica/DWM 材质不包含在窗口捕获内，透明部分在图片查看器中可能显示黑色，这不代表实际窗口变黑，也不把它当作壁纸材质完整视觉验收。证据与旧便携备份：维护者本地证据目录（不随源码分发）。
 
 [Electron 标题栏透明色支持](https://www.electronjs.org/docs/latest/tutorial/custom-title-bar)与[当前44.5.1原生按钮绘制实现](https://github.com/electron/electron/blob/v44.5.1/shell/browser/ui/views/win_caption_button.cc)用于核对透明背景和系统悬停行为；没有升级依赖。本轮保留此前未提交修改，不提交Git、更新Setup/GitHub Release、调用真实API或改动默认会话数据。
 
@@ -61,7 +61,7 @@
 
 验证入口：tests/window-chrome.test.ts、apps/desktop/verification-window-chrome.ts；完整桌面脚本仍是 scripts/verify-desktop.mjs，增加 --packaged 验证实际 Umi.exe。截图仅捕获 Chromium 页面，不包含 DWM 原生标题按钮或原生弹出菜单；原生菜单以实际 popup/closePopup 和回调验证，标题区域以 Window Controls Overlay 实际几何验证。最窄窗口检查针对顶栏留位，不代表已重新验收所有窄窗口组合。
 
-本轮证据与旧便携运行文件备份：E:/Codex/Workspace/output/umi-titlebar-release-20261018。没有重跑484项核心全量或执行安装/卸载。源码运行可用 npm run dev，本地便携入口为 release/Umi-win32-x64/Umi.exe；源码改动不会进入已经运行的旧进程，需要先完整退出再启动。
+本轮证据与旧便携运行文件备份：维护者本地证据目录（不随源码分发）。没有重跑484项核心全量或执行安装/卸载。源码运行可用 npm run dev，本地便携入口为 release/Umi-win32-x64/Umi.exe；源码改动不会进入已经运行的旧进程，需要先完整退出再启动。
 
 ## 官方资料
 

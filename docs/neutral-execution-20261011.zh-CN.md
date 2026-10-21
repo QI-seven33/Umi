@@ -5,9 +5,9 @@
 
 ## 本轮范围与原始状态
 
-修改前读取 AGENTS、交接、项目报告、阅读指南，保存 Git 状态、完整 diff 及 175 个 tracked/非忽略文件的 SHA/字节备份。实际源码在 E:\SOME_SEVEN_PROJECT-57\Umi_v2.0；保留已存在的排版、学习注释、资源/上下文/编辑/端口变更。没有在发布中转目录开发。
+修改前读取 AGENTS、交接、项目报告、阅读指南，保存 Git 状态、完整 diff 及 175 个 tracked/非忽略文件的 SHA/字节备份。实际源码在 仓库根目录；保留已存在的排版、学习注释、资源/上下文/编辑/端口变更。没有在发布中转目录开发。
 
-本轮新增可选 providerModules 组装、中立 Plan/Locator/Observation 运行时 schema、唯一工具执行器的复用、窄的证据端口和持久事件。默认 Windows V1 命令没有切换，SDK 不进产品 package/lock；本轮不是通用 MXC adapter 发布。关联概念和阅读链见 [当前技术说明](current-state.zh-CN.md)。
+本轮新增可选 providerModules 组装、中立 Plan/Locator/Observation 运行时 schema、唯一工具执行器的复用、窄的证据端口和持久事件。默认 Windows V1 命令没有切换，SDK 不进产品 package/lock；本轮不是通用第三方后端发布。关联概念和阅读链见 [当前技术说明](current-state.zh-CN.md)。
 
 ## 实施前约定与实际契约
 
@@ -34,22 +34,14 @@
 | 状态与授权 | 未启动却普通退出的观察非法；工具定义绕过批准时被派发层阻止；等待中取消零启动 |
 | 门控缺口 | provider 声称 gated 可用也无法通过当前选择阶段 |
 
-早期测试脚本曾用错 stop/resume 的参数，并缺少 readArtifact 泛型；修正后重新构建/验收。首次 13 项后扩展到最终 16 项；中间测试数量不累加。全部结果仅涉及独立临时会话及替身 provider，不能当作真实 MXC 安全验证。
-
-## 本轮 MXC 探索
-
-独立 SDK 1.0.0，Node 24.21.0 便携环境。公开 probe/getPlatformSupport 无工作负载启动：对现有输出根的请求返回 WRITE_DAC 不可用；改用正常宿主新建自有目录取得 appcontainer-dacl、needsDaclAugmentation=true。保留两份 JSON，不将第一个失败抹掉。本机无 BaseContainer API、BFS 未编译、IsolationSession 不可用；平台列出的 Hyperlight 未试跑。
-
-适应映射保持文件/网络/UI/门控 unknown、one-shot 恢复 unsupported；中立 registry 返回 POLICY_UNSUPPORTED，启动计数为 0。不是要求 MXC 兼容 Windows Job；是识别 Umi 的映射权限、策略证据和持久执行定位还需完善。2026-10-10 固定 CMD 与 Node 0xC0000142 是历史证据，本轮没有重新运行它们。
-
-只读 Windows 注册表核对与此前一致，版本/功能未修改，没有 host-prep、DACL 修改、CLI dry-run、真实 API、生产会话库操作、产品窗口、便携打包、发布或 Git 提交。当前官网与搜索缓存的资料差异详见学习文档，不照抄旧主分支资料。
+早期测试脚本曾用错 stop/resume 的参数，并缺少 readArtifact 泛型；修正后重新构建/验收。首次 13 项后扩展到最终 16 项；中间测试数量不累加。全部结果仅涉及独立临时会话及替身 provider，不能当作真实外部后端安全验证。
 
 ## 剩余限制与下一切口
 
 准备器与 provider 仍是可信宿主实现；hash/能力声明不认证恶意第三方代码。即时启动最后复核与真实效果之间不是 OS 原子操作。provider 必须处理取消、locator 写入失败与清理；启动阶段传超时/取消 signal，不能保证所有实现都会终止。恢复传入核心取消信号，本轮没有单独增加恢复超时或强制中断机制。
 
-输出在返回回执时按总 UTF-8 字节拒绝超限；尚无中立的在线背压、逐段持久归档或自动 kill。准备器不应隐藏 ACL/镜像效果。没有通用 MXC 产品 adapter、SDK lifecycle/container exec 定位、动态插件下载/卸载、provider close 生命周期或可信 V2 gate；这些按独立契约推进。
+输出在返回回执时按总 UTF-8 字节拒绝超限；尚无中立的在线背压、逐段持久归档或自动 kill。准备器不应隐藏 ACL/镜像效果。没有通用第三方产品适配器、SDK生命周期/容器执行定位、动态插件下载/卸载、provider close 生命周期或可信 V2 gate；这些按独立契约推进。
 
-下一步优先实现 MXC 的窄准备/策略映射 adapter 与实测能力矩阵，解决程序运行依赖和 owned resource 映射前提，然后设计可靠的创建/定位关联。跨后端接口已经可用，但开放真实模型任意命令前必须完成所声称的边界与恢复验收。
+第三方后端接入试验及未实施方案不纳入本公开记录。此页仅记录已实现的中立协议、端口和离线验证；当前Windows宿主链路仍以现状规范为准。
 
-本轮原始 diff、before 备份、测试/构建日志、只读探针、最终保留检查均在 E:\Codex\Workspace\output\umi-provider-neutral-20261011；不进入产品依赖或发布包。
+本轮原始 diff、before 备份、测试/构建日志、只读探针、最终保留检查均在 维护者本地证据目录（不随源码分发）；不进入产品依赖或发布包。

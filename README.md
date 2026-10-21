@@ -51,7 +51,7 @@ Umi 把自然语言目标连接到实际工作：理解要求、查找资料、�
 | 有界模型上下文 | 将完整存档与模型输入视图分开，结合预算、历史、来源引用及局部读取组织信息 |
 | 明确的模块边界 | 协议定义契约，Agent 协调执行，适配器连接模型、存储和宿主，应用层负责组装 |
 
-这套结构支撑文件处理、研究和开发任务，也为学习 Agent 的请求、工具、权限、上下文与恢复流程提供可追踪的代码入口。
+这些模块共同处理文件、研究和开发任务；当前实现与限制见[技术文档](docs/README.zh-CN.md)。
 
 ## 快速开始
 
@@ -100,12 +100,12 @@ npm run demo
 
 - **宿主命令没有操作系统级文件或网络沙箱。** 工作副本、工作目录和 Windows Job 进程管理不构成这种隔离，请根据具体请求决定是否批准。
 - 中断核验与持久记录不保证任意任务自动恢复。结果不确定、权限或来源变化时，可能需要继续核验或重新授权。
-- HTML 为禁脚本的静态预览，PDF/Office 等二进制文件尚无完整内置解析；网页正文提取也不保证覆盖网站全部内容。
+- HTML为禁脚本的静态预览。当前源码支持DOCX/XLSX有界文本提取，不渲染Office、不重算公式；PDF/OCR未接入。网页正文提取不保证覆盖网站全部内容。
 - 资料与日志有读取及留存上限；有界摘录可补读已存内容，不能追回未被保存的部分。
-- 通用 skill/插件加载、任务内宿主信任、自动免批准执行和自选托管工作根仍待设计。
+- 当前源码支持可选本地Skill和公开GitHub技能包的固定提交导入；不提供通用第三方工具/MCP平台。任务内宿主信任、自动免批准执行和自选托管工作根仍未实现。
 - 当前授权状态为 `UNLICENSED`，没有项目级开源许可；说明见[授权状态](LICENSING.md)。
 
-尚待修复的问题和发布差异见[已知问题](docs/known-issues.zh-CN.md)与[版本说明](docs/releases/0.2.0.zh-CN.md)。
+以上为main当前源码范围。已发布0.2.0不包含所有后续能力；下载前请查看[对应版本说明](docs/releases/README.zh-CN.md)。未发布变化见[CHANGELOG](CHANGELOG.md)，现有限制见[已知问题](docs/known-issues.zh-CN.md)。
 
 ## 开发与验证
 
@@ -148,6 +148,7 @@ npm run verify:packaged
 - [技术文档入口](docs/README.zh-CN.md)：当前状态、运行契约、构建和问题清单。
 - [当前技术状态](docs/current-state.zh-CN.md)与[运行契约](docs/runtime-contracts.zh-CN.md)：实际模块、数据、模型、工具和授权边界。
 - [源码更新技术记录](docs/changes/20261021.zh-CN.md)：最近已实现变化与实际验证范围。
+- [技术实现记录索引](docs/records/README.zh-CN.md)与[版本说明索引](docs/releases/README.zh-CN.md)：按主题追溯实现，按版本核对交付。
 - [更新记录](CHANGELOG.md)：已发布与未发布的行为变化。
 - [文档维护规则](docs/documentation-policy.zh-CN.md)：公开技术记录与本地学习/探索资料的范围。
 
@@ -157,4 +158,4 @@ npm run verify:packaged
 
 欢迎通过 [Issues](https://github.com/QI-seven33/Umi/issues) 报告可复现问题或讨论具体需求。提交代码前请阅读[贡献指南](CONTRIBUTING.md)与 [AGENTS.md](AGENTS.md)；较大的行为变化先讨论，提交时说明影响、检查范围和剩余限制。
 
-安全漏洞请按[安全报告](SECURITY.md)私密反馈。项目授权与第三方代码、字体及图标的许可分别见 [LICENSING.md](LICENSING.md) 和[第三方声明](THIRD_PARTY_NOTICES.md)。
+讨论请遵守[社区行为约定](CODE_OF_CONDUCT.md)。安全漏洞请按[安全报告](SECURITY.md)私密反馈。项目授权与第三方代码、字体及图标的许可分别见 [LICENSING.md](LICENSING.md) 和[第三方声明](THIRD_PARTY_NOTICES.md)。

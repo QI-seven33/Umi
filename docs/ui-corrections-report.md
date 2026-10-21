@@ -37,16 +37,10 @@
 - 验收全部使用自建临时数据库及目录，没有发送用户资料，也没有新增真实模型 API 调用。
 - PNG 证据使用静态降级外壳，因为 Chromium 的截图不包含 Windows DWM 材质；它们用于检查布局。实际 Mica 仍由 Windows 绘制。
 
-证据：`docs/evidence/correction-tests.log`、`correction-desktop-packaged.json`、`correction-welcome-preview.png`、`correction-settings-preview.png`。交付前逐个核对源码哈希，备份目录：`E:\Codex\Workspace\umi-ui-corrections-backup`。
+证据：`docs/evidence/correction-tests.log`、`correction-desktop-packaged.json`、`correction-welcome-preview.png`、`correction-settings-preview.png`。交付前逐个核对源码哈希，备份目录：`维护者本地证据目录（不随源码分发）`。
 
 ## 图标资产
 
 模式：内置 imagegen 编辑，透明背景。
 
-生成源文件：`C:\Users\sevan\.codex\generated_images\01a0cd28-0c05-7501-a2f3-e622dc237bd6\exec-e18aa6c9-1988-43ed-a7a4-b00848c96d9f.png`。
-
-交付：`apps/desktop/renderer/public/umi-logo.png`（512 PNG）、`umi.ico`（16/24/32/48/64/128/256）。
-
-完整提示词：
-
-> Edit only the background of the supplied Umi app icon. Remove the entire off-white rounded square tile, all outer off-white canvas and any tile shadow, yielding actual transparent alpha around the mascot. Preserve the mascot exactly in appearance and pixel block geometry: navy pointed hat and navy outline, white face with two navy eyes, blue ear/headphone on the right, blue plus sparkle above right. The white face is part of the mascot and MUST remain opaque white, never remove it. No rounded-square container, no white plate, no background rectangle, no added shadow, no added objects, no text, no redesign or recoloring. Center the cutout on a square transparent canvas, about 12% margin. Crisp pixel art edges. Intended compact desktop sidebar and Windows app icon.
+生成原稿和完整提示词由维护者在本地保留，不作为公开技术规范。输出资产为`apps/desktop/renderer/public/umi-logo.png`（512 PNG）和`umi.ico`（16/24/32/48/64/128/256）。后续圆角白底规格见[品牌资产记录](brand-assets-20261015.zh-CN.md)。

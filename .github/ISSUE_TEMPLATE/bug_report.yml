@@ -9,7 +9,7 @@ body:
     id: version
     attributes:
       label: Umi 版本与来源
-      placeholder: "0.2.0-alpha.1，安装版 / 便携版 / 源码提交"
+      placeholder: "0.2.0，安装版 / 便携版 / 源码提交及构建时间"
     validations:
       required: true
   - type: input

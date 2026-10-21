@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-日期：2026-10-04（Asia/Shanghai）。产品名为 **Umi**；开发目录为 `E:\SOME_SEVEN_PROJECT-57\Umi_v2.0`。本阶段沿用阶段 2 的唯一 Agent 循环、事件归约和数据库写入者，没有新增框架、第二套 Agent 或通用命令执行入口。
+日期：2026-10-04（Asia/Shanghai）。产品名为 **Umi**；开发目录为 `仓库根目录`。本阶段沿用阶段 2 的唯一 Agent 循环、事件归约和数据库写入者，没有新增框架、第二套 Agent 或通用命令执行入口。
 
 ## 1. 已完成与下一阶段
 
@@ -209,7 +209,7 @@ ask/auto（询问/自动）设置继续持久保存；这两档当前都不会�
 ## 10. 开发与后续工作
 
 ```powershell
-cd E:\SOME_SEVEN_PROJECT-57\Umi_v2.0
+cd 仓库根目录
 npm run typecheck
 npm test
 npm run demo

@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-本轮按用户12项要求调整当前源码与指定便携版。真实源码：`E:\SOME_SEVEN_PROJECT-57\Umi_v2.0`；交付程序：Umi.exe（维护者本地证据/生成产物，不随源码仓库分发）。此前全部多阶段改动、学习注释与未跟踪文件保留；没有reset/clean或Git提交。
+本轮按用户12项要求调整当前源码与指定便携版。真实源码：`仓库根目录`；交付程序：Umi.exe（维护者本地证据/生成产物，不随源码仓库分发）。此前全部多阶段改动、学习注释与未跟踪文件保留；没有reset/clean或Git提交。
 
 ## 1. 按需求核对
 
@@ -29,7 +29,7 @@
 沿用现有React入口、preload、broker、DesktopService、UmiApplication和唯一AgentEngine。参考组件采用独立视图接入现有状态，不引入另一套聊天runtime或调度器，也没有安装新的运行依赖。
 
 - [TextPressure.tsx](../apps/desktop/renderer/src/components/ui/TextPressure.tsx)：固定字槽，鼠标距离驱动可变字体轴，插值平滑；稳定后停止逐帧更新。
-- ElectricBorder.tsx（维护者本地证据/生成产物，不随源码仓库分发）：跟随ResizeObserver的圆角周长路径，canvas绘制，30fps上限，像素比上限2；隐藏/离屏停止，减少动态偏好下静止。
+- 当时的ElectricBorder.tsx（历史组件，当前树已不保留此文件）：跟随ResizeObserver的圆角周长路径，canvas绘制，30fps上限，像素比上限2；隐藏/离屏停止，减少动态偏好下静止。
 - [QuestionCard.tsx](../apps/desktop/renderer/src/QuestionCard.tsx)：局部保存每题答案与当前题序号，最后仍向原answer_question入口一次提交完整答案；没有改变核心问题规格、失效或持久化逻辑。
 - [ApprovalCard.tsx](../apps/desktop/renderer/src/ApprovalCard.tsx)：只改信息层次、尺寸和字体，完整描述可展开，交付批准仍等待真实冻结详情。
 - [CodeDiff.tsx](../apps/desktop/renderer/src/components/ui/CodeDiff.tsx)：展示已有冻结diff，正文仍沿原UTF-8连续分页接口；未重做diff算法，未把工作副本当成冻结版本。

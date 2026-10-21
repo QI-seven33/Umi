@@ -3,7 +3,7 @@
 > 阶段技术记录：本页能力和验收数字只对应原文日期；当前实现以[当前技术状态](current-state.zh-CN.md)和[运行契约](runtime-contracts.zh-CN.md)为准。
 
 
-日期：2026-10-21。真实源码 `E:/SOME_SEVEN_PROJECT-57/Umi_v2.0`；0.2.0、DB7，persona-21。源码桌面资源已重建，未打包或发布。
+日期：2026-10-21。真实源码 `仓库根目录`；0.2.0、DB7，persona-21。源码桌面资源已重建，未打包或发布。
 
 ## 已实现
 
@@ -26,7 +26,7 @@ persona仅修改文件工具段，明确宿主自动绑定版本与自写无需�
 - 初次定向88/90：两项本地模型服务测试固化了“哈希必填、不能有互斥分支”的旧规格。更新为位置必填、可选版本字段和显式两种编辑形态后通过；参数根仍为object，内容、批准、错误与恢复断言保留。没有付费API，不能宣称新Schema已经过真实DeepSeek服务验收。
 - 完整离线核心653项中652项直接通过，唯一失败是文件发现测试仍匹配“参数不符合”的旧文案，实际返回了具体path/root冲突原因。将两条断言收紧为具体原因后，该文件16/16补验通过；产品逻辑未因此改变，没有重跑整套。此处记录完整执行过程，不将首跑写成653/653通过。
 
-证据、修改前备份及清单在 `E:/Codex/Workspace/output/umi-tool-contracts-20261021`：`baseline.json`保存轮前429个Git管理/未跟踪源码文件的哈希；`change-manifest.json`核对本轮范围与其它文件不变；`targeted-first.log`与`core-regression-first.log`保留首跑失败，`targeted-final.log`、`discovery-retest.log`、`desktop-final.log`及`desktop-verification.json`保存定向/补验/桌面结果。`core-regression-final.log`是完整首跑日志的同内容保留件，名称不代表全绿。
+证据、修改前备份及清单在 `维护者本地证据目录（不随源码分发）`：`baseline.json`保存轮前429个Git管理/未跟踪源码文件的哈希；`change-manifest.json`核对本轮范围与其它文件不变；`targeted-first.log`与`core-regression-first.log`保留首跑失败，`targeted-final.log`、`discovery-retest.log`、`desktop-final.log`及`desktop-verification.json`保存定向/补验/桌面结果。`core-regression-final.log`是完整首跑日志的同内容保留件，名称不代表全绿。
 
 ## 剩余范围
 
