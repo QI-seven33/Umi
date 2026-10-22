@@ -15,6 +15,7 @@
 
 | 入口 | 范围 |
 | --- | --- |
+| [Umi 0.2.1](releases/0.2.1.zh-CN.md) | Windows下载、相对0.2.0的变化及发布验收 |
 | [2026-10-22本地开发包](records/20261022-development-package.zh-CN.md) | 当前源码指纹、安装器载荷、便携exe检查与交付范围 |
 | [2026-10-22技能与设置](records/20261022-skills-and-settings.zh-CN.md) | 开关持久化、完整预览、模型按需搜索及常用设置 |
 | [更新日志](../CHANGELOG.md) | 已发布版本与Unreleased源码变化 |
