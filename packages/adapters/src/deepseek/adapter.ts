@@ -8,6 +8,7 @@ import type {
 import { messageSchema, validatePairs, UmiError } from '../../../protocol/src/model.js';
 import type { ModelPort, PreparedRequest, ModelFrame } from '../../../agent/src/ports.js';
 import { readSse } from './sse.js';
+import { ProviderChunkArchive, responseMemoryBytes } from './chunk-archive.js';
 
 const chunkSchema = z.object({
   id: z.string().optional(),
@@ -158,13 +159,15 @@ export class DeepSeekAdapter implements ModelPort {
       finish: string | null = null,
       usage: Record<string, unknown> | null = null,
       sawDone = false;
-    const calls = new Map<number, { id: string; name: string; arguments: string }>(),
-      raw: unknown[] = [];
-    let responseBytes = 0;
+    const calls = new Map<number, { id: string; name: string; arguments: string }>();
+    const raw = new ProviderChunkArchive();
+    let outputBytes = 0;
+    const observeOutput = (text: string | null | undefined) => {
+      outputBytes += Buffer.byteLength(text ?? '');
+      if (outputBytes > responseMemoryBytes)
+        throw new UmiError('PROVIDER_RESOURCE_LIMIT', '单次模型响应的正文、思考与工具参数超过 64 MiB 内存容量；已显示内容保留，未完成工具未执行。');
+    };
     for await (const data of readSse(response.body, signal, 2_000_000, activity)) {
-      responseBytes += Buffer.byteLength(data);
-      if (responseBytes > 16_000_000)
-        throw new UmiError('PROTOCOL_INVALID', '模型响应总量超过阶段 2 限制');
       if (data === '[DONE]') {
         sawDone = true;
         break;
@@ -179,12 +182,16 @@ export class DeepSeekAdapter implements ModelPort {
       if (!parsed.success)
         throw new UmiError('PROTOCOL_INVALID', '模型分片结构不符合协议');
       const chunk = parsed.data;
-      raw.push(json);
+      raw.append(json);
       if (chunk.usage) usage = chunk.usage;
       for (const choice of chunk.choices) {
         if (choice.index !== 0)
           throw new UmiError('PROTOCOL_INVALID', '当前仅支持一个响应候选');
         const d = choice.delta;
+        observeOutput(d?.reasoning_content); observeOutput(d?.content);
+        for (const part of d?.tool_calls ?? []) {
+          observeOutput(part.function?.name); observeOutput(part.function?.arguments);
+        }
         if (d?.reasoning_content) {
           reasoning += d.reasoning_content;
           yield {
@@ -201,6 +208,7 @@ export class DeepSeekAdapter implements ModelPort {
         for (const part of d?.tool_calls ?? []) {
           const t = calls.get(part.index) ?? { id: '', name: '', arguments: '' };
           if (part.id) {
+            if (!t.id) observeOutput(part.id);
             if (t.id && t.id !== part.id)
               throw new UmiError('PROTOCOL_INVALID', '工具调用身份中途改变');
             t.id = part.id;
@@ -246,10 +254,11 @@ export class DeepSeekAdapter implements ModelPort {
         : {}),
       ...(finish !== 'length' && toolCalls.length ? { tool_calls: toolCalls } : {}),
     });
-    // 草稿不是工具调用。原始分片单独保留，便于按来源补读；不拼接不同请求。
+    // 草稿不是工具调用；原始分片无损压缩，不拼接不同请求，不重复存储协议外壳。
+    const archive = raw.finish();
     const responseRaw = finish === 'length'
-      ? { kind: 'output-limit', draft: { content, toolCalls }, providerChunks: raw }
-      : raw;
+      ? { kind: 'output-limit', draft: { content, toolCalls }, providerChunks: archive }
+      : { kind: 'umi-provider-stream', archive };
     yield { kind: 'response', message, finishReason: finish, usage, raw: responseRaw };
   }
 }

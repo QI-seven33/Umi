@@ -6,12 +6,20 @@
 
 ## 文件、来源与交付
 
+- [真实HTML任务与跨轮副本事实（2026-10-22）](20261022-live-html-and-resource-facts.zh-CN.md)
+
 - [Umi 有界发现与元数据分页](../file-discovery-20261011.zh-CN.md)
 - [Umi 文件任务与必要事实优化](../file-workflow-and-context-20261013.zh-CN.md)
 - [Umi 独立成果与具体目标导出](../outputs-export-20261011.zh-CN.md)
 - [Umi 任务验收与续作：第一阶段](../task-acceptance-20261011.zh-CN.md)
 
 ## 执行、反馈与性能
+
+- [按需任务记录与仅思考响应续作（2026-10-22）](20261022-model-autonomy.zh-CN.md)
+
+- [旧会话投影与文件预览性能修正（2026-10-22）](20261022-history-and-preview-performance.zh-CN.md)
+
+- [流式接收与异常停止修复（2026-10-22）](20261022-streaming-and-failure-guards.zh-CN.md)
 
 - [中立执行 V2：2026-10-11 实施与验收](../neutral-execution-20261011.zh-CN.md)
 - [Umi：删减全目录扫描，缩短会话首屏](../streamline-and-session-loading-20261011.zh-CN.md)
@@ -21,6 +29,10 @@
 - [Umi 第二批纠偏：工具输入与宿主文件版本](../tool-contracts-20261021.zh-CN.md)
 
 ## 桌面、品牌与分发
+
+- [本地开发包与源码交付（2026-10-22）](20261022-development-package.zh-CN.md)
+
+- [Skill读取、开关持久化与设置界面（2026-10-22）](20261022-skills-and-settings.zh-CN.md)
 
 - [Umi 前端展示与直接答复修复](../ui-refinement-report.md)
 - [Umi 附件、交付与桌面交互修复报告](../interaction-refinement-report.md)

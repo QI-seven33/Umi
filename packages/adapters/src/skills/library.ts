@@ -5,7 +5,7 @@ import {z} from 'zod';
 import {importOrigin} from '../../../protocol/src/skill-import.js';
 import type {SkillOrigin} from '../../../protocol/src/skill-import.js';
 import {UmiError} from '../../../protocol/src/model.js';
-import {skillName,skillReadSchema} from '../../../protocol/src/skills.js';
+import {skillName,skillReadSchema,skillPreviewRangeSchema} from '../../../protocol/src/skills.js';
 import type {SkillLibrary,SkillSummary,SkillRead} from '../../../protocol/src/skills.js';
 import type {SkillPort} from '../../../agent/src/skills.js';
 import {byteExcerpt} from '../../../agent/src/context/bounded.js';
@@ -45,7 +45,7 @@ export class LocalSkillLibrary implements SkillPort {
     if(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text))throw new UmiError('SKILL_INVALID','只支持 UTF-8 文本资源');
     return text;
   }
-  private prefs(){const root=this.root();return existsSync(join(root,'.preferences.json'))?preferences.parse(JSON.parse(this.readText('.preferences.json',16384))):{};}
+  private prefs(){const root=this.root();return existsSync(join(root,'.preferences.json'))?preferences.parse(JSON.parse(this.readText('.preferences.json',65536))):{};}
   library(){return this.cache??this.refresh();}
   refresh():SkillLibrary {
     const issues:SkillLibrary['issues']=[],entries=new Map<string,Entry>();let prefs:z.infer<typeof preferences>={};
@@ -87,16 +87,20 @@ export class LocalSkillLibrary implements SkillPort {
     skillName.parse(name);const entry=this.library().skills.find(e=>e.name===name);
     if(!entry||entry.version!==version)throw new UmiError('RESOURCE_CHANGED','技能版本已变化，请刷新后再设置');
     if(entry.source==='user'&&bytesHash(Buffer.from(this.readText(name+'/SKILL.md')))!==version)throw new UmiError('RESOURCE_CHANGED','技能正文已变化，请刷新后再设置');
-    const prefs=this.prefs();prefs[name]={enabled,version,...(entry.origin?{importId:entry.origin.importId}:{})};atomicWrite(this.root(),'.preferences.json',Buffer.from(JSON.stringify(prefs,null,2)));
+    const prefs=this.prefs();prefs[name]={enabled,version,...(entry.origin?{importId:entry.origin.importId}:{})};
+    const bytes=Buffer.from(JSON.stringify(prefs,null,2));
+    if(bytes.length>65536)throw new UmiError('RESOURCE_LIMIT','技能开关配置超过64KiB，原配置已保留');
+    atomicWrite(this.root(),'.preferences.json',bytes);
     return this.refresh();
   }
-  preview(name:string,version:string){
+  preview(name:string,version:string,startByte=0,byteLength=12000){
+    const range=skillPreviewRangeSchema.parse({startByte,byteLength});
     skillName.parse(name);this.library();const entry=this.entries.get(name);
     if(!entry||entry.summary.version!==version)throw new UmiError('RESOURCE_CHANGED','技能版本已变化，请刷新');
     const text=entry.text??this.readText(name+'/SKILL.md');
     if(bytesHash(Buffer.from(text))!==version)throw new UmiError('RESOURCE_CHANGED','技能正文已变化，请刷新');
-    const page=byteExcerpt(text,0,12000);
-    return {...page,totalBytes:Buffer.byteLength(text),truncated:page.endByte<Buffer.byteLength(text)};
+    const page=byteExcerpt(text,range.startByte,range.byteLength),totalBytes=Buffer.byteLength(text);
+    return {...page,sourceHash:version,totalBytes,nextStartByte:page.endByte<totalBytes?page.endByte:null,truncated:page.endByte<totalBytes};
   }
   read(input:SkillRead){
     const a=skillReadSchema.parse(input);this.library();const entry=this.entries.get(a.name);

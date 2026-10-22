@@ -35,11 +35,12 @@ test('审查：外部改变目标版本也允许复读，不能仅以环境修�
   } finally { await f.close(); }
 });
 
-test('审查：同目标同版本第四次请求仍受原停滞限制，auto 未隐式授权宿主命令', async () => {
+test('审查：同目标同版本可继续成功复查，auto 未隐式授权宿主命令', async () => {
   const f = fixture();
   try {
     for (let i = 0; i < 4; i++) f.steps.push(call('read_file', { mountId: f.mount.id, path: 'a.txt' }, '重复读取', `read-${i}`));
-    const result = await f.run(); assert.equal(f.app.store.getRun(result.runId).status, 'failed'); assert.equal(f.app.store.tools(result.runId).at(-1)!.state, 'failed');
+    f.steps.push(text('成功复查结束'));
+    const result = await f.run(); assert.equal(f.app.store.getRun(result.runId).status, 'completed'); assert.equal(f.app.store.tools(result.runId).at(-1)!.state, 'succeeded');
     f.app.store.updateSettings(f.c.conversationId, { ...f.app.store.settings(f.c.conversationId), executionPolicy: 'auto' });
     f.steps.push(call('run_command', { program: process.execPath, argv: ['-e', "throw Error('未获准不能执行')"], cwd: { kind: 'mount', mountId: f.mount.id } }), text('尊重拒绝'));
     const next = f.app.send(f.c.conversationId, uid(), '拒绝命令');

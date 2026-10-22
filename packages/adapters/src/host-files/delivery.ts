@@ -93,6 +93,7 @@ export class DeliveryFiles {
       mountId: m.id,
       targetDirectory: m.sourceRoot,
       resourceScope: m.scope,
+      message: '仅冻结选定文件的当前字节，不执行编译或构建，也不验证运行效果。源码修复是否已进入成品需根据实际生成结果判断。',
       changes: cs.changes.map((c) => {
         const before = c.before ? this.files.blob(env, c.before.hash) : null,
           after = c.after ? this.files.blob(env, c.after.hash) : null;
@@ -281,7 +282,7 @@ export class DeliveryFiles {
       }
       return {
         outcome: 'succeeded',
-        content: '变更集已获批准并逐项交付核验。',
+        content: '选定冻结字节已获批准、写回并逐项核对；这不证明构建已包含最新源码或成品能够运行。',
         data: {
           changeSetId: cs.id,
           targetDirectory: m.sourceRoot,
@@ -400,7 +401,7 @@ export class DeliveryFiles {
     return {
       outcome: complete ? 'succeeded' : 'failed',
       content: complete
-        ? '原变更集所有目标已核验；没有再次写回。'
+        ? '原变更集所有目标符合冻结字节；没有再次写回，也没有验证构建新鲜度或运行效果。'
         : '交付未完整发生；已有结果保留，剩余修改需重新预览并批准。',
       data: { changeSetId: cs.id, receipts },
       verification: complete ? 'desired-state-verified' : 'partial-or-not-applied',

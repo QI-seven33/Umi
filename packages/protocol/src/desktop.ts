@@ -1,5 +1,5 @@
 import {githubSkillInput,importId} from './skill-import.js';
-import {skillName,skillVersion} from './skills.js';
+import {skillName,skillVersion,skillPreviewRange} from './skills.js';
 import {officeUploadSchema} from './attachments.js';
 import { DATABASE_VERSION } from './database.js';
 import { answersSchema } from './question.js';
@@ -18,12 +18,13 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
   z.object({type:z.literal('skills_import_start'),input:githubSkillInput}).strict(),
   z.object({type:z.literal('skills_import_list')}).strict(),
   z.object({type:z.literal('skills_import_detail'),id:importId}).strict(),
+  z.object({type:z.literal('skills_import_preview'),id:importId,...skillPreviewRange}).strict(),
   z.object({type:z.literal('skills_import_install'),id:importId,planHash:skillVersion,confirm:z.literal(true)}).strict(),
   z.object({type:z.literal('skills_import_cancel'),id:importId}).strict(),
   z.object({type:z.literal('skills_import_remove'),id:importId,confirm:z.literal(true)}).strict(),
   z.object({type:z.literal('skills_list'),refresh:z.boolean().default(false)}).strict(),
   z.object({type:z.literal('skills_enable'),name:skillName,version:skillVersion,enabled:z.boolean()}).strict(),
-  z.object({type:z.literal('skills_preview'),name:skillName,version:skillVersion}).strict(),
+  z.object({type:z.literal('skills_preview'),name:skillName,version:skillVersion,...skillPreviewRange}).strict(),
   z.object({ type: z.literal('list'), archived: z.boolean().default(false) }).strict(),
   z.object({ type: z.literal('restore'), ...conversation }).strict(),
   z.object({ type: z.literal('delete_conversation'), ...conversation, confirm: z.literal(true) }).strict(),

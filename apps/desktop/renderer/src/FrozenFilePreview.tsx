@@ -14,7 +14,7 @@ export function FrozenFilePreview({ conversationId, target }: { conversationId: 
   const [busy, setBusy] = useState(false), [reload, setReload] = useState(0), [mode, setMode] = useState<PreviewMode>('preview');
   const generation = useRef(0), lock = useRef(false), current = useRef<FrozenFilePage | null>(null);
   const read = async (startByte: number) => frozenFilePageSchema.parse(await window.umi.request({
-    type: 'preview_change_file', conversationId, changeSetId: target.changeSetId!, path: target.path, side, startByte, byteLength: startByte ? 64000 : 8192,
+    type: 'preview_change_file', conversationId, changeSetId: target.changeSetId!, path: target.path, side, startByte, byteLength: 64000,
   }));
   useEffect(() => {
     let live = true; const ticket = ++generation.current;

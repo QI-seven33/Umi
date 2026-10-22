@@ -194,7 +194,7 @@ export function registerFiles(
   registry.register({
     name: 'list_resources',
     description:
-      '列出当前任务获准的工作副本及 mountId。源目录用于说明交付目标，不是可随意访问的路径。',
+      '列出当前可用的工作副本及 mountId。unavailableMounts最多列最近16个保留但本轮未获准的副本，先按candidateId申请访问，不能拿旧mountId读改。源目录只说明交付目标，不是任意访问权限。',
     schema: z.object({}).strict(),
     effect: 'read',
     prepare: hostContext,
@@ -367,7 +367,7 @@ export function registerFiles(
   registry.register({
     name: 'build_changeset',
     description:
-      '将选定工作副本变化冻结为不可变变更集，返回真实交付目录、文件操作、前后内容及预览截断信息；不会写回。paths 可由 Agent 选定。',
+      '将选定工作副本当前字节冻结为交付变更集，返回真实目录、文件操作和前后内容；不会编译、构建或写回。若修了源码，先更新实际要交付的成品；paths由你选择，不要求额外验证流水线。',
     schema: build,
     effect: 'read',
     prepare(input, env) {

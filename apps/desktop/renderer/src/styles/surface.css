@@ -599,15 +599,15 @@ body,
 .settings-page-back { margin-bottom: 24px; }
 .settings-page-nav-item { gap: 10px; }
 .settings-content {
-  width: min(760px, 100%);
+  width: min(820px, 100%);
   margin: 0 auto;
   padding: 34px 40px 48px;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.65;
 }
 .settings-heading { margin-bottom: 28px; }
-.settings-heading h1 { margin: 0; font-size: 18px; line-height: 1.5; font-weight: 550; }
-.settings-heading p { margin: 5px 0 0; font-size: 12px; color: var(--text-muted); }
+.settings-heading h1 { margin: 0; font-size: 22px; line-height: 1.5; font-weight: 550; }
+.settings-heading p { margin: 5px 0 0; font-size: 14px; color: var(--text-muted); }
 .settings-card {
   padding: 0 0 22px;
   margin: 0 0 24px;
@@ -617,26 +617,26 @@ body,
   background: transparent;
 }
 .settings-card:last-of-type { border-bottom: 0; margin-bottom: 0; }
-.settings-card h2, .settings-card .umi-settings-group h2 { margin: 0 0 10px; font-size: 13px; font-weight: 550; line-height: 1.6; }
+.settings-card h2, .settings-card .umi-settings-group h2 { margin: 0 0 10px; font-size: 15px; font-weight: 550; line-height: 1.6; }
 .settings-card p, .settings-intro, .settings-card .umi-settings-group p {
   margin: 7px 0 12px;
-  color: var(--text-muted);
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: 14px;
   line-height: 1.7;
 }
 .settings-row {
   display: flex;
   align-items: center;
   gap: 20px;
-  min-height: 42px;
+  min-height: 48px;
   padding: 6px 0;
-  font-size: 12px;
+  font-size: 14px;
 }
 .settings-row>span { flex: 1; min-width: 100px; color: var(--text-secondary); }
 .settings-row :is(input:not([type=checkbox]), select) {
   width: min(280px, 56%);
   min-width: 0;
-  height: 32px;
+  height: 36px;
   padding: 5px 10px;
   border: 1px solid var(--border-color);
   border-radius: var(--control-radius);
@@ -650,8 +650,8 @@ body,
 .settings-row input[type=checkbox], .settings-skill-toggle input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
 .settings-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .settings-actions button, .archive-list button, .settings-skill-toolbar button {
-  min-height: 30px;
-  font-size: 12px;
+  min-height: 34px;
+  font-size: 14px;
   line-height: 1.5;
   border: 1px solid var(--border-color);
   border-radius: var(--control-radius);
@@ -664,7 +664,7 @@ body,
 .settings-profile-hero { display: flex; flex-direction: row; align-items: center; gap: 14px; margin: 0 0 24px; }
 .settings-profile-identity { display: grid; gap: 3px; min-width: 0; }
 .settings-profile-identity strong { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
-.settings-profile-identity small { font-size: 12px; color: var(--text-muted); }
+.settings-profile-identity small { font-size: 14px; color: var(--text-muted); }
 .settings-avatar-button { flex: none; }
 .settings-avatar-button .user-avatar { width: 52px; height: 52px; }
 .settings-avatar-camera { bottom: -2px; right: -2px; width: 21px; height: 21px; border-radius: var(--control-radius); }
@@ -673,15 +673,15 @@ body,
 .settings-statistics { margin: 0; }
 .settings-statistics>div {
   display: flex; justify-content: space-between; align-items: baseline; gap: 20px;
-  padding: 6px 0; font-size: 12px; border: 0;
+  padding: 6px 0; font-size: 14px; border: 0;
 }
 .settings-statistics dt { color: var(--text-muted); }
 .settings-statistics dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.settings-status { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.settings-status { font-size: 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
 .settings-status[role=alert] { color: var(--danger); }
 .settings-skill-toolbar { display: flex; gap: 8px; align-items: center; margin: 18px 0 8px; }
 .settings-skill-toolbar input {
-  flex: 1; min-width: 0; height: 32px; padding: 5px 10px;
+  flex: 1; min-width: 0; height: 36px; padding: 5px 10px;
   border: 1px solid var(--border-color); border-radius: var(--control-radius);
   background: var(--bg-secondary); color: var(--text-primary); font: inherit;
 }
@@ -694,21 +694,29 @@ body,
 .settings-skill-summary>svg { margin-top: 3px; color: var(--text-muted); }
 .settings-skill-summary p { margin: 5px 0 0; }
 .settings-skill-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-.settings-skill-name strong { font-size: 12px; font-weight: 550; overflow-wrap: anywhere; }
-.settings-skill-name small { font-size: 11px; color: var(--text-muted); }
-.settings-skill-toggle { display: flex; align-items: center; gap: 7px; padding-top: 2px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.settings-skill-name strong { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
+.settings-skill-name small { font-size: 12px; color: var(--text-muted); }
+.settings-skill-toggle { display: flex; align-items: center; gap: 7px; padding-top: 2px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .settings-page .settings-skill-inspect {
   display: inline-flex; align-items: center; gap: 4px; margin: 6px 0 0 26px;
-  padding: 2px 0; font-size: 11px; color: var(--text-secondary); border: 0; background: transparent;
+  padding: 2px 0; font-size: 12px; color: var(--text-secondary); border: 0; background: transparent;
 }
 .settings-skill-preview { padding: 8px 0 0 26px; }
-.settings-skill-preview small { color: var(--text-muted); font-size: 11px; }
+.settings-skill-preview small { color: var(--text-muted); font-size: 12px; }
 .settings-skill-preview pre {
   padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-light);
-  border-radius: var(--control-radius); max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
-  font: 11px/1.7 var(--font-ui); color: var(--text-secondary);
+  border-radius: var(--control-radius); max-height: 380px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 13px/1.7 var(--font-ui); color: var(--text-secondary);
 }
-.settings-skill-directory code { display: block; padding: 10px 12px; font: 11px/1.65 Consolas,monospace; overflow-wrap: anywhere; border-radius: var(--control-radius); background: var(--bg-secondary); color: var(--text-secondary); }
+.settings-skill-directory code { display: block; padding: 10px 12px; font: 12px/1.65 Consolas,monospace; overflow-wrap: anywhere; border-radius: var(--control-radius); background: var(--bg-secondary); color: var(--text-secondary); }
+
+.settings-skill-filter { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 12px 0; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; }
+.settings-skill-filter label { display: flex; align-items: center; gap: 8px; }
+.settings-skill-filter select { min-height: 32px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: var(--control-radius); background: var(--bg-primary); color: var(--text-primary); font: inherit; }
+.settings-diagnostics>summary { cursor: pointer; padding: 12px 0; font-size: 14px; color: var(--text-secondary); }
+.settings-diagnostics[open]>summary { margin-bottom: 16px; }
+.settings-skill-reader .settings-actions { justify-content: flex-start; }
+.settings-skill-reader p { font-size: 12px; }
 
 @media(width<=920px) {
   .settings-page {

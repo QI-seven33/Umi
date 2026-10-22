@@ -1,3 +1,4 @@
+import { expandProviderRaw } from '../deepseek/chunk-archive.js';
 import { runConclusion } from '../../../agent/src/loop/run-conclusion.js';
 import { attachmentTextProblem } from '../../../protocol/src/attachments.js';
 import { AttachmentRepository } from './attachments.js';
@@ -346,7 +347,8 @@ export class SqliteStore {
     if (!r) throw new UmiError('NOT_FOUND', '资料不存在');
     if (hash(r.content as string) !== r.hash)
       throw new UmiError('PROTOCOL_INVALID', '资料指纹不一致');
-    return JSON.parse(r.content as string) as T;
+    const value = JSON.parse(r.content as string);
+    return (['provider-response', 'maintenance-response'].includes(r.kind as string) ? expandProviderRaw(value) : value) as T;
   }
   createConversation(sourceRoot: string, settings: Partial<Settings> = {}) {
     const root = realpathSync(sourceRoot);
@@ -832,6 +834,19 @@ export class SqliteStore {
           path: state.candidates[resourceId]?.path,
           ...r.materializationError,
         })),
+      // 历史副本仍存在不代表本轮可读改。提前告知失效句柄，避免模型先生成长补丁再撞权限。
+      // 这里只提供同环境历史位置；不授予访问，也不重新物化或检查源目录。
+      unavailableMounts: this.all(
+        `SELECT m.id mountId,m.resource_id candidateId,m.source_root sourceRoot
+         FROM mounts m WHERE m.environment_id=? AND NOT EXISTS(
+           SELECT 1 FROM capabilities c WHERE c.resource_id=m.resource_id
+           AND c.environment_id=m.environment_id AND (c.run_id IS NULL OR c.run_id=?))
+         ORDER BY m.rowid DESC LIMIT 16`,
+        env.id, env.active_run_id,
+      ).map(r => ({ ...r, access: 'unavailable',
+        reason: '当前运行没有此副本的访问授权；历史副本仍保留，旧mountId不能用于读改。',
+        nextStep: '需要继续使用时，通过request_resource申请candidateId的本轮访问；批准前不要生成或派发该副本的编辑。',
+      })),
       incompleteMaterializations: Object.entries(state.materializations)
         .filter(([, m]) => m.status !== 'ready')
         .map(([mountId, m]) => ({ mountId, ...m })),

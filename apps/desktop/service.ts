@@ -50,12 +50,13 @@ export class DesktopService {
       case 'skills_import_start': return this.app.skillImports.start(c.input);
       case 'skills_import_list': return this.app.skillImports.list();
       case 'skills_import_detail': return this.app.skillImports.detail(c.id);
+      case 'skills_import_preview': return this.app.skillImports.preview(c.id,c.startByte,c.byteLength);
       case 'skills_import_install': return this.app.skillImports.install(c.id,c.planHash);
       case 'skills_import_cancel': return this.app.skillImports.cancel(c.id);
       case 'skills_import_remove': return this.app.skillImports.remove(c.id);
       case 'skills_list': return c.refresh ? this.app.skills.refresh() : this.app.skills.library();
       case 'skills_enable': return this.app.skills.setEnabled(c.name,c.enabled,c.version);
-      case 'skills_preview': return this.app.skills.preview(c.name,c.version);
+      case 'skills_preview': return this.app.skills.preview(c.name,c.version,c.startByte,c.byteLength);
       //新建会话，校验根目录后返回草稿或创建结果。
       case 'new_conversation': {
         const conv = s.conversation(c.conversationId),

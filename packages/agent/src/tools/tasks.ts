@@ -21,7 +21,7 @@ export function registerTasks(
   registry.register({
     name: 'record_task_checkpoint',
     description:
-      '为复杂操作任务保存原话绑定的验收项、进度和下一步。创建后目标、来源和验收项不可删除或降低；更新传 taskId/baseVersion。verified 必须引用匹配的真实工具证据，文件哈希、指定命令退出、源交付、export_receipt 具体成果导出和 document_open 系统打开请求分别核验，review 保持待审。每次状态实质变化才记录；不授予权限。',
+      '按需保存多项任务的原话来源、验收、进度和下一步；不是操作、继续或交付的前置步骤。创建后目标、来源和验收项不可删除或降低；更新传 taskId/baseVersion。verified 必须引用匹配的真实工具证据，文件哈希、指定命令退出、源交付、export_receipt 具体成果导出和 document_open 系统打开请求分别核验，review 保持待审。每次状态实质变化才记录；不授予权限。',
     schema: taskCheckpointInputSchema,
     effect: 'memory', inspect,
     prepare(args, env, executionId) {
@@ -48,7 +48,7 @@ export function registerTasks(
     },
   });
   registry.register({ name: 'set_task_state',
-    description: '根据最新用户原话将已有 taskId 标为 active/suspended/cancelled。停止不等于取消；换任务先挂起旧任务，取消须引用用户依据。保留目标、原验收和历史，不授予权限、不伪称完成。再次继续原目标设 active；需求替代先挂起/取消，再以 supersedesTaskId 创建新目标。',
+    description: '仅在需要整理已有检查点关系时使用，普通继续和状态问答不必调用。根据最新用户原话将已有 taskId 标为 active/suspended/cancelled。停止不等于取消；取消仅用于用户明确撤销目标，困难、错误、受阻或无法验证都不能作为取消依据；含糊时先询问。保留目标、原验收和历史，不授予权限、不伪称完成。再次继续原目标设 active；需求替代先挂起/取消，再以 supersedesTaskId 创建新目标。',
     schema: taskStateInputSchema, effect: 'memory', inspect,
     prepare(args, env, id) {
       if (!id) throw new UmiError('PROTOCOL_INVALID', '任务状态缺少执行身份');

@@ -41,7 +41,8 @@ export class ContextManager {
   constructor(
     readonly contextWindow = 1_000_000,
     readonly safetyHeadroom = 16_384,
-    readonly outputBudgets = { off: 8192, normal: 65536, high: 65536 },
+    // 思考强度不限制正文长度；这是单次请求输出容量，不是任务轮数或费用预算。
+    readonly outputBudgets = { off: 65536, normal: 65536, high: 65536 },
     readonly pressureRatio = 0.75,
     readonly targetRatio = 0.5,
   ) {
@@ -56,9 +57,15 @@ export class ContextManager {
     const contextWindow = Math.min(
         this.contextWindow,
         settings.contextWindow ?? this.contextWindow,
-      ),
-      maxOutputTokens = this.outputBudgets[settings.thinking],
+      );
+    let maxOutputTokens = this.outputBudgets[settings.thinking],
       inputCeiling = contextWindow - maxOutputTokens - this.safetyHeadroom;
+    // 显式小窗口也可使用：默认长输出预留不应在看到实际输入前就挤满窗口。
+    const minimumReserve = Math.min(8192, maxOutputTokens);
+    if (inputCeiling <= 0 && contextWindow - minimumReserve - this.safetyHeadroom > 0) {
+      maxOutputTokens = minimumReserve;
+      inputCeiling = contextWindow - maxOutputTokens - this.safetyHeadroom;
+    }
     if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1 || inputCeiling <= 0)
       throw new ContextBudgetError('模型输出及安全余量已占满上下文窗口', {
         stage: 'configuration',
@@ -139,6 +146,18 @@ export class ContextManager {
       estimateBasis = messages.some((m) => m.images?.length)
         ? ('utf8-vision-v2' as const)
         : ('utf8-conservative-v1' as const);
+    // 小窗口或当前输入较长时，按实际剩余容量下调本次输出预留。
+    // 不因预留长输出反而拒绝能容纳的输入；至少保留8K（显式更小配置沿用原值）。
+    const protectedInputTokens = estimate([prefix, ...protectedMessages, suffix]);
+    const minimumOutput = Math.min(8192, maxOutputTokens);
+    const remainingOutput = contextWindow - this.safetyHeadroom - estimatedInputTokens;
+    // 旧历史需要折叠时先按必须保留的输入判断容量，不能因旧历史过大阻止维护。
+    const availableOutput = remainingOutput >= minimumOutput ? remainingOutput
+      : contextWindow - this.safetyHeadroom - protectedInputTokens;
+    if (estimatedInputTokens > inputCeiling && availableOutput >= minimumOutput) {
+      maxOutputTokens = Math.min(maxOutputTokens, availableOutput);
+      inputCeiling = contextWindow - maxOutputTokens - this.safetyHeadroom;
+    }
     if (enforce && estimatedInputTokens > inputCeiling)
       throw new ContextBudgetError(
         '最新用户原话、保留来源与活跃窗口超过安全预算；原始历史未删除。',

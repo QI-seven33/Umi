@@ -116,3 +116,96 @@ test('命令反馈：真实循环只改模型摘录，退出失败/归档/分页
     assert.equal(app.store.all('SELECT * FROM process_executions').length, 1);
   } finally { await app.close(); removeTestRoot(root); }
 });
+
+async function locatingFixture(truncated = false) {
+  const root = mkdtempSync(join(tmpdir(), 'umi-log-find-')), workspace = join(root, 'workspace');
+  mkdirSync(workspace);
+  const query = 'TypeError: wings[0]', stdout = '开始🌱\n' + '普通日志🙂'.repeat(30000) + '\n' + query + ' 未定义🙂\n' + '后续上下文'.repeat(20) + query + ' 第二处\n' + '普通日志🙂'.repeat(30000);
+  let starts = 0;
+  const runner: LegacyWindowsProcessPort = {
+    async run(_snapshot, c) {
+      starts++;
+      const owner = { pid: 920011, birth: '1' }, child = { pid: 920012, birth: '2' };
+      c.owner(owner); await c.ready(owner, child); c.started();
+      c.output('stdout', stdout.slice(0, 100)); c.output('stdout', stdout.slice(100)); c.output('stderr', '独立警告');
+      return { kind: 'exit', reason: 'exited', exitCode: 1, jobInactive: true, gateReleased: true,
+        stdoutBytes: Buffer.byteLength(stdout) + (truncated ? 1000 : 0), stderrBytes: Buffer.byteLength('独立警告'), truncated };
+    },
+    async probe() { return 'absent'; },
+  };
+  const steps: Step[] = [], model = new ScriptModel(steps), app = new UmiApplication(join(root, 'data'), model, { processRunner: runner });
+  const c = app.createConversation(workspace), mount = app.files.repo.mounts(c.environmentId)[0]!;
+  let id = '';
+  steps.push(call('run_command', { program: 'node', argv: ['-e', ''], cwd: { kind: 'mount', mountId: mount.id } }), request => {
+    const view = JSON.parse((request.body.messages as any[]).findLast(m => m.role === 'tool').content);
+    assert.equal(view.outcome, 'failed'); assert(!JSON.parse(view.content).stdout.includes(query));
+    id = app.store.tools(app.store.environment(c.environmentId).active_run_id!)[0]!.id;
+    return call('read_process_output', { executionId: id, channel: 'stdout', find: query, byteLength: 1024 });
+  }, request => {
+    const data = JSON.parse((request.body.messages as any[]).findLast(m => m.role === 'tool').content).data;
+    assert.equal(data.search.found, true); assert(data.text.includes(query));
+    assert.equal(data.archiveComplete, !truncated);
+    return text('已从原日志定位中段错误，命令没有重跑。');
+  });
+  try {
+    const r = app.send(c.conversationId, uid(), '定位已有命令错误');
+    const approval = await eventually(() => Object.entries(app.store.snapshot(c.conversationId).approvals).find(([, a]) => a.status === 'pending')?.[0]);
+    app.approve(c.conversationId, approval, 'allow');
+    assert.equal((await app.wait(r.runId)).status, 'completed');
+  } catch (e) { await app.close(); removeTestRoot(root); throw e; }
+  const read = async (input: Record<string, unknown>, cid = c.conversationId) => {
+    const args = app.registry.parse('read_process_output', JSON.stringify({ executionId: id, channel: 'stdout', ...input }));
+    const tool = app.registry.get('read_process_output');
+    return (await tool.execute(args, tool.prepare(args, app.store.environment(c.environmentId)), cid, new AbortController().signal)).data as any;
+  };
+  return { root, workspace, stdout, query, app, c, model, read, get id() { return id; }, get starts() { return starts; },
+    async close() { await app.close(); removeTestRoot(root); } };
+}
+
+test('日志定位：一次读取找到长日志中段，字面/Unicode范围及后续匹配可追溯，不重跑进程', async () => {
+  const f = await locatingFixture();
+  try {
+    const bytes = Buffer.from(f.stdout), first = await f.read({ find: f.query, byteLength: 1024 });
+    assert.equal(first.search.matchStartByte, bytes.indexOf(Buffer.from(f.query)));
+    assert.equal(bytes.subarray(first.startByte, first.endByte).toString('utf8'), first.text);
+    assert(!first.text.includes('\ufffd')); assert(Buffer.byteLength(first.text) <= 1024);
+    const next = await f.read({ find: f.query, startByte: first.search.nextSearchByte, byteLength: 1024 });
+    assert(next.search.matchStartByte > first.search.matchStartByte);
+    assert.equal(next.sourceHash, first.sourceHash);
+    const absent = await f.read({ find: f.query, startByte: next.search.nextSearchByte });
+    assert.equal(absent.search.found, false); assert.equal(absent.text, ''); assert.equal(absent.nextStartByte, null);
+    assert.equal(absent.search.searchedToByte, bytes.length);
+    assert.equal((await f.read({ find: 'wings.*' })).search.found, false);
+    const unicode = await f.read({ find: '未定义🙂', byteLength: 101 });
+    assert.equal(unicode.search.matchStartByte, bytes.indexOf(Buffer.from('未定义🙂')));
+    assert(!unicode.text.includes('\ufffd'));
+    const plain = await f.read({ byteLength: 100 }); assert.equal(plain.search, undefined);
+    assert.equal(plain.startByte, 0); assert.equal(plain.sourceHash, first.sourceHash);
+    assert.equal((await f.read({ channel: 'stderr', find: '独立' })).text, '独立警告');
+    await assert.rejects(f.read({ find: f.query, startByte: 1 }), /UTF-8/);
+    await assert.rejects(f.read({ find: '' }), /参数错误/);
+    await assert.rejects(f.read({ find: '\ud800' }), /UTF-8/);
+    const other = f.app.createConversation(f.workspace);
+    await assert.rejects(f.read({ find: f.query }, other.conversationId), { code: 'PERMISSION_DENIED' });
+    assert.equal(f.starts, 1); assert.equal(f.model.requests.length, 3);
+    assert.equal(f.app.store.all('SELECT * FROM process_executions').length, 1);
+    await f.app.close();
+    const reopened = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
+    try {
+      const tool = reopened.registry.get('read_process_output'), input = { executionId: f.id, channel: 'stdout', find: f.query, byteLength: 1024 };
+      const result = await tool.execute(input, tool.prepare(input, reopened.store.environment(f.c.environmentId)), f.c.conversationId, new AbortController().signal);
+      assert.deepEqual(result.data, first);
+    } finally { await reopened.close(); }
+  } finally { await f.close(); }
+});
+
+test('日志定位：未命中只表示归档范围内没有，不把截断输出宣称为全量无错误', async () => {
+  const f = await locatingFixture(true);
+  try {
+    const page = await f.read({ find: '未归档的错误' });
+    assert.equal(page.search.found, false); assert.equal(page.archiveComplete, false);
+    assert(page.observedBytes > page.totalBytes); assert.equal(page.text, '');
+    assert.equal(page.search.matchStartByte, null); assert.equal(page.search.nextSearchByte, null);
+    assert.equal(page.search.searchedToByte, page.totalBytes); assert.equal(f.starts, 1);
+  } finally { await f.close(); }
+});

@@ -41,12 +41,12 @@ test('运行连续性：默认超过24次请求仍完成，普通最终答复不
 });
 
 test('运行说明：只有思考不能成功，错误有正文且重开后原样可见',async()=>{
-  const model=new ScriptModel([{role:'assistant',content:'',reasoning_content:'正在考虑实现。'}]),f=fixture(model);
+  const model=new ScriptModel([{role:'assistant',content:'',reasoning_content:'正在考虑实现。'},{role:'assistant',content:'',reasoning_content:'仍在考虑实现。'}]),f=fixture(model);
   try {
     const r=f.app.send(f.c.conversationId,uid(),'请完成操作');await f.app.wait(r.runId);
     const state=f.app.store.snapshot(f.c.conversationId),notice=state.runs[r.runId]!.failureSummary!;
     assert.equal(state.runs[r.runId]!.status,'failed');assert.match(notice.text,/模型未给出可用正文/);
-    assert.equal(model.requests.length,1);assert.match(html(f.app,f.c.conversationId),/Umi 执行说明/);
+    assert.equal(model.requests.length,2);assert.match(html(f.app,f.c.conversationId),/Umi 执行说明/);
     assert.equal(history(f.app,f.c.conversationId).find(m=>m.reasoning_content)?.reasoning_content,'正在考虑实现。');
     await f.app.close();
     const reopened=new UmiApplication(join(f.root,'data'),new ScriptModel([]));

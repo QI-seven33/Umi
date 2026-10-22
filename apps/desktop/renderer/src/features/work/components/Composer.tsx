@@ -1,3 +1,5 @@
+import {shouldSend} from '../../settings/input-preferences.js';
+import type {SendShortcut} from '../../settings/input-preferences.js';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, CSSProperties, DragEvent, FormEvent, ReactNode } from "react";
 import {
@@ -17,6 +19,7 @@ import { THINKING_LABELS } from "../models.js";
 
 export function Composer(props: {
   workspace: string;
+  sendShortcut?: SendShortcut;
   // 当前批准等待保留允许/拒绝；未来可在独立输入扩展区接入改要求，不能借回答隐式批准。
   approvalPanel?: ReactNode;
   questionPanel?: ReactNode;
@@ -145,7 +148,7 @@ export function Composer(props: {
           placeholder={workspace ? "描述你希望 Umi 完成的任务..." : "选择一个工作区开始..."}
           rows={1}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.nativeEvent.keyCode!==229) {
+            if (shouldSend(e.nativeEvent,props.sendShortcut??'enter')) {
               e.preventDefault();
               if(canSend)e.currentTarget.form?.requestSubmit();
             }
@@ -288,7 +291,7 @@ export function Composer(props: {
                 <span className="stop-square" />
               </button>
             ) : (
-              <button className="send-button" type="submit" disabled={!canSend} aria-label="发送消息" title="发送（Enter）；换行（Shift+Enter）">
+              <button className="send-button" type="submit" disabled={!canSend} aria-label="发送消息" title={props.sendShortcut==='mod-enter'?'发送（Ctrl / ⌘ + Enter）；换行（Enter）':'发送（Enter）；换行（Shift+Enter）'}>
                 <ArrowUp size={16} strokeWidth={2.2} />
               </button>
             )}

@@ -152,3 +152,15 @@ test('仓库根/远程目录可与合法Skill名称不同，导入按声明名�
   assert.equal(got.snapshot.name,'import-example');assert.equal(got.snapshot.source.path,'');
   assert.deepEqual(got.files.get('SKILL.md'),m.files.get('SKILL.md'));
 });
+
+test('冻结草稿完整预览可跨页读取尾部，确认前不发布，篡改与越界请求拒绝',async()=>{
+ const mock=skillSourceFixture('中😀文方法\n'.repeat(2000)+'END-MARKER'),f=fixture(mock.transport);
+ try{
+  const r=await f.ready();assert.equal(r.state,'staged');let offset=0,actual='';
+  do{const page=f.imports.preview(r.id,offset);actual+=page.text;assert.equal(page.sourceHash,r.snapshot!.version);if(page.nextStartByte===null)break;offset=page.nextStartByte;}while(true);
+  assert.equal(actual,Buffer.from(mock.files.get('SKILL.md')!).toString('utf8'));assert(!f.library.library().skills.some(s=>s.name==='import-example'));
+  assert.equal(desktopCommandSchema.safeParse({type:'skills_import_preview',id:r.id,startByte:0}).success,true);
+  for(const patch of [{path:'../secret'},{startByte:-1},{byteLength:64001}])assert.equal(desktopCommandSchema.safeParse({type:'skills_import_preview',id:r.id,...patch}).success,false);
+  writeFileSync(join(f.root,'skill-imports',r.id,'payload','SKILL.md'),'changed');assert.throws(()=>f.imports.preview(r.id,offset),/冻结包/);
+ }finally{await f.close();}
+});

@@ -13,7 +13,7 @@ import { deliveredTarget, verifiedDocumentPath } from '../packages/adapters/src/
 import { UmiError, validatePairs } from '../packages/protocol/src/model.js';
 import { reduceConversation, initialState } from '../packages/protocol/src/reducer.js';
 import { uid } from '../packages/agent/src/identity.js';
-import { ScriptModel, call, text, eventually, removeTestRoot } from './fixtures.js';
+import { ScriptModel, call, text, eventually, removeTestRoot, projectedFacts } from './fixtures.js';
 import type { Step } from './fixtures.js';
 import type { PreparedRequest } from '../packages/agent/src/ports.js';
 import type { DocumentTarget } from '../packages/protocol/src/native-open.js';
@@ -164,7 +164,7 @@ test('跨轮打开：回执丢失保持未知，新消息和恢复不会自动�
 
 function repeatMissing(f: ReturnType<typeof setup>) {
   const mount = f.app.files.repo.mounts(f.c.environmentId)[0]!;
-  for (let i = 0; i < 4; i++) f.steps.push(call('read_file', { mountId: mount.id, path: 'missing.txt' }, '', `repeat-${i}`));
+  for (let i = 0; i < 5; i++) f.steps.push(call('read_file', { mountId: mount.id, path: 'missing.txt' }, '', `repeat-${i}`));
 }
 
 test('停滞收尾：只多请求一次无工具总结，状态仍failed/blocked，正文和重放完整', async () => {
@@ -174,9 +174,9 @@ test('停滞收尾：只多请求一次无工具总结，状态仍failed/blocked
       assert(JSON.stringify(r.body).includes('不得声称任务已完成')); return text('文件没有找到，读取仍未完成；本轮已停止重复请求。'); });
     const run = f.app.send(f.c.conversationId, uid(), '读取文件'); await f.app.wait(run.runId);
     const state = f.app.store.snapshot(f.c.conversationId);
-    assert.equal(f.model.requests.length, 5); assert.equal(f.app.store.getRun(run.runId).status, 'failed');
+    assert.equal(f.model.requests.length, 6); assert.equal(f.app.store.getRun(run.runId).status, 'failed');
     assert.equal(state.runs[run.runId]!.acceptance!.status, 'blocked');
-    assert.equal(f.app.store.tools(run.runId).length, 4);
+    assert.equal(f.app.store.tools(run.runId).length, 5);
     assert(html(f).includes('文件没有找到')); assert(html(f).includes('执行受阻')); assert(!html(f).includes('存在未完成的操作'));
     assert.equal(state.blocks.filter(b => b.runId === run.runId && b.kind === 'text' && b.displayRole === 'final').at(-1)!.text, '文件没有找到，读取仍未完成；本轮已停止重复请求。');
     const replay = f.app.store.events(f.c.conversationId).reduce(reduceConversation, initialState(f.c.conversationId, state.cursor.logEpoch));
@@ -192,7 +192,7 @@ test('停滞收尾：模型错误、空正文、违规工具均用持久本地�
         return mode === 'empty' ? text('') : call('discover_resource', { path: f.source }); });
       const run = f.app.send(f.c.conversationId, uid(), '读取文件'); await f.app.wait(run.runId);
       const state = f.app.store.snapshot(f.c.conversationId), summary = state.runs[run.runId]!.failureSummary!;
-      assert.equal(f.model.requests.length, 5); assert.equal(f.app.store.tools(run.runId).length, 4);
+      assert.equal(f.model.requests.length, 6); assert.equal(f.app.store.tools(run.runId).length, 5);
       assert(summary.text.includes('这一步仍未完成')); assert(html(f).includes('这一步仍未完成'));
       const m = f.app.store.messageById(f.c.conversationId, summary.messageId)!;
       assert.equal(m.payload.content, summary.text); assert.equal(m.modelTurnId, null);
@@ -207,7 +207,7 @@ test('停滞收尾：同批剩余工具被取消，模型总结期间新原话�
   const f = setup();
   try {
     const mount = f.app.files.repo.mounts(f.c.environmentId)[0]!;
-    for (let i = 0; i < 3; i++) f.steps.push(call('read_file', { mountId: mount.id, path: 'missing.txt' }));
+    for (let i = 0; i < 4; i++) f.steps.push(call('read_file', { mountId: mount.id, path: 'missing.txt' }));
     const fourth = call('read_file', { mountId: mount.id, path: 'missing.txt' });
     fourth.tool_calls!.push(...call('discover_resource', { path: f.source }, '', 'never-dispatched').tool_calls!);
     f.steps.push(fourth, text('旧总结'), text('按新要求解释工具'));
@@ -220,7 +220,7 @@ test('停滞收尾：同批剩余工具被取消，模型总结期间新原话�
     const tools = f.app.store.tools(run.runId);
     assert.equal(tools.find(t => t.name === 'discover_resource')!.state, 'cancelled');
     assert.equal(f.app.store.getRun(next!.runId).status, 'completed'); assert(html(f).includes('按新要求解释工具'));
-    assert.equal(f.model.requests.length, 6);
+    assert.equal(f.model.requests.length, 7);
   } finally { await f.close(); }
 });
 
@@ -303,8 +303,53 @@ test('停滞收尾：编码后超预算直接保存本地说明，不发额外�
       return request;
     };
     const run = f.app.send(f.c.conversationId, uid(), '读取'); await f.app.wait(run.runId);
-    assert.equal(f.model.requests.length, 4);
+    assert.equal(f.model.requests.length, 5);
     assert(f.app.store.snapshot(f.c.conversationId).runs[run.runId]!.failureSummary);
     assert.equal(f.app.store.getRun(run.runId).status, 'failed');
+  } finally { await f.close(); }
+});
+
+test('跨轮副本事实：先说明未获准，旧句柄仍拒绝，重新批准后可读取且不泄露其它环境', async () => {
+  const f = setup();
+  try {
+    await f.deliver();
+    const other = f.app.createConversation(f.workspace);
+    assert.deepEqual((f.app.store.runtimeFacts(other.environmentId) as any).unavailableMounts, []);
+    f.steps.push(r => {
+      const resources = projectedFacts(r.body.messages as any)['runtime.resources'];
+      const unavailable = resources.unavailableMounts.find((m: any) => m.mountId === f.mountId);
+      assert.equal(unavailable.candidateId, f.candidateId);
+      assert.equal(unavailable.sourceRoot, f.external);
+      assert.equal(unavailable.access, 'unavailable');
+      assert.match(unavailable.nextStep, /request_resource/);
+      assert(!resources.mounts.some((m: any) => m.mountId === f.mountId));
+      return call('read_file', { mountId: f.mountId, path: 'report.html' });
+    }, r => {
+      assert.equal(data(r).code, 'PERMISSION_DENIED');
+      return call('discover_resource', { path: f.source });
+    }, r => call('request_resource', { candidateId: data(r).candidates[0].id, access: 'read', purpose: '继续读取' }),
+    r => {
+      const mountId = data(r).mountId;
+      const resources = projectedFacts(r.body.messages as any)['runtime.resources'];
+      assert(resources.mounts.some((m: any) => m.mountId === mountId));
+      assert(!resources.unavailableMounts.some((m: any) => m.mountId === mountId));
+      return call('read_file', { mountId, path: 'report.html' });
+    }, r => { assert.equal(data(r).text, '<p>NEW</p>'); return text('已读取'); });
+    const run = f.app.send(f.c.conversationId, uid(), '继续读文件');
+    await f.approve('request_resource'); await f.app.wait(run.runId);
+    assert.equal(f.app.store.getRun(run.runId).status, 'completed');
+    assert.equal(f.app.store.tools(run.runId)[0]!.state, 'failed');
+    assert.equal(readFileSync(f.source, 'utf8'), '<p>NEW</p>');
+    // 长会话只给最近的不可用元数据；更早挂载及原历史没有删除。
+    const original = f.app.files.repo.mount(f.mountId, f.c.environmentId);
+    const historicalIds: string[] = [];
+    for (let i = 0; i < 18; i++) {
+      const id = uid(); historicalIds.push(id);
+      f.app.files.repo.addMount({ ...original, id, root: join(f.root, id) }, f.app.files.repo.baseline(original), []);
+    }
+    const facts = f.app.store.runtimeFacts(f.c.environmentId) as any;
+    assert.deepEqual(facts.unavailableMounts.map((m: any) => m.mountId), historicalIds.slice(-16).reverse());
+    assert.equal(f.app.files.repo.mount(f.mountId, f.c.environmentId).id, f.mountId);
+    assert.equal(f.app.files.repo.authorized(f.candidateId, f.c.environmentId), false);
   } finally { await f.close(); }
 });

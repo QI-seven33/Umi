@@ -29,7 +29,8 @@ function LiveFilePreview({ conversationId, target, revision }: { conversationId:
   const identity = fileTargetKey(target);
   const version = JSON.stringify([conversationId, identity, reload]);
   const read = async (startByte = 0): Promise<PreviewPage> => {
-    const byteLength = startByte === 0 ? 8192 : 64000;
+    // 首段也使用既有64KB界面分页容量；常见HTML无需再往返一次才能显示。
+    const byteLength = 64000;
     if (target.attachmentId) return readOnce({ type: 'preview_attachment', conversationId, attachmentId: target.attachmentId, startByte, byteLength }, version);
     return readOnce({ type: 'preview_file', conversationId, mountId: target.mountId, path: target.path, startByte, byteLength, ...(startByte && current.current?.hash ? { expectedHash: current.current.hash } : {}) }, version);
   };

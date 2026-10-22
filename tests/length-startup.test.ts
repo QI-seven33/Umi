@@ -145,8 +145,8 @@ test('受阻总结自身length也保留usage并使用完整本地正文',async()
       yield {kind:'response',message:{role:'assistant',content:'半截总结'},finishReason:'length',usage:{prompt_tokens:7,completion_tokens:4096},raw:{draft:'半截总结'}};
     }
   }
-  const f=fixture(new SummaryModel(Array.from({length:4},(_,i)=>call('search_history',{query:'重复'},'查找',String(i)))));
-  try{const r=f.app.send(f.c.conversationId,uid(),'查历史');assert.equal((await f.app.wait(r.runId)).status,'failed');const state=f.app.store.snapshot(f.c.conversationId);assert.notEqual(state.runs[r.runId]?.failureSummary?.text,'半截总结');assert.match(state.runs[r.runId]?.failureSummary?.text??'',/停止重复请求/);assert(Object.values(state.attempts).some(a=>a.finishReason==='length'));const usage=f.app.store.events(f.c.conversationId).filter(e=>e.type==='usage.recorded');assert.equal(usage.length,5);}finally{await f.close();}
+  const f=fixture(new SummaryModel(Array.from({length:5},(_,i)=>call('read_history',{messageId:'missing'},'查找',String(i)))));
+  try{const r=f.app.send(f.c.conversationId,uid(),'查历史');assert.equal((await f.app.wait(r.runId)).status,'failed');const state=f.app.store.snapshot(f.c.conversationId);assert.notEqual(state.runs[r.runId]?.failureSummary?.text,'半截总结');assert.match(state.runs[r.runId]?.failureSummary?.text??'',/停止重复请求/);assert(Object.values(state.attempts).some(a=>a.finishReason==='length'));const usage=f.app.store.events(f.c.conversationId).filter(e=>e.type==='usage.recorded');assert.equal(usage.length,6);}finally{await f.close();}
 });
 
 test('只生成思考就length时也能有界续作，原思考仍完整回传',async()=>{

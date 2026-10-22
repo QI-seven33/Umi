@@ -1,3 +1,4 @@
+import {SkillPreview} from './SkillPreview.js';
 import {useEffect,useRef,useState} from 'react';
 import {Download,ChevronDown} from 'lucide-react';
 import type {SkillImportRecord,SkillImportSummary} from '../../../../../../packages/protocol/src/skill-import.js';
@@ -51,7 +52,7 @@ export function SkillImport({onInstalled}:{onInstalled:()=>void}){
       <dl className="settings-statistics"><div><dt>原始来源</dt><dd>{detail.snapshot.source.repository}</dd></div><div><dt>目录</dt><dd>{detail.snapshot.source.path||'仓库根目录'}</dd></div><div><dt>固定提交</dt><dd><code>{detail.snapshot.source.commit}</code></dd></div><div><dt>文件 / 字节</dt><dd>{detail.snapshot.files.length} / {detail.snapshot.totalBytes.toLocaleString()}</dd></div></dl>
       <p>许可：{detail.snapshot.license}</p><p>兼容性：{detail.snapshot.compatibility}</p>
       <details><summary>文件清单与 SHA-256</summary><ul className="settings-import-files">{detail.snapshot.files.map(f=><li key={f.path}><code>{f.path}</code><span>{f.bytes.toLocaleString()} B · {f.sha256.slice(0,12)}</span></li>)}</ul></details>
-      <details className="settings-skill-preview"><summary>查看原始 SKILL.md</summary><pre tabIndex={0}>{detail.snapshot.preview}</pre>{detail.snapshot.previewTruncated&&<p>此处为前12,000字节预览，完整正文已保存。</p>}</details>
+      <details className="settings-skill-preview"><summary>查看原始 SKILL.md</summary>{['staged','installed'].includes(detail.state)?<SkillPreview key={detail.id+detail.state} source={{id:detail.id}}/>:<><pre tabIndex={0}>{detail.snapshot.preview}</pre><p>此记录已失效，仅保留获取时的摘要。</p></>}</details>
       {detail.state==='staged'&&<div className="settings-actions"><button type="button" className="ui-primary settings-import-install" disabled={busy} onClick={()=>void action(async()=>{
         await window.umi.request({type:'skills_import_install',id:detail.id,planHash:detail.planHash!,confirm:true});
         if(alive.current){setNotice('已导入，默认停用。可在技能库查看并启用。');onInstalled();}

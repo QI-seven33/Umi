@@ -332,7 +332,7 @@ export class TaskRepository implements TaskPort {
       total: report.tasks.length,
       omitted: Math.max(0, report.tasks.length - 6),
       instruction:
-        '完整来源、验收项和阻塞原因使用 read_task_checkpoints；未展示不表示完成。继续执行前核对当前用户原话。',
+        '这些是可选的模型任务记录，不代替用户原话，也不要求每轮更新。需要完整来源或验收时使用 read_task_checkpoints；未展示不表示完成，状态询问不撤销目标。',
     };
   }
   complete(runId: string, messageId: string, generation: number, deferred: readonly string[] = [], failure?: { code: string; reason: string }) {

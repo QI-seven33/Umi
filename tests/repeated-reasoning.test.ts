@@ -63,98 +63,95 @@ class LoopModel extends ScriptModel {
     this.requests.push(structuredClone(request));
     signal.addEventListener('abort', () => { this.aborted = true; }, { once: true });
     try {
-      yield { kind: 'delta', channel: 'text', key: 'text', text: '准备开始执行。' };
-      yield { kind: 'delta', channel: 'tool', key: 'draft', text: '{"relativePath":"unexecuted.txt","content":"' };
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < 64; i++) {
         const chunk = phrase.repeat(12); this.generated += chunk;
         yield { kind: 'delta', channel: 'reasoning', key: 'reasoning', text: chunk };
         signal.throwIfAborted();
       }
-      throw new Error('保护未生效');
+      yield { kind: 'delta', channel: 'text', key: 'text', text: '推演结束，给出用户答复。' };
+      yield { kind: 'response', message: { role: 'assistant', content: '推演结束，给出用户答复。', reasoning_content: this.generated },
+        finishReason: 'stop', usage: { prompt_tokens: 20, completion_tokens: 5000 }, raw: {} };
     } finally { this.closed = true; }
   }
 }
 function fixture(model: ScriptModel) {
-  const root = mkdtempSync(join(tmpdir(), 'umi-reasoning-guard-')), workspace = join(root, 'workspace');
-  mkdirSync(workspace);
-  const app = new UmiApplication(join(root, 'data'), model, {
-    limits: { maxTurns: 6, maxRetries: 2, modelTimeoutMs: 1000, retryDelayMs: 1 },
-  });
+  const root = mkdtempSync(join(tmpdir(), 'umi-reasoning-guard-')), workspace = join(root, 'workspace'); mkdirSync(workspace);
+  const app = new UmiApplication(join(root, 'data'), model, { limits: { maxTurns: 6, maxRetries: 2, modelTimeoutMs: 1000, retryDelayMs: 1 } });
   const c = app.createConversation(workspace, { thinking: 'normal' });
   return { root, workspace, app, c, async close() { await app.close(); removeTestRoot(root); } };
 }
 
-test('思考重复：真实循环取消连接、逐片段保留原稿、无重试/工具/批准，用量未知且暂停可见', async () => {
-  const model = new LoopModel([text('已按继续要求重新判断')]), f = fixture(model);
+test('思考重复只作观察：保留完整思考/正文/usage，不截流或额外请求，重启与重放一致', async () => {
+  const model = new LoopModel([]), f = fixture(model);
+  try {
+    const r = f.app.send(f.c.conversationId, uid(), '分析重复模式');
+    assert.equal((await f.app.wait(r.runId)).status, 'completed');
+    assert.equal(model.requests.length, 1); assert(model.closed);
+    const state = f.app.store.snapshot(f.c.conversationId), events = f.app.store.events(f.c.conversationId);
+    assert.equal(state.blocks.filter(b => b.kind === 'reasoning').map(b => b.text).join(''), model.generated);
+    assert(Buffer.byteLength(model.generated) > 40000);
+    assert.equal(events.filter(e => e.type === 'model.repetition_observed').length, 1);
+    assert.equal(events.filter(e => e.type === 'model.attempt_failed' || e.type === 'run.failure_summary').length, 0);
+    assert.equal(f.app.contextStatistics(f.c.conversationId).latestRun!.missingUsage, 0);
+    assert.equal(f.app.store.readArtifact<any>(events.find(e => e.type === 'usage.recorded')!.payload.usageRef).completion_tokens, 5000);
+    assert.equal(f.app.store.messages(f.c.conversationId).at(-1)!.payload.content, '推演结束，给出用户答复。');
+    assert.deepEqual(events.reduce(reduceConversation, initialState(f.c.conversationId, state.cursor.logEpoch)), state);
+    await f.app.close(); const reopened = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
+    try { assert.deepEqual(reopened.store.snapshot(f.c.conversationId), state); } finally { await reopened.close(); }
+  } finally { await f.close(); }
+});
+test('思考重复观察不插入模型指令，不替用户创建继续请求', async () => {
+  const model = new LoopModel([text('按新要求继续解释')]), f = fixture(model);
+  try {
+    const first = f.app.send(f.c.conversationId, uid(), '分析'); await f.app.wait(first.runId);
+    assert.equal(model.requests.length, 1);
+    const next = f.app.send(f.c.conversationId, uid(), '进一步解释'); await f.app.wait(next.runId);
+    assert.equal(model.requests.length, 2);
+    const messages = model.requests[1]!.body.messages as any[]; validatePairs(messages);
+    assert(messages.some(m => m.reasoning_content === model.generated));
+    assert(!messages.some(m => m.role === 'system' && /model.repetition_observed|暂停本轮生成/.test(m.content)));
+  } finally { await f.close(); }
+});
+test('思考重复之后用户停止仍生效，迭代器关闭且不产生完整响应', async () => {
+  const external = new AbortController(), model = new LoopModel([]), observations: unknown[] = [];
+  const request = model.prepare([], [], settingsSchema.parse({ thinking: 'normal' }), 65536);
+  const stream = streamWithIdleTimeout(model, request, external.signal, 1000, o => observations.push(o));
+  while (Buffer.byteLength(model.generated) < 10000) await stream.next();
+  assert.equal(observations.length, 1);
+  const stop = new UmiError('STOPPED', '用户停止'); external.abort(stop);
+  await assert.rejects(() => stream.next(), error => error === stop); assert(model.closed);
+});
+test('重复观察之后真实断流仍解释受阻，残缺工具不执行、不自动重试', async () => {
+  class BrokenModel extends ScriptModel {
+    override async *stream(request: PreparedRequest): AsyncGenerator<ModelFrame> {
+      this.requests.push(request);
+      yield { kind: 'delta', channel: 'reasoning', key: 'r', text: phrase.repeat(300) };
+      yield { kind: 'delta', channel: 'tool', key: 't', text: '{"relativePath":"unexecuted.txt","content":"' };
+      throw new UmiError('PROVIDER_INTERRUPTED', '测试连接断开', true);
+    }
+  }
+  const model = new BrokenModel([]), f = fixture(model);
   try {
     const r = f.app.send(f.c.conversationId, uid(), '创建文件');
     assert.equal((await f.app.wait(r.runId)).status, 'interrupted');
-    assert.equal(model.requests.length, 1); assert(model.closed); assert(model.aborted);
-    const state = f.app.store.snapshot(f.c.conversationId), run = state.runs[r.runId]!;
-    assert.equal(run.code, 'PROVIDER_REPETITION');
-    assert.equal(state.blocks.filter(b => b.kind === 'reasoning').map(b => b.text).join(''), model.generated);
-    assert(Buffer.byteLength(model.generated) < 20000);
-    assert.equal(f.app.store.tools(r.runId).length, 0); assert.equal(Object.keys(state.approvals).length, 0);
+    assert.equal(model.requests.length, 1); assert.equal(f.app.store.tools(r.runId).length, 0);
     assert(!existsSync(join(f.app.store.environment(f.c.environmentId).root, 'task/scratch/unexecuted.txt')));
-    assert(f.app.store.messages(f.c.conversationId).filter(m => m.role === 'assistant').every(m => !m.modelAttemptId));
-    assert.equal(f.app.store.events(f.c.conversationId).filter(e => e.type === 'usage.recorded').length, 0);
-    assert.equal(f.app.contextStatistics(f.c.conversationId).latestRun!.missingUsage, 1);
-    assert.equal(f.app.contextStatistics(f.c.conversationId).latestRun!.retries, 0);
-    assert(run.failureSummary?.text.includes('任务尚未完成')); assert(run.failureSummary?.text.includes('\n\n'));
-    const html = renderToStaticMarkup(createElement(Timeline, { snapshot: new DesktopService(f.app).snapshot(f.c.conversationId), onPreview: () => {}, onError: () => {} }));
-    assert.match(html, /持续逐字重复/); assert.match(html, /用量为未知/);
-    assert.deepEqual(f.app.store.events(f.c.conversationId).reduce(reduceConversation, initialState(f.c.conversationId, state.cursor.logEpoch)), state);
-    await f.app.close();
-    const reopened = new UmiApplication(join(f.root, 'data'), model);
-    try { assert.deepEqual(reopened.store.snapshot(f.c.conversationId), state); assert.equal(model.requests.length, 1); }
-    finally { await reopened.close(); }
+    assert.equal(f.app.store.events(f.c.conversationId).filter(e => e.type === 'model.repetition_observed').length, 1);
+    const summary = f.app.store.snapshot(f.c.conversationId).runs[r.runId]!.failureSummary!;
+    assert.match(summary.text, /测试连接断开/); assert.match(summary.text, /未.*完成/);
   } finally { await f.close(); }
 });
-test('思考重复：用户明确继续才有新请求，看到本地暂停事实，不回传残缺工具或删已完成历史', async () => {
-  const model = new LoopModel([text('已按继续要求重新判断')]), f = fixture(model);
-  try {
-    const first = f.app.send(f.c.conversationId, uid(), '创建文件'); await f.app.wait(first.runId);
-    const next = f.app.send(f.c.conversationId, uid(), '继续，先简短说明已有结果，不调用工具');
-    assert.equal((await f.app.wait(next.runId)).status, 'completed'); assert.equal(model.requests.length, 2);
-    const messages = model.requests[1]!.body.messages as any[];
-    validatePairs(messages); assert(messages.some(m => m.role === 'assistant' && m.content.includes('持续逐字重复')));
-    assert(!messages.some(m => m.tool_calls?.length));
-    assert.equal(f.app.store.events(f.c.conversationId).filter(e => e.type === 'run.failure_summary').length, 1);
-  } finally { await f.close(); }
-});
-test('思考重复：用户停止优先于同帧保护，迭代器仍关闭', async () => {
-  const external = new AbortController(), model = new LoopModel([]);
-  const request = model.prepare([], [], settingsSchema.parse({ thinking: 'normal' }), 1000);
-  const stream = streamWithIdleTimeout(model, request, external.signal, 1000);
-  while (Buffer.byteLength(model.generated) < 4096) await stream.next();
-  const stop = new UmiError('STOPPED', '用户停止'); external.abort(stop);
-  await assert.rejects(() => stream.next(), error => error === stop);
-  assert(model.closed);
-});
-test('思考重复：新输入阻止旧受阻说明，本地说明失败不会冒充成功或额外请求模型', async () => {
-  for (const code of ['CONTEXT_SOURCE_CHANGED', 'PERSISTENCE_FAILED']) {
-    const model = new LoopModel([]), f = fixture(model);
-    f.app.store.persistFailureSummary = () => { throw new UmiError(code, '注入收尾失败'); };
-    try {
-      const r = f.app.send(f.c.conversationId, uid(), '创建文件'); await f.app.wait(r.runId);
-      const run = f.app.store.snapshot(f.c.conversationId).runs[r.runId]!;
-      assert.equal(run.status, 'interrupted'); assert.equal(run.code, code);
-      assert.equal(run.failureSummary, undefined); assert.equal(model.requests.length, 1);
-      assert.equal(f.app.store.tools(r.runId).length, 0);
-    } finally { await f.close(); }
-  }
-});
-test('思考重复：正常长正文和重复代码工具参数不截断，实际写入仍需一次具体批准', async () => {
+test('长思考、重复代码工具参数与正文可以完成写入，宿主操作仍需具体批准', async () => {
   const content = 'const repeated = 1;\n'.repeat(600), prose = '这是用户要求的重复正文。'.repeat(300);
-  const model = new ScriptModel([call('write_scratch', { relativePath: 'repeat.js', content }, prose), text('写入完成')]);
-  const f = fixture(model);
+  const write = call('write_scratch', { relativePath: 'repeat.js', content }, prose); write.reasoning_content = phrase.repeat(400);
+  const model = new ScriptModel([write, text('写入完成')]), f = fixture(model);
   try {
     const r = f.app.send(f.c.conversationId, uid(), '写入重复代码样本');
     const approval = await eventually(() => Object.entries(f.app.store.snapshot(f.c.conversationId).approvals).find(([, a]) => a.status === 'pending')?.[0]);
+    assert(!existsSync(join(f.app.store.environment(f.c.environmentId).root, 'task/scratch/repeat.js')));
     f.app.approve(f.c.conversationId, approval, 'allow');
     assert.equal((await f.app.wait(r.runId)).status, 'completed');
     assert.equal(f.app.store.tools(r.runId).length, 1); assert.equal(model.requests.length, 2);
     assert.equal(readFileSync(join(f.app.store.environment(f.c.environmentId).root, 'task/scratch/repeat.js'), 'utf8'), content);
-    assert.equal(f.app.store.snapshot(f.c.conversationId).runs[r.runId]!.code, undefined);
   } finally { await f.close(); }
 });

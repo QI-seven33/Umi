@@ -59,28 +59,28 @@ test('重复边界：同目录文件多次修改后，同参数命令可复测�
   } finally { await f.close(); }
 });
 
-test('重复边界：命令退出和环境修订不算内容变化，第四次相同命令仍停止', async () => {
+test('重复边界：成功的相同命令可继续复查，不再以第四次调用推断失败', async () => {
   const f = fixture(); try {
     f.steps.push(check(), check(), check(), check(), text('没有新输入，已受阻'));
-    const run = await f.send(); assert.equal(run.status, 'failed'); assert.equal(f.executions, 3);
-    assert.equal(f.app.store.tools(run.runId).at(-1)!.state, 'failed');
-    assert.equal(f.app.store.snapshot(f.c.conversationId).runs[run.runId]!.code, 'TASK_STALLED');
+    const run = await f.send(); assert.equal(run.status, 'completed'); assert.equal(f.executions, 4);
+    assert.equal(f.app.store.tools(run.runId).at(-1)!.state, 'succeeded');
+    assert.equal(f.app.store.snapshot(f.c.conversationId).runs[run.runId]!.code, undefined);
   } finally { await f.close(); }
 });
 
-test('重复边界：同内容重写和工作目录外修改不能清零命令计数', async () => {
+test('重复边界：同内容重写和工作目录外修改不影响成功复查', async () => {
   for (const unrelated of [false, true]) {
     const f = fixture(unrelated ? 'project' : ''); try {
       f.steps.push(write('相同内容'), check(), check(), check(), write('相同内容', unrelated ? 'other.txt' : 'source.txt'), check(), text('受阻'));
-      const run = await f.send(); assert.equal(run.status, 'failed'); assert.equal(f.executions, 3);
+      const run = await f.send(); assert.equal(run.status, 'completed'); assert.equal(f.executions, 4);
     } finally { await f.close(); }
   }
 });
 
-test('重复边界：修改只重置此前计数，之后三次无变化仍会停止', async () => {
+test('重复边界：修改后仍可多次成功复查，不依赖固定次数', async () => {
   const f = fixture(); try {
     f.steps.push(check(), check(), check(), write('新内容'), check(), check(), check(), check(), text('受阻'));
-    const run = await f.send(); assert.equal(run.status, 'failed'); assert.equal(f.executions, 6);
+    const run = await f.send(); assert.equal(run.status, 'completed'); assert.equal(f.executions, 7);
   } finally { await f.close(); }
 });
 

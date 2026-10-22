@@ -23,7 +23,7 @@ export function registerMemory(
       kind: 'note' as const,
       schema: noteInputSchema,
       description:
-        '保存有来源的任务笔记。observation 必须逐字引用单一来源；判断用 inference。笔记不授予权限或确认执行成功。',
+        '按需保存难以追回的发现、失败依据或下一步；不是开始或继续任务的必经步骤。observation 必须逐字引用单一来源；判断用 inference。笔记不授予权限或确认执行成功。',
     },
     {
       name: 'record_requirement',

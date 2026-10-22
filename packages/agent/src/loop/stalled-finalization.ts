@@ -56,7 +56,7 @@ export async function finalizeStalled(
     try {
       const current = facts();
       current.state = { ...current.state, instruction:
-        '本轮因相同请求没有进展而停止执行。只给用户一段最终说明：已完成什么、哪一步失败及真实原因、此次重复操作未执行、需要什么条件改变后继续。不得声称任务已完成；不得要求无关改动重建权限；不得再调用工具。' };
+        '本轮因相同请求没有进展而停止执行。只给用户一段最终说明：已完成什么、哪一步失败及真实原因、重复尝试仍失败、需要什么条件改变后继续。不得声称任务已完成；不得要求无关改动重建权限；不得再调用工具。' };
       // 只投影现有完整消息组；不为收尾另发上下文维护模型请求。
       const context = contextManager.inspect(current, []);
       const maxOutputTokens = Math.min(context.maxOutputTokens, 4096);
@@ -87,7 +87,7 @@ export async function finalizeStalled(
     const result = previous?.result_ref ? store.readArtifact<{ content: string }>(previous.result_ref) : null;
     const reason = result?.content?.slice(0, 600) || '相同请求没有取得新信息';
     messageId = store.persistFailureSummary(runId,
-      `这一步仍未完成，本轮已停止重复请求；此次重复操作没有执行。\n\n上次操作的结果：${reason}。\n\n已有操作结果和交付回执保留。需要先解决上述阻塞条件才能继续；不会自动重跑结果未知的操作。`, generation);
+      `这一步仍未完成，本轮已停止重复请求；最近一次请求仍失败。\n\n上次操作的结果：${reason}。\n\n已有操作结果和交付回执保留。需要先解决上述阻塞条件才能继续；不会自动重跑结果未知的操作。`, generation);
   }
   checkCurrent();
   const failure = { code: 'TASK_STALLED', reason: '重复请求已停止，本轮仍有未完成步骤。' };

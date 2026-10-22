@@ -626,14 +626,37 @@ export async function verifyDesktop(
         win.webContents.executeJavaScript(
           `document.querySelectorAll('.settings-page-nav-item').length`,
         ),
-      (value) => value === 6,
+      (value) => value === 7,
     );
     const categories = await win.webContents.executeJavaScript(
       `Array.from(document.querySelectorAll('.settings-page-nav-item')).map(node=>node.innerText)`,
     );
-    assert.deepEqual(categories, ['个人资料', '模型设置', '会话', '执行环境', '技能', '归档']);
-    pass('设置按六个独立分类展示', categories);
+    assert.deepEqual(categories, ['通用', '个人资料', '模型设置', '会话', '执行环境', '技能', '归档']);
+    pass('设置按七个独立分类展示，常用外观与输入优先', categories);
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[aria-label=发送快捷键]')"),Boolean);
+    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=发送快捷键]');s.value='mod-enter';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("localStorage.getItem('umi.sendShortcut')"),v=>v==='mod-enter');
+    const shortcut=await win.webContents.executeJavaScript(`(() => {
+      const input=document.querySelector('.composer textarea');
+      const results=[{}, {ctrlKey:true}, {metaKey:true}, {ctrlKey:true,isComposing:true}, {ctrlKey:true,keyCode:229}].map(p=>{const e=new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true,...p});input.dispatchEvent(e);return e.defaultPrevented;});
+      return {results,title:document.querySelector('.send-button')?.title};
+    })()`);
+    assert.deepEqual(shortcut.results,[false,true,true,false,false]);assert(shortcut.title.includes('Ctrl'));
+    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=主题]');s.value='dark';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("document.documentElement.dataset.theme"),v=>v==='dark');
+    writeFileSync(join(dataRoot,'settings-general-dark.png'),(await captureFrame(true)).toPNG());
+    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=主题]');s.value='light';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("document.documentElement.dataset.theme"),v=>v==='light');
+    writeFileSync(join(dataRoot,'settings-general-light.png'),(await captureFrame(true)).toPNG());
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=profile]').click()");
+    await win.webContents.executeJavaScript("document.querySelector('[data-category=general]').click()");
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=发送快捷键]').value"),'mod-enter');
+    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=发送快捷键]');s.value='enter';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    pass('通用设置实际保存并联动主题和输入框，Ctrl/⌘发送与IME防误发通过');
     await win.webContents.executeJavaScript("document.querySelector('[data-category=conversation]').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.settings-diagnostics')"),Boolean);
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('.settings-diagnostics').open"),false);
+    await win.webContents.executeJavaScript("document.querySelector('.settings-diagnostics summary').click()");
     await until(async () => win.webContents.executeJavaScript("document.querySelector('.settings-content').innerText"), value => String(value).includes('最近一轮用量'));
     const usagePanel = await win.webContents.executeJavaScript("document.querySelector('.settings-content').innerText");
     assert(String(usagePanel).includes('官方账单'));
@@ -660,7 +683,7 @@ export async function verifyDesktop(
       await win.webContents.executeJavaScript("document.documentElement.dataset.theme="+JSON.stringify(theme)+";document.querySelector('[data-category=skills]').click()");
       await delay(150);
       writeFileSync(join(dataRoot,'settings-skills-'+theme+'.png'),(await captureFrame(true)).toPNG());
-      for(const category of ['profile','model','conversation','plugins','skills','archive']){
+      for(const category of ['general','profile','model','conversation','plugins','skills','archive']){
         await win.webContents.executeJavaScript("document.querySelector('[data-category="+category+"]').click()");
         await delay(80);
         const layout=await win.webContents.executeJavaScript(`(() => {
@@ -668,8 +691,8 @@ export async function verifyDesktop(
           return {overflow:p.scrollWidth>p.clientWidth,heading:parseFloat(getComputedStyle(heading).fontSize),controls:controls.map(c=>({height:c.getBoundingClientRect().height,font:parseFloat(getComputedStyle(c).fontSize)}))};
         })()`);
         assert.equal(layout.overflow,false,theme+' '+category);
-        assert(layout.heading<=18);
-        assert(layout.controls.every((c:any)=>c.height<=33&&c.font<=12));
+        assert(layout.heading>=20&&layout.heading<=24);
+        assert(layout.controls.every((c:any)=>c.height<=37&&c.font>=13&&c.font<=14));
       }
     }
     win.setSize(620,760);
@@ -681,7 +704,7 @@ export async function verifyDesktop(
     writeFileSync(join(dataRoot,'settings-skills-narrow.png'),(await captureFrame(true)).toPNG());
     win.setBounds(settingsBounds);
     await win.webContents.executeJavaScript("document.documentElement.dataset.theme='light';document.querySelector('[data-category=profile]').click()");
-    pass('设置六类页面在明暗主题保持紧凑字号和32px控件，窄窗口无横向溢出');
+    pass('设置七类页面在明暗主题保持清晰字号和36px控件，窄窗口无横向溢出');
 
 
     await win.webContents.executeJavaScript("document.querySelector('[data-category=skills]').click()");
@@ -699,12 +722,27 @@ export async function verifyDesktop(
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.settings-import-install')"),Boolean);
     const importText=await win.webContents.executeJavaScript("document.querySelector('.settings-import-detail').textContent");
     assert(importText.includes('d'.repeat(40)));assert(importText.includes('MIT'));assert(importText.includes('references/check.md'));
+    await win.webContents.executeJavaScript("document.querySelector('.settings-import-detail .settings-skill-preview').open=true");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.settings-import-detail .settings-skill-reader pre')?.textContent?.length"),v=>Number(v)>0);
+    await win.webContents.executeJavaScript("document.querySelector('.settings-import-detail .settings-skill-reader button').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.settings-import-detail .settings-skill-reader pre')?.textContent"),v=>String(v).includes('FULL-PREVIEW-END'));
+    pass('未导入长技能可在真实设置界面续读完整正文，确认前仍不进入技能库');
     writeFileSync(join(dataRoot,'settings-skill-import-review.png'),(await captureFrame(true)).toPNG());
     pass('GitHub技能获取先显示固定提交/完整清单和许可，确认前不进入技能库（离线来源）');
     await win.webContents.executeJavaScript("document.querySelector('.settings-import-install').click()");
     await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='import-example');},Boolean);
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-skill=import-example] input')"),Boolean);
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] input').checked"),false);
+    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=筛选技能]');s.value='disabled';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('[data-skill]').length"),v=>v===1);
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-inspect').click()");
+    await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-skill=import-example] .settings-skill-reader button')"),Boolean);
+    await until(()=>win.webContents.executeJavaScript("!document.querySelector('[data-skill=import-example] .settings-skill-reader button').disabled"),Boolean);
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-reader button').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] pre')?.textContent"),v=>String(v).includes('FULL-PREVIEW-END'));
+    await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-inspect').click()");
+    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=筛选技能]');s.value='all';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    pass('未启用筛选与已导入技能完整预览通过，阅读不会隐式启用');
     await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] input').click()");
     await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='import-example').enabled;},Boolean);
     await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-inspect').click()");

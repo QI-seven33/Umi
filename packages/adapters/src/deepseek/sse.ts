@@ -25,7 +25,7 @@ export async function* readSse(
     }
     if (value.startsWith('data:')) {
       const part = value.slice(5).replace(/^ /, '');
-      size += Buffer.byteLength(part);
+      size += Buffer.byteLength(part) + (data.length ? 1 : 0);
       if (size > maxEventBytes)
         throw new UmiError('PROTOCOL_INVALID', '模型事件超过大小限制');
       data.push(part);
@@ -39,15 +39,21 @@ export async function* readSse(
       signal.throwIfAborted();
       if (value?.byteLength) activity?.();
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-      if (Buffer.byteLength(buffer) > maxEventBytes)
-        throw new UmiError('PROTOCOL_INVALID', '流式行超过大小限制');
-      let i: number;
-      while ((i = buffer.indexOf('\n')) >= 0) {
-        const row = buffer.slice(0, i).replace(/\r$/, '');
-        buffer = buffer.slice(i + 1);
+      // 网络读取可一次合并很多合法事件；逐行核对后只检查未闭合尾行，
+      // 不能把整个网络块大小当成单条事件大小。
+      let i: number, offset = 0;
+      while ((i = buffer.indexOf('\n', offset)) >= 0) {
+        signal.throwIfAborted();
+        const row = buffer.slice(offset, i).replace(/\r$/, '');
+        if (Buffer.byteLength(row) > maxEventBytes + 6)
+          throw new UmiError('PROTOCOL_INVALID', '流式行超过大小限制');
+        offset = i + 1;
         const result = line(row);
         if (result !== undefined) yield result;
       }
+      buffer = buffer.slice(offset);
+      if (Buffer.byteLength(buffer.replace(/\r$/, '')) > maxEventBytes + 6)
+        throw new UmiError('PROTOCOL_INVALID', '流式行超过大小限制');
       if (done) {
         if (buffer) line(buffer.replace(/\r$/, ''));
         const result = line('');

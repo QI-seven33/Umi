@@ -116,14 +116,14 @@ test('任务验收：普通答复不冒充有目标核验，结束报告与事�
   }
 });
 
-test('任务验收：模型虚报完成只得到 needs_work，无进展最多提醒一次', async () => {
+test('任务验收：保留 needs_work 事实，不因可选检查点强制模型重答', async () => {
   const steps: Step[] = [];
   const f = fixture(steps);
-  steps.push(() => f.checkpoint(), text('全部完成'), text('仍声称全部完成'));
+  steps.push(() => f.checkpoint(), text('全部完成'));
   try {
     const r = await f.run();
     assert.equal(f.report(r.runId).status, 'needs_work');
-    assert.equal(f.model.requests.length, 3);
+    assert.equal(f.model.requests.length, 2);
     assert.equal(f.app.tasks.list(f.c.conversationId).length, 1);
     assert.equal(f.app.store.getRun(r.runId).status, 'completed');
   } finally {
@@ -134,7 +134,7 @@ test('任务验收：模型虚报完成只得到 needs_work，无进展最多提
 test('任务续作：旧待办不强迫新一轮寒暄继续操作', async () => {
   const steps: Step[] = [];
   const f = fixture(steps);
-  steps.push(() => f.checkpoint(), text('未完成'), text('保留待办'), text('你好'));
+  steps.push(() => f.checkpoint(), text('未完成'), text('你好'));
   try {
     await f.run();
     const before = f.model.requests.length;

@@ -1,3 +1,5 @@
+import {skillPreviewRangeSchema} from '../../../protocol/src/skills.js';
+import {byteExcerpt} from '../../../agent/src/context/bounded.js';
 import {mkdirSync,readdirSync,readFileSync,statSync,lstatSync,renameSync,rmSync,existsSync} from 'node:fs';
 import {join,relative,sep} from 'node:path';
 import {randomUUID} from 'node:crypto';
@@ -39,6 +41,17 @@ export class SkillImports {
       this.save(r);this.library.refresh();
     }
     return r;
+  }
+  preview(id:string,startByte=0,byteLength=12000){
+    const range=skillPreviewRangeSchema.parse({startByte,byteLength}),record=this.detail(id);
+    if(!record.snapshot||!['staged','installed'].includes(record.state))throw new UmiError('RUN_STATE','当前记录没有可预览的完整正文');
+    if(record.state==='installed')return this.library.preview(record.snapshot.name,record.snapshot.version,range.startByte,range.byteLength);
+    const root=safeRoot(join(this.folder(id),'payload')),file=safeFile(root,'SKILL.md');
+    if(statSync(file).size>262144)throw new UmiError('RESOURCE_LIMIT','技能正文超过256KiB');
+    const bytes=readFileSync(file);safeFile(root,'SKILL.md');
+    if(bytes.length>262144||bytesHash(bytes)!==record.snapshot.version)throw new UmiError('RESOURCE_CHANGED','技能正文与冻结包不符，请重新获取');
+    const text=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes),page=byteExcerpt(text,range.startByte,range.byteLength);
+    return {...page,sourceHash:record.snapshot.version,totalBytes:bytes.length,nextStartByte:page.endByte<bytes.length?page.endByte:null,truncated:page.endByte<bytes.length};
   }
   list():{records:SkillImportSummary[];issues:string[]} {
     const records:SkillImportSummary[]=[],issues:string[]=[];

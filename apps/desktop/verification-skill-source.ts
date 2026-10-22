@@ -2,9 +2,9 @@ import {createHash} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
 export const verificationSkillInput={repository:'https://github.com/umi-verification/skill-fixture',path:'skills/import-example',ref:'main'};
 export const verificationCommit='d'.repeat(40);
-export function skillSourceFixture(){
+export function skillSourceFixture(extraBody=''){
   const files=new Map<string,Uint8Array>([
-    ['SKILL.md',Buffer.from('---\nname: import-example\ndescription: Imported verification method with an on-demand reference.\nlicense: MIT\n---\n# Imported method\nRead [reference](references/check.md) only when needed.\n')],
+    ['SKILL.md',Buffer.from('---\nname: import-example\ndescription: Imported verification method with an on-demand reference.\nlicense: MIT\n---\n# Imported method\nRead [reference](references/check.md) only when needed.\n'+extraBody)],
     ['references/check.md',Buffer.from('Fixture reference: VERIFICATION-ONLY-7391.\n')],
     ['scripts/no-run.mjs',Buffer.from('throw Error("must never run during import");\n')],
     ['assets/sample.bin',Buffer.from([0,255,31,128])],
@@ -40,5 +40,5 @@ export function skillSourceFixture(){
 // GUI回归使用确定的离线响应，稍作延迟让真实进度与队列检查有观察窗口。
 export const verificationSkillFetch:typeof fetch=async(input,init)=>{
   await delay(30,undefined,init?.signal?{signal:init.signal}:{});
-  return skillSourceFixture().transport(input,init);
+  return skillSourceFixture('中😀文方法\n'.repeat(1100)+'FULL-PREVIEW-END').transport(input,init);
 };

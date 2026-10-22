@@ -15,7 +15,7 @@ export function runConclusion(run: RunRow, reason: string, code: string | undefi
   const next = unknown || run.status === 'recovery_required'
     ? '需要先核验原操作的结果；没有自动重跑结果未知的操作。可以继续发消息安排核验。'
     : code === 'RUN_OUTPUT_BUDGET' || code === 'RUN_OUTPUT_USAGE_UNKNOWN'
-      ? (code === 'RUN_OUTPUT_USAGE_UNKNOWN' ? '本轮用量无法完整核算，可在设置 → 会话中解除输出预算后继续。' : '可在设置 → 会话中提高或解除本轮输出预算，再继续。恢复同一运行不会清零已记录用量。')
+      ? (code === 'RUN_OUTPUT_USAGE_UNKNOWN' ? '本轮用量无法完整核算，可在设置 → 会话中解除输出预算后继续。' : '可在设置 → 会话中取消旧版输出限制，再继续。恢复同一运行不会清零已记录用量。')
       : code === 'PROVIDER_CONFIG'
         ? '请先检查模型设置中的连接配置，再发消息继续。'
         : code?.startsWith('CONTEXT_')

@@ -3,6 +3,7 @@ import { skillCatalog } from '../skills.js';
 import type { SkillPort } from '../skills.js';
 import { finalizeTurnLimit } from './turn-limit-finalization.js';
 import { outputLimitState } from './output-limit.js';
+import { answerRecoveryState } from './answer-recovery.js';
 import { streamWithIdleTimeout } from '../model-stream.js';
 import { currentStall, finalizeStalled } from './stalled-finalization.js';
 import type { TaskPort } from '../tasks.js';
@@ -59,6 +60,7 @@ export class AgentEngine {
       memory = this.store.contextMemory(run.conversation_id),
       observations = this.store.settings(run.conversation_id).model === 'deepseek-flash'
         ? this.store.imageObservations(run.conversation_id, messages.filter(m => m.applied && !memory.archivedIds.includes(m.id)).map(m => m.id)) : {};
+    const projection = this.store.snapshot(run.conversation_id);
     return {
       messages: messages.map((m) => ({
         ...m,
@@ -93,10 +95,11 @@ export class AgentEngine {
         unresolvedExecutions: this.store.unresolvedEnvironment(environment.id).map((t) => ({
           executionId: t.id, runId: t.run_id, name: t.name, state: t.state, resultRef: t.result_ref,
         })),
-        ...(this.tasks
+        ...(this.tasks && Object.keys(projection.tasks).length
           ? { taskAcceptance: this.tasks.projection(run.conversation_id) }
           : {}),
-        outputLimit: outputLimitState(messages, this.store.snapshot(run.conversation_id)),
+        outputLimit: outputLimitState(messages, projection),
+        answerRecovery: answerRecoveryState(messages, projection),
         instruction:
           run.phase === 'finalize'
             ? '必要操作已经结算。直接回应用户要求，依据真实结果给出最终答复，不再执行工具；不主动汇报内部挂载身份。'
@@ -160,7 +163,6 @@ export class AgentEngine {
       scope = { conversationId: run.conversation_id, runId };
     const model = withRunOutputBudget(this.model, this.store, runId);
     let generation = run.generation;
-    let acceptanceReminder: string | undefined;
     const deferred = new Set(this.store.unresolvedEnvironment(run.environment_id).map((t) => t.id));
     try {
       // 接收停止可能早于执行微任务；不得先 claim 清掉 stop_requested。
@@ -366,7 +368,9 @@ export class AgentEngine {
           let receivedOutput = false;
           try {
             let sawResponse = false;
-            for await (const frame of streamWithIdleTimeout(model, frozen, signal, this.limits.modelTimeoutMs)) {
+            for await (const frame of streamWithIdleTimeout(model, frozen, signal, this.limits.modelTimeoutMs,
+              observation => { stream.flush(); this.store.checkLease(runId, generation);
+                this.store.commit(turnScope, { type: 'model.repetition_observed', payload: observation }); })) {
               if (frame.kind === 'delta' && frame.text.length) receivedOutput = true;
               // 已缓冲的 SSE 帧只让出微任务；定期让 IPC、停止和刷新计时器运行。
               if (Date.now() - yieldedAt >= 8) {
@@ -517,39 +521,27 @@ export class AgentEngine {
           else this.store.commit(scope, { type: 'run.failed', payload: { ...failure, messageId: summary } });
           return;
         }
-        if (!answer?.content.trim())
-          throw new UmiError('PROTOCOL_INVALID', '模型未给出可用正文');
         if (
           this.store
             .messages(scope.conversationId)
             .some((m) => m.runId === runId && !m.applied)
         )
           continue;
+        if (!answer?.content.trim()) {
+          signal.throwIfAborted(); this.store.checkLease(runId, generation);
+          const recovery = answerRecoveryState(this.store.messages(scope.conversationId), this.store.snapshot(scope.conversationId));
+          if (recovery?.count === 1 && !this.store.unresolvedEnvironment(run.environment_id).length) continue;
+          throw new UmiError('PROTOCOL_INVALID', recovery && recovery.count > 1
+            ? '模型未给出可用正文：收到多次只有思考的完整响应，已停止自动续作。'
+            : '模型未给出可用正文');
+        }
         if (
           this.store
             .tools(runId)
             .some((t) => ['prepared', 'dispatched', 'unknown'].includes(t.state) && !deferred.has(t.id))
         )
           throw new UmiError('TOOL_OUTCOME_UNKNOWN', '仍存在未结算的工具');
-        // 无进展时最多提示一次，再保存 needs_work；不靠重复空答复或无限循环伪造完成。
-        const assessment = this.tasks?.assess(scope.conversationId);
-        if (
-          assessment?.tasks.some(
-            (task) =>
-              (task.lifecycle ?? 'active') === 'active' && task.status === 'needs_work' &&
-              task.acknowledgedInputId === assessment.latestInputId,
-          ) &&
-          !finalizing
-        ) {
-          const fingerprint = hash(assessment);
-          if (
-            acceptanceReminder !== fingerprint &&
-            current.model_turns - turnBase + 1 < maxTurns
-          ) {
-            acceptanceReminder = fingerprint;
-            continue;
-          }
-        }
+        // 检查点是可选记录；保留结束评估，不以旧待办强制再请求一次模型。
         if (!finalizing) {
           this.store.commit(scope, {
             type: 'run.phase_changed',

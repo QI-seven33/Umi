@@ -102,3 +102,38 @@ test('内置Skill升级保留明确停用，旧读取版本仍拒绝，外部启
   again.refresh();assert.equal(select(again).enabled,false);
  }finally{f.clean();}
 });
+
+test('完整技能预览在启用前可续页，UTF-8不丢字，变化后拒绝混页；模型可一次读取中型正文',()=>{
+ const f=fixture();try{
+  const body='中😀文方法\n'.repeat(3000),dir=f.add('test-method',body);f.library.refresh();const s=select(f.library);
+  let cursor=0,actual='';do{const page=f.library.preview(s.name,s.version,cursor);actual+=page.text;assert.equal(page.sourceHash,s.version);if(page.nextStartByte===null)break;assert(page.nextStartByte>cursor);cursor=page.nextStartByte;}while(true);
+  assert.equal(actual,document(s.name,body));assert(!select(f.library).enabled);assert.throws(()=>read(f.library),/未启用/);
+  f.library.setEnabled(s.name,true,s.version);assert.equal(read(f.library,s.name,{byteLength:64000}).text,actual);assert(Buffer.byteLength(read(f.library).text)>4096);
+  assert.throws(()=>read(f.library,s.name,{byteLength:64001}));assert.throws(()=>f.library.preview(s.name,s.version,-1));
+  writeFileSync(join(dir,'SKILL.md'),document(s.name,'changed'));assert.throws(()=>f.library.preview(s.name,s.version,cursor),/变化/);
+ }finally{f.clean();}
+});
+
+test('128项合法开关超过旧16KiB仍可保存和重启，不因刷新全部停用',()=>{
+ const f=fixture();try{
+  for(let i=0;i<128;i++)f.add('method-'+String(i).padStart(3,'0')+'-long-name-for-skill-preferences');
+  f.library.refresh();const entries=f.library.library().skills.filter(s=>s.source==='user');
+  const prefs=Object.fromEntries(entries.map(s=>[s.name,{enabled:true,version:s.version}]));
+  const bytes=JSON.stringify(prefs,null,2);assert(Buffer.byteLength(bytes)>16384);writeFileSync(join(f.library.directory,'.preferences.json'),bytes);
+  let lib=new LocalSkillLibrary(f.root);assert.equal(lib.library().issues.length,0);assert.equal(lib.library().skills.filter(s=>s.source==='user'&&s.enabled).length,128);
+  const first=entries[0]!;lib.setEnabled(first.name,false,first.version);lib=new LocalSkillLibrary(f.root);
+  assert.equal(lib.library().skills.filter(s=>s.source==='user'&&s.enabled).length,127);assert.equal(select(lib,first.name).enabled,false);
+ }finally{f.clean();}
+});
+
+test('模型搜索技能覆盖目录首屏之外，只返回已启用技能且无额外批准',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'umi-skills-query-')),workspace=join(root,'source');mkdirSync(workspace);
+ const steps:Step[]=[],model=new ScriptModel(steps),app=new UmiApplication(join(root,'data'),model);
+ try{
+  app.skills.library();for(let i=0;i<14;i++){const name='query-'+i,dir=join(app.skills.directory,name);mkdirSync(dir);writeFileSync(join(dir,'SKILL.md'),document(name));}
+  app.skills.refresh();for(const s of app.skills.library().skills.filter(s=>s.source==='user'&&s.name!=='query-0'))app.skills.setEnabled(s.name,true,s.version);
+  steps.push(call('list_skills',{query:'QUERY-9'}),request=>{const result=(request.body.messages as WireMessage[]).filter(m=>m.role==='tool').at(-1)!.content;assert.match(result,/query-9/);assert(!result.includes('query-0'));return call('list_skills',{query:'query-0'});},request=>{const result=(request.body.messages as WireMessage[]).filter(m=>m.role==='tool').at(-1)!.content;assert.match(result,/"total":0/);return text('已按用途查找。');});
+  const c=app.createConversation(workspace),run=app.send(c.conversationId,uid(),'搜索技能');await app.wait(run.runId);
+  assert.equal(app.store.getRun(run.runId).status,'completed');assert.equal(model.requests.length,3);assert.equal(Object.keys(app.store.snapshot(c.conversationId).approvals).length,0);
+ }finally{await app.close();removeTestRoot(root);}
+});

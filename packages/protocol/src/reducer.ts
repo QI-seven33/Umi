@@ -212,6 +212,69 @@ export function initialState(streamId: string, logEpoch: string): ConversationSt
     context: {},
   };
 }
+// 只复制当前事实会修改的分支；沿用下方同一套归约/归属校验，避免为一次
+// 进程输出或状态更新反复复制已经完成的正文。未列出的复杂事实仍完整复制。
+function writableProjection(previous: ConversationState, e: WorkEvent): ConversationState {
+  const base = { ...previous, cursor: { ...previous.cursor } };
+  switch (e.type) {
+    case 'process.planned':
+    case 'process.owner_bound':
+    case 'process.ready':
+    case 'process.release_intent':
+    case 'process.started':
+    case 'process.output':
+    case 'process.exited':
+    case 'process.reconciled': {
+      const process = previous.commandExecutions[e.executionId!];
+      return { ...base, commandExecutions: { ...previous.commandExecutions,
+        ...(process ? { [e.executionId!]: { ...process,
+          outputs: e.type === 'process.output' ? [...process.outputs] : process.outputs } } : {}) } };
+    }
+    case 'model.block_started': return { ...base, blocks: [...previous.blocks] };
+    case 'model.block_completed': return { ...base,
+      blocks: previous.blocks.map(block => block.id === e.payload.blockId ? { ...block } : block) };
+    case 'model.request_prepared': return { ...base, turns: { ...previous.turns } };
+    case 'model.attempt_started': {
+      const turn = previous.turns[e.modelTurnId!];
+      return { ...base, attempts: { ...previous.attempts }, turns: { ...previous.turns,
+        ...(turn ? { [e.modelTurnId!]: { ...turn, attemptIds: [...turn.attemptIds] } } : {}) } };
+    }
+    case 'model.attempt_completed':
+    case 'model.attempt_measured': {
+      const attempt = previous.attempts[e.modelAttemptId!];
+      return { ...base, attempts: { ...previous.attempts,
+        ...(attempt ? { [e.modelAttemptId!]: { ...attempt } } : {}) } };
+    }
+    case 'model.repetition_observed': return base;
+    case 'message.committed': return { ...base, messages: [...previous.messages] };
+    case 'tool.prepared': return { ...base, tools: { ...previous.tools } };
+    case 'tool.dispatch_intent':
+    case 'tool.started':
+    case 'tool.measured': {
+      const tool = previous.tools[e.callId!];
+      return { ...base, tools: { ...previous.tools, ...(tool ? { [e.callId!]: { ...tool } } : {}) } };
+    }
+    case 'run.created':
+    case 'run.started':
+    case 'run.resumed':
+    case 'run.phase_changed':
+    case 'run.waiting':
+    case 'run.recovery_started':
+    case 'run.recovery_required': {
+      const run = previous.runs[e.runId!];
+      return { ...base, runs: { ...previous.runs, ...(run ? { [e.runId!]: { ...run } } : {}) } };
+    }
+    case 'approval.requested':
+    case 'approval.decided':
+    case 'approval.invalidated': {
+      const approval = previous.approvals[e.payload.approvalId];
+      return { ...base, approvals: { ...previous.approvals,
+        ...(approval ? { [e.payload.approvalId]: { ...approval } } : {}) } };
+    }
+    default: return structuredClone(previous);
+  }
+}
+
 // 归约只处理持久事实；不会读取时钟、路径或模型。实时与历史调用同一个函数。
 export function reduceConversation(
   previous: ConversationState,
@@ -242,7 +305,7 @@ export function reduceConversation(
     blocks[index] = { ...b, text: b.text + e.payload.text, deltaIndex: e.payload.deltaIndex };
     return { ...previous, cursor: { ...previous.cursor, sequence: e.sequence }, blocks };
   }
-  const s = structuredClone(previous);
+  const s = writableProjection(previous, e);
   s.cursor.sequence = e.sequence;
   const run = e.runId ? s.runs[e.runId] : undefined;
   const requireRun = () => {
@@ -741,6 +804,11 @@ export function reduceConversation(
       attempt.measurement = e.payload;
       break;
     }
+    case 'model.repetition_observed':
+      if (requireAttempt().status !== 'running')
+        throw new UmiError('PROTOCOL_INVALID', '重复观察须属于活动模型响应');
+      // 只保存在原始事件中，不改变运行状态或模型上下文。
+      break;
     case 'model.attempt_failed':
       if (requireAttempt().status !== 'running')
         throw new UmiError('PROTOCOL_INVALID', '模型 attempt 已结算');

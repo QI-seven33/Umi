@@ -66,6 +66,52 @@ export class ToolExecutor {
         this.store.commit(this.store.preparedToolScope(tool), { type: 'tool.measured', payload: { elapsedMs: performance.now() - started, ...timing } });
     }
   }
+  // 只有已知失败进入此策略。成功轮询、必要复查及未知副作用均不靠次数推断失败。
+  private repeatFailure(toolId: string, result: ToolResult): { result: ToolResult; stalled: boolean } {
+    if (result.outcome !== 'failed' || result.mutated) return { result, stalled: false };
+    const t = this.store.tool(toolId), run = this.store.getRun(t.run_id);
+    const latest = this.store.messages(run.conversation_id).findLast(m => m.role === 'user' && m.applied);
+    const state = this.store.snapshot(run.conversation_id);
+    const currentSequence = BigInt(state.tools[t.call_id]?.sequence ?? '0');
+    let previous = this.store.tools(t.run_id).filter(p => p.id !== t.id && p.name === t.name && p.args === t.args &&
+      latest && BigInt(state.tools[p.call_id]?.sequence ?? '0') > BigInt(latest.projectionSequence) &&
+      BigInt(state.tools[p.call_id]?.sequence ?? '0') < currentSequence);
+    if (t.context_ref) {
+      const context = executionContextSchema.parse(this.store.readArtifact(t.context_ref));
+      if (context.process) {
+        const count = commandRepeatsSinceChange(this.store, this.registry, t, previous, context);
+        previous = count ? previous.slice(-count) : [];
+      } else {
+        const key = readObservationKey(context);
+        previous = previous.filter(p => p.context_ref && readObservationKey(executionContextSchema.parse(this.store.readArtifact(p.context_ref))) === key);
+      }
+    }
+    const data = result.data && typeof result.data === 'object' && !Array.isArray(result.data)
+      ? result.data as Record<string, unknown> : { originalData: result.data };
+    const failureKey = hash({ content: result.content, code: data.code ?? null });
+    let repeats = 0, warned = false;
+    for (const p of previous.toReversed()) {
+      if (p.state !== 'failed' || !p.result_ref) break;
+      const prior = this.store.readArtifact<ToolResult>(p.result_ref);
+      const priorData = prior.data && typeof prior.data === 'object' ? prior.data as Record<string, unknown> : {};
+      const note = priorData.umiRepeat as { failureKey?: string; warning?: boolean } | undefined;
+      if (prior.mutated || (note?.failureKey ?? hash({ content: prior.content, code: priorData.code ?? null })) !== failureKey) break;
+      repeats++; warned ||= note?.warning === true;
+    }
+    if (repeats < 3) return { result, stalled: false };
+    if (!warned) return { stalled: false, result: { ...result,
+      content: result.content + '\n宿主提醒：同一请求连续得到相同失败。请依据失败原因调整参数、方法或前置条件；成功的复查不受次数限制。',
+      data: { ...data, umiRepeat: { failureKey, warning: true, inputId: latest?.id } } } };
+    return { stalled: true, result: { ...result,
+      content: result.content + '\n调整提醒后仍得到相同失败，本轮停止重复尝试并向用户说明阻塞。',
+      data: { ...data, code: 'TASK_STALLED', causeCode: data.code ?? null,
+        inputId: latest?.id, umiRepeat: { failureKey, warning: true } } } };
+  }
+  private settleFailure(toolId: string, result: ToolResult, generation: number) {
+    const repeated = this.repeatFailure(toolId, result);
+    this.store.settle(toolId, repeated.result, generation);
+    if (repeated.stalled) throw new UmiError('TASK_STALLED', '相同失败经提醒后仍未解决');
+  }
   private async executeMeasured(toolId: string, generation: number, signal: AbortSignal,
     timing: { prepareMs: number; approvalPollingMs: number; executeMs: number }): Promise<void> {
     // 连续同步读取也要在工具边界处理 IPC；微任务连跑不能饿死用户停止请求。
@@ -77,7 +123,7 @@ export class ToolExecutor {
       //用工具名找到 schema，解析参数
       args = this.registry.parse(t.name, t.args);
     } catch (e) {
-      this.store.settle(
+      this.settleFailure(
         toolId,
         {
           outcome: 'failed',
@@ -165,44 +211,7 @@ export class ToolExecutor {
       );
       return;
     }
-    // 原次数限制保留；比较同一对象版本，不把编辑后的复读或省略哈希后的必要修改误判为停滞。
-    let equivalent = previous.length;
-    if (equivalent >= 3 && (definition.effect === 'read' ||
-        (definition.effect === 'copy-write' && ['edit_file','write_file'].includes(t.name)))) {
-      try {
-        const observed = executionContextSchema.parse(definition.prepare(args, this.store.environment(t.environment_id), t.id));
-        if (observed.locations.some(location => location.beforeHash !== null)) {
-          const key = readObservationKey(observed);
-          equivalent = previous.filter(prior => !prior.context_ref ||
-            readObservationKey(executionContextSchema.parse(this.store.readArtifact(prior.context_ref))) === key).length;
-        }
-      } catch {
-        // 不能证明版本变化时不豁免；原拒绝/未知执行检查已经在上面执行。
-      }
-    }
-    // 同一命令在已观察到的文件变更后可重新验证；仍必须经过下方的新批准与未知执行核验。
-    // 不扫描目录，也不把程序退出造成的环境修订当作内容变化。
-    if (equivalent >= 3 && definition.effect === 'host-code') {
-      try {
-        const observed = executionContextSchema.parse(definition.prepare(args, this.store.environment(t.environment_id), t.id));
-        if (observed.process) equivalent = commandRepeatsSinceChange(this.store, this.registry, t, previous, observed);
-      } catch {
-        // 无法证明输入变化时维持原计数；不凭猜测放宽执行。
-      }
-    }
-    if (equivalent >= 3) {
-      this.store.settle(
-        toolId,
-        {
-          outcome: 'failed',
-          content: '相同工具请求重复且没有新信息，已阻止继续执行。',
-          data: { code: 'TASK_STALLED', inputId: this.store.messages(this.store.getRun(t.run_id).conversation_id)
-            .filter(m => m.role === 'user' && m.applied).at(-1)?.id },
-        },
-        generation,
-      );
-      throw new UmiError('TASK_STALLED', '重复操作未取得进展');
-    }
+    // 成功调用不按次数中止；已知失败在实际回执形成后判断，先反馈调整机会。
     //核心循环（准备 + 等批准）
     let context: ExecutionContext;
     while (true) {
@@ -225,7 +234,7 @@ export class ToolExecutor {
         //失败 → 让已有批准失效 + 结算 failed + 返回
       } catch (e) {
         if (t.approval_id) this.store.invalidateApproval(toolId, '原对象无法核验');
-        this.store.settle(
+        this.settleFailure(
           toolId,
           {
             outcome: 'failed',
@@ -321,6 +330,8 @@ export class ToolExecutor {
       }
     }
     finally { timing.executeMs += performance.now() - executeStarted; }
+    const repeated = this.repeatFailure(toolId, result);
+    result = repeated.result;
     this.store.settle(
       toolId,
       result,
@@ -330,5 +341,6 @@ export class ToolExecutor {
     );
     if (result.outcome === 'unknown')
       throw new UmiError('TOOL_OUTCOME_UNKNOWN', '工具副作用未知，未自动重试');
+    if (repeated.stalled) throw new UmiError('TASK_STALLED', '相同失败经提醒后仍未解决');
   }
 }
