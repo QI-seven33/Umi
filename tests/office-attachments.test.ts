@@ -127,7 +127,7 @@ test('Office唯一循环：工具数不扩张，模型按表名/单元格搜索�
   const r=f.app.send(f.c.conversationId,uid(),'查看保存的C1公式，不要重新计算',[id]);assert.equal((await f.app.wait(r.runId)).status,'completed');
   assert.deepEqual(f.app.store.tools(r.runId).map(t=>t.name),['search_attachment','read_attachment']);assert.equal(Object.keys(f.app.store.snapshot(f.c.conversationId).approvals).length,0);
   assert.equal(f.app.store.messages(f.c.conversationId).filter(m=>m.role==='user').at(-1)!.payload.content,'查看保存的C1公式，不要重新计算');
-  assert(!f.app.registry.specs().some(t=>/office|document/.test(t.name)));assert.equal(f.app.store.databaseVersion,7);
+  assert(!f.app.registry.specs().some(t=>/office|document/.test(t.name)));assert.equal(f.app.store.databaseVersion,12);
  }finally{await f.close();}
 });
 test('Office失败原子性：提取失败不保存半套资料，数据库写入失败整套回滚',async()=>{

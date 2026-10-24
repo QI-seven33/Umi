@@ -181,6 +181,9 @@ export class ToolExecutor {
     }
     //状态不是 prepared → 直接返回
     if (t.state !== 'prepared') return;
+    if(definition.available && !definition.available(this.store.environment(t.environment_id))) {
+      this.store.settle(t.id,{outcome:'failed',content:'当前工作区不提供此旧工作流工具；请使用当前宿主事实中的文件入口。',data:{code:'CAPABILITY_UNAVAILABLE'}},generation);return;
+    }
     if (this.store.messages(this.store.getRun(t.run_id).conversation_id)
       .some((m) => m.runId === t.run_id && !m.applied)) {
       if (t.approval_id) this.store.invalidateApproval(t.id, '收到新用户要求，旧批准失效');
@@ -275,6 +278,7 @@ export class ToolExecutor {
         }
         if (approval.decision === 'allow') break;
       } else {
+        if(this.store.reuseCommandApproval(toolId,context,generation))continue;
         const location = context.locations[0];
         this.store.requestApproval(
           toolId,

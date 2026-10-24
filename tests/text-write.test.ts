@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel, call, text, removeTestRoot, eventually } from './fixtures.js';
 import type { Step } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';

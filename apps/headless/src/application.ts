@@ -1,3 +1,4 @@
+import {rootIdentity} from '../../../packages/adapters/src/host-files/paths.js';
 import { runOutputBudget } from '../../../packages/agent/src/loop/run-output-budget.js';
 import { SkillImports } from '../../../packages/adapters/src/skills/imports.js';
 import { GithubSkillSource } from '../../../packages/adapters/src/skills/github.js';
@@ -95,6 +96,7 @@ export class UmiApplication {
     model: ModelPort,
     options: {
       skillFetch?: typeof fetch;
+      protectedFileRoots?: readonly string[];
       outputBoundary?: (point: OutputBoundary, index: number) => void | Promise<void>;
       limits?: EngineLimits;
       context?: ContextManager;
@@ -115,7 +117,7 @@ export class UmiApplication {
     this.registry = new ToolRegistry();
     this.skills = new LocalSkillLibrary(this.store.dataRoot);
     this.skillImports = new SkillImports(this.store.dataRoot,this.skills,new GithubSkillSource(options.skillFetch));
-    this.files = new ResourceFiles(new ResourceRepository(this.store));
+    this.files = new ResourceFiles(new ResourceRepository(this.store),options.protectedFileRoots);
     this.commands = new CommandTools(
       this.files,
       options.processRunner,
@@ -124,6 +126,7 @@ export class UmiApplication {
     this.outputs = new OutputFiles(
       new OutputRepository(this.store),
       options.outputBoundary,
+      target=>this.files.direct.protect(target),
     );
     this.tasks = new TaskRepository(
       this.store,
@@ -204,10 +207,28 @@ export class UmiApplication {
       this.skills,
     );
   }
-  createConversation(workspace: string, settings: Partial<Settings> = {}) {
-    const c = this.store.createConversation(workspace, settings);
-    this.files.initialize(c.environmentId);
+  createConversation(workspace: string, settings: Partial<Settings> = {}, expectedRootIdentity?:string) {
+    const selected=this.files.direct.validateSelection(workspace,expectedRootIdentity),identity=expectedRootIdentity??rootIdentity(selected);
+    const c = this.store.createConversation(selected, settings, true);
+    this.files.direct.select(c.conversationId,identity);
     return c;
+  }
+  revokeDirectoryAccess(conversationId:string,grantId:string) {
+    const c=this.store.conversation(conversationId);this.files.repo.direct.revoke(String(c.environment_id),grantId);
+    // 撤销也是停止请求：不得等待当前模型/工具结束才收回后续派发权限。
+    for(const r of this.store.all("SELECT r.id,r.conversation_id FROM runs r JOIN conversations c ON c.id=r.conversation_id WHERE c.workspace_id=? AND r.status IN('queued','running','waiting_permission','recovering')",c.workspace_id!)) this.requestStop(String(r.conversation_id),String(r.id),'用户撤销目录授权');
+    return {revoked:true};
+  }
+  restoreFileChange(conversationId:string,changeId:string) {
+    const c=this.store.conversation(conversationId);
+    if(this.store.get("SELECT 1 FROM runs r JOIN conversations c ON c.id=r.conversation_id WHERE c.workspace_id=? AND r.status IN('queued','running','waiting_permission','recovering','stopping')",c.workspace_id!)) throw new UmiError('RUN_STATE','请先停止此工作区的活动任务，再恢复文件');
+    return this.files.direct.restore(conversationId,changeId,(m,path,desired)=>this.files.mountContext({},this.store.environment(m.environmentId),m.id,path,desired,true));
+  }
+  deleteWorkspace(workspaceId: string) {
+    const runs = this.store.all('SELECT r.id FROM runs r JOIN conversations c ON c.id=r.conversation_id WHERE c.workspace_id=?',workspaceId);
+    if (runs.some(r => this.running.has(String(r.id))))
+      throw new UmiError('RUN_STATE', '请先停止此工作区的活动任务，并等待清理完成');
+    return this.store.deleteWorkspace(workspaceId);
   }
   deleteArchivedConversation(conversationId: string) {
     const runs = this.store.all('SELECT id FROM runs WHERE conversation_id=?',conversationId);
@@ -251,6 +272,8 @@ export class UmiApplication {
     )
       throw new UmiError('PROTOCOL_INVALID', '预览字节范围无效');
     const c = this.store.conversation(conversationId);
+    const m=this.files.repo.mount(mountId,String(c.environment_id));
+    this.files.direct.check(m,false,path);
     return this.files.read(
       this.files.repo.mount(mountId, c.environment_id as string),
       path,
@@ -359,8 +382,8 @@ export class UmiApplication {
     while (this.running.has(runId)) await this.running.get(runId)!.done;
     return this.store.getRun(runId);
   }
-  approve(conversationId: string, approvalId: string, decision: 'allow' | 'deny') {
-    this.store.decideApproval(conversationId, approvalId, decision);
+  approve(conversationId: string, approvalId: string, decision: 'allow' | 'deny',scope:'once'|'task'='once') {
+    this.store.decideApproval(conversationId, approvalId, decision,scope);
     const a = this.store.approval(approvalId);
     const run = this.store.getRun(a.run_id),
       tool = this.store.tool(a.execution_id);
@@ -378,14 +401,14 @@ export class UmiApplication {
     )
       this.start(a.run_id, true, a.execution_id);
   }
-  requestStop(conversationId: string, runId: string) {
+  requestStop(conversationId: string, runId: string, reason='用户点击停止') {
     const r = this.store.getRun(runId);
     if (r.conversation_id !== conversationId)
       throw new UmiError('PROTOCOL_INVALID', '运行不属于当前会话');
     if (['completed', 'failed', 'stopped'].includes(r.status) || r.stop_requested) return;
     this.store.commit(
       { conversationId, runId },
-      { type: 'run.stop_requested', payload: { reason: '用户点击停止' } },
+      { type: 'run.stop_requested', payload: { reason } },
     );
     const task = this.running.get(runId);
     if (task) {

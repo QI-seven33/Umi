@@ -303,8 +303,8 @@ export function registerCommands(registry: ToolRegistry, commands: CommandTools)
       name: mode === 'direct' ? 'run_command' : 'run_shell',
       description:
         mode === 'direct'
-          ? '在获准副本或 task/scratch、research、artifacts 目录运行明确程序与 argv。每次都需具体宿主代码执行批准，包含 Git、测试和构建；cwd 不是磁盘沙箱。npm 等批处理请用 run_shell 的 CMD 模式。结果含有界输出与原退出回执。'
-          : '执行完整 PowerShell 或 CMD 脚本，需具体宿主代码执行批准。PowerShell 不加载 profile；CMD 禁用 AutoRun。脚本可以访问当前用户能访问的宿主资源，不能把工作目录当成安全隔离。',
+          ? '在获准副本或 task/scratch、research、artifacts 目录运行明确程序与 argv。需具体宿主代码执行批准；自动模式可按用户授予的本任务许可复用同一测试命令，其他操作逐次询问；cwd 不是磁盘沙箱。npm 等批处理请用 run_shell 的 CMD 模式。结果含有界输出与原退出回执。'
+          : '执行完整 PowerShell 或 CMD 脚本，需具体宿主代码执行批准；自动模式仅可复用用户已具体允许的单条常见npm开发命令，复合或高危脚本仍逐次询问。PowerShell 不加载 profile；CMD 禁用 AutoRun。脚本可以访问当前用户能访问的宿主资源，不能把工作目录当成安全隔离。',
       schema,
       effect: 'host-code',
       approvalPollMs: 500,

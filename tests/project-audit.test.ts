@@ -22,7 +22,7 @@ test('审查：同文件三次编辑后的第四次读取是新版本进展，�
     for (let i = 0; i < 3; i++) f.steps.push(call('read_file', { mountId: f.mount.id, path: 'a.txt' }, '读当前版本', `read-${i}`), request => { const d = dataOf(request); return call('edit_file', { mountId: f.mount.id, path: 'a.txt', readExecutionId: d.readExecutionId, expectedReadHash: d.hash, oldText: `计数:${i}`, newText: `计数:${i + 1}` }, '修改当前版本', `edit-${i}`); });
     f.steps.push(call('read_file', { mountId: f.mount.id, path: 'a.txt' }, '核验第三次修改', 'read-3'), request => { assert.equal(dataOf(request).text, '计数:3'); return text('已核验当前版本'); });
     const result = await f.run(); assert.equal(f.app.store.getRun(result.runId).status, 'completed'); assert(f.app.store.tools(result.runId).every(t => t.state === 'succeeded'));
-    assert.equal(readFileSync(join(f.source, 'a.txt'), 'utf8'), '计数:0');
+    assert.equal(readFileSync(join(f.source, 'a.txt'), 'utf8'), '计数:3');
   } finally { await f.close(); }
 });
 
@@ -31,7 +31,7 @@ test('审查：外部改变目标版本也允许复读，不能仅以环境修�
   try {
     for (let i = 0; i < 4; i++) f.steps.push(() => { writeFileSync(join(f.mount.root, 'a.txt'), `外部版本:${i}`); return call('read_file', { mountId: f.mount.id, path: 'a.txt' }, '读外部新版本', `read-${i}`); });
     f.steps.push(request => { assert.equal(dataOf(request).text, '外部版本:3'); return text('观察事实'); });
-    const result = await f.run(); assert.equal(f.app.store.getRun(result.runId).status, 'completed'); assert.equal(f.app.store.environment(f.c.environmentId).revision, 0);
+    const result = await f.run(); assert.equal(f.app.store.getRun(result.runId).status, 'completed'); assert.equal(f.app.store.environment(f.c.environmentId).revision, 1);
   } finally { await f.close(); }
 });
 

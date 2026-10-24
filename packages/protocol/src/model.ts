@@ -161,6 +161,7 @@ export const executionContextSchema = z
     rootIdentity: z.string(),
     locations: z.array(locationSchema),
     resourceScope: resourceScopeSchema.optional(),
+    directoryGrant: z.object({id, revision: z.number().int().positive()}).strict().optional(),
     process: processSnapshotSchema.optional(),
     execution: executionPlanSchema.optional(),
     memoryExecutionId: id.optional(),
@@ -170,6 +171,7 @@ export const executionContextSchema = z
     webReadExecutionId: id.optional(),
     fileEdit: fileEditSnapshotSchema.optional(),
     fileWrite: fileWriteSnapshotSchema.optional(),
+    fileRestore: z.object({executionId:id,changeId:id,noOp:z.boolean(),alreadyChangeId:id.nullable()}).strict().optional(),
     output: outputSnapshotSchema.optional(),
   })
   .strict();

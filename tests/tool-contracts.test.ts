@@ -67,7 +67,7 @@ test('已见版本：部分原文编辑后范围随Unicode长短平移，未见�
       call('edit_file',{...f.args,oldText:'更长🙂的新片段',newText:'短'}),call('edit_file',{...f.args,oldText:'隐藏尾部',newText:'越界修改'}),text('保留未见范围'));
     const r=await f.run();assert.deepEqual(f.app.store.tools(r.runId).map(t=>t.state),['succeeded','succeeded','succeeded','failed']);
     assert.equal(readFileSync(f.file,'utf8'),original.replace('唯一目标','短'));
-    assert.equal(readFileSync(join(f.source,'a.txt'),'utf8'),original);
+    assert.equal(readFileSync(join(f.source,'a.txt'),'utf8'),original.replace('唯一目标','短'));
     const last=f.app.store.tools(r.runId).at(-1)!;assert.match(f.app.store.readArtifact<any>(last.result_ref!).content,/读取范围/);
   }finally{await f.close();}
 });

@@ -1,3 +1,4 @@
+import {registerFileVersions} from './file-versions.js';
 import { registerTextSearch } from './text-search.js';
 import { registerTextWrite } from './text-write.js';
 import { fileReadEvidencePort } from './read-evidence.js';
@@ -37,6 +38,7 @@ export function registerFiles(
   delivery = new DeliveryFiles(files),
 ) {
   const repo = files.repo;
+  registerFileVersions(registry,files);
   const discover = z
     .object({
       query: z.string().max(200).default(''),
@@ -94,6 +96,7 @@ export function registerFiles(
     .strict();
   registry.register({
     name: 'request_resource',
+    available:env=>!repo.direct.enabled(env.id),
     description:
       '申请具体外部来源的读取或工作副本编辑权限，批准后物化到托管副本。一次资源批准可支持多个副本文件连续编辑；不包含源目录交付权限。被拒绝的等价权限不能换名重复申请。',
     schema: request,
@@ -194,7 +197,7 @@ export function registerFiles(
   registry.register({
     name: 'list_resources',
     description:
-      '列出当前可用的工作副本及 mountId。unavailableMounts最多列最近16个保留但本轮未获准的副本，先按candidateId申请访问，不能拿旧mountId读改。源目录只说明交付目标，不是任意访问权限。',
+      '列出当前获准目录、mountId及direct标记。direct=true直接读改真实文件；旧副本仍按原权限处理。directAccess提供当前工作区授权及撤销状态，不授予其他能力。',
     schema: z.object({}).strict(),
     effect: 'read',
     prepare: hostContext,
@@ -205,6 +208,28 @@ export function registerFiles(
     async reconcile(a, ctx, c, s) {
       return this.execute(a, ctx, c, s);
     },
+  });
+  registry.register({
+    name:'request_directory_access', available:env=>repo.direct.enabled(env.id), schema:request,effect:'resource',
+    description:'申请明确来源的读取或直接编辑权限。获准后真实文件立即可改；授权按当前工作区保存，跨run和重启可复用，可由用户撤销。不授予命令执行、安装、外发或发布权限。被拒绝/撤销不能换用途绕过。',
+    prepare(input,env) {
+      const a=request.parse(input),c=repo.getCandidate(a.candidateId,env.id);
+      const grants=repo.direct.grants(env.id).filter(g=>g.root===files.sourceRoot(c));
+      if(grants.length && grants.every(g=>g.revoked===1)) throw new UmiError('ACCESS_REVOKED','用户已撤销这个来源的授权，请让用户通过目录选择入口重新授权');
+      const context=files.resourceContext(input,env,a.candidateId,a.access);
+      files.direct.protect(c.path);
+      return {...context,locations:context.locations.filter(l=>l.rootRef.kind==='source')};
+    },
+    approvalRequired(input,ctx){const a=request.parse(input);return !repo.direct.authorized(a.candidateId,ctx.environmentId,a.access==='edit');},
+    approvalDescription(input,ctx){const a=request.parse(input),c=repo.getCandidate(a.candidateId,ctx.environmentId);return '允许'+(a.access==='edit'?'直接读取和修改':'读取')+' '+c.path+'，用于'+a.purpose+'。范围：'+(c.scope.kind==='file'?'仅此文件':'此目录')+'；本工作区跨run、重启及新会话保留，可撤销。修改会立即生效，保存恢复记录；不包含命令、安装、外发或发布。读取的内容可用于当前配置模型的上下文。';},
+    denied(input,ctx){const a=request.parse(input);repo.recordDenial(repo.getCandidate(a.candidateId,ctx.environmentId),a.access);},
+    async execute(input,ctx,_c,signal){signal.throwIfAborted();const a=request.parse(input),c=repo.getCandidate(a.candidateId,ctx.environmentId);
+      files.resourceContext(input,repo.store.environment(ctx.environmentId),a.candidateId,a.access);
+      if(!repo.direct.authorized(c.id,ctx.environmentId,a.access==='edit')) repo.store.assertApprovedExecution(repo.scope(ctx.environmentId).executionId!,ctx);
+      const m=files.direct.grant(c,a.access,'approval:'+repo.scope(ctx.environmentId).executionId);
+      return dataResult({mountId:m.id,resourceId:c.id,sourceDirectory:m.root,direct:true},'目录已获准；后续按mountId和相对路径直接操作真实文件，无需交付。');},
+    async reconcile(input,ctx){const a=request.parse(input),m=repo.direct.mounts(ctx.environmentId).find(m=>m.resourceId===a.candidateId&&repo.direct.authorized(m.resourceId,ctx.environmentId,a.access==='edit'));
+      if(!m) return {outcome:'failed',content:'原授权未完成，没有重新授权或写入。',data:null};files.direct.check(m);return {...dataResult({mountId:m.id,direct:true}),verification:'original-grant-verified'};},
   });
   const list = z
     .object({
@@ -217,7 +242,7 @@ export function registerFiles(
   registry.register({
     name: 'list_files',
     description:
-      '分页列举获准副本文件的元数据，不读取正文或源文件。使用相同 mountId/prefix 和 nextCursor 续页；restart_required 时去掉 cursor。totalExact=false 表示覆盖不完整，需缩小 prefix；内容 hash 请用 read_file/stat_file。',
+      '分页列举获准目录文件的元数据，不读取正文。使用相同 mountId/prefix 和 nextCursor 续页；restart_required 时去掉 cursor。totalExact=false 表示覆盖不完整，需缩小 prefix；内容 hash 请用 read_file/stat_file。',
     schema: list,
     effect: 'read',
     prepare(input, env) {
@@ -238,7 +263,7 @@ export function registerFiles(
   registry.register({
     name: 'read_file',
     description:
-      '读取副本原文。startLine/lineCount 为1-based行选择（省略 startLine 从第1行，省略 lineCount 取200行），不能与 startByte 混用；byteLength 为范围上限（字节模式默认 8192，行模式默认 64000）。范围内正文完整；长行用 nextStartByte/expectedHash 连续续读，不自己计算中文偏移。返回 hash、对象身份、readExecutionId 可绑定编辑；二进制仅元数据。',
+      '读取获准文件原文。startLine/lineCount 为1-based行选择（省略 startLine 从第1行，省略 lineCount 取200行），不能与 startByte 混用；byteLength 为范围上限（字节模式默认 8192，行模式默认 64000）。范围内正文完整；长行用 nextStartByte/expectedHash 连续续读，不自己计算中文偏移。返回 hash、对象身份、readExecutionId 可绑定编辑；二进制仅元数据。',
     schema: readSchema,
     effect: 'read',
     prepare(input, env, executionId) {
@@ -271,7 +296,7 @@ export function registerFiles(
   registry.register({
     name: 'stat_file',
     description:
-      '查看获准工作副本中的文件大小、内容 hash 和对象身份；文件缺失明确返回 null。',
+      '查看获准目录中的文件大小、内容 hash 和对象身份；文件缺失明确返回 null。',
     schema: fileSchema,
     effect: 'read',
     prepare(input, env) {
@@ -298,9 +323,11 @@ export function registerFiles(
   registry.register({
     name: 'delete_file',
     description:
-      '删除工作副本中的一个文件，不删除真实来源。真实删除需作为固定变更集交付；移入系统回收站使用 recycle_file。',
+      '删除获准范围内的一个文件。direct=true时需具体批准并保存恢复内容；旧副本删除仍不影响来源。移入系统回收站使用recycle_file。',
     schema: fileSchema,
-    effect: 'copy-write',
+    effect: 'file-write',
+    approvalRequired(input,ctx){return Boolean(repo.mount(fileSchema.parse(input).mountId,ctx.environmentId).direct);},
+    approvalDescription(input,ctx){const a=fileSchema.parse(input),m=repo.mount(a.mountId,ctx.environmentId);return '永久删除真实文件 '+m.root+'/'+a.path+'，保存原字节以供恢复；此批准仅限当前文件版本。是否允许？';},
     prepare(input, env) {
       const a = fileSchema.parse(input),
         desired = null;
@@ -322,13 +349,14 @@ export function registerFiles(
           content: '副本目标在派发后变化，未修改。',
           data: null,
         };
-      if (before) unlinkSync(safeFile(m.root, a.path, m.rootIdentity));
+      if(m.direct) files.direct.write(m,a.path,ctx,null,s,repo.scope(ctx.environmentId).executionId);
+      else if (before) unlinkSync(safeFile(m.root, a.path, m.rootIdentity));
       const after = observe(m.root, a.path, m.rootIdentity);
       if ((after?.hash ?? null) !== loc.desiredHash)
         throw new UmiError('RESOURCE_CHANGED', '副本操作后核验失败');
       return dataResult(
         { mountId: m.id, path: a.path, observed: after },
-        '工作副本已修改并回读核验；真实来源未改变。',
+        m.direct ? '真实文件已删除，恢复内容已保存。' : '工作副本已修改并回读核验；真实来源未改变。',
       );
     },
     async reconcile(input, ctx) {
@@ -336,7 +364,9 @@ export function registerFiles(
         m = repo.mount(a.mountId, ctx.environmentId),
         loc = ctx.locations[0]!;
       files.assertPath(m.scope, a.path);
+      files.direct.checkObservation(m,a.path);
       const after = observe(m.root, a.path, m.rootIdentity);
+      if(m.direct && (after?.hash??null)===loc.desiredHash) files.direct.reconcile(m,repo.scope(ctx.environmentId).executionId!,true);
       return (after?.hash ?? null) === loc.desiredHash
         ? {
             ...dataResult(
@@ -366,6 +396,7 @@ export function registerFiles(
     .strict();
   registry.register({
     name: 'build_changeset',
+    available:env=>!repo.direct.enabled(env.id),
     description:
       '将选定工作副本当前字节冻结为交付变更集，返回真实目录、文件操作和前后内容；不会编译、构建或写回。若修了源码，先更新实际要交付的成品；paths由你选择，不要求额外验证流水线。',
     schema: build,
@@ -415,6 +446,7 @@ export function registerFiles(
   const deliver = z.object({ changeSetId: z.string().min(1) }).strict();
   registry.register({
     name: 'deliver_changeset',
+    available:env=>!repo.direct.enabled(env.id),
     description:
       '申请一次固定变更集交付批准。系统逐项核验源文件和副本、记录写回回执；等待批准时阻塞，不再请求模型。批准不覆盖之后的新变化。',
     schema: deliver,

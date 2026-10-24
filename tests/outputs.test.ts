@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { DesktopService } from '../apps/desktop/service.js';
 import { desktopCommandSchema } from '../packages/protocol/src/desktop.js';
 import { executionContextSchema } from '../packages/protocol/src/model.js';

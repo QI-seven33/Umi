@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { DesktopService } from '../apps/desktop/service.js';
 import { Timeline } from '../apps/desktop/renderer/src/Timeline.js';
 import { recoverySummary } from '../apps/desktop/renderer/src/recovery.js';
@@ -378,7 +378,7 @@ test('迁移 6：版本 5 的目录候选、挂载、原始消息和事件原样
     try {
       assert.equal(
         app.store.get('SELECT max(version) version FROM schema_migrations')!.version,
-        7,
+        12,
       );
       assert.deepEqual(
         app.store.all('SELECT * FROM schema_migrations WHERE version<=5'),

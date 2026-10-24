@@ -22,6 +22,9 @@ const status = z.enum([
 ]);
 const phase = z.enum(['execute', 'waiting', 'finalize']);
 const body = z.discriminatedUnion('type', [
+  event('workspace.access_changed', z.object({grantId:id,revision:z.number().int().positive(),revoked:z.boolean()}).strict()),
+  event('resource.direct_bound', z.object({mountId:id,resourceId:id,grantId:id,access:z.enum(['read','edit'])}).strict()),
+  event('file.change_recorded', z.object({changeId:id,state:z.enum(['intent','settled','not_applied'])}).strict()),
   event(
     'task.checkpoint_recorded',
     z
@@ -123,12 +126,12 @@ const body = z.discriminatedUnion('type', [
   event(
     'approval.requested',
     z
-      .object({ approvalId: id, requestHash: id, name: id, description: z.string() })
+      .object({ approvalId: id, requestHash: id, name: id, description: z.string(), canReuseCommand: z.boolean().optional() })
       .strict(),
   ),
   event(
     'approval.decided',
-    z.object({ approvalId: id, decision: z.enum(['allow', 'deny']) }).strict(),
+    z.object({ approvalId: id, decision: z.enum(['allow', 'deny']), decisionSource:z.enum(['user','task-grant']).optional(), sourceApprovalId:id.optional(), authorizationRef:id.optional() }).strict(),
   ),
   event(
     'approval.invalidated',
@@ -340,6 +343,7 @@ export const eventSchema = z.intersection(envelope, body).superRefine((e, ctx) =
     !e.type.startsWith('input.') &&
     !e.type.startsWith('settings.') &&
     !e.type.startsWith('resource.') &&
+    !['workspace.access_changed','file.change_recorded'].includes(e.type) &&
     !e.runId
   )
     bad('执行事件缺少运行身份');

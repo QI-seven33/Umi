@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync,mkdirSync,writeFileSync,existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel,call,text,eventually,removeTestRoot } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';
 import { ToolRegistry } from '../packages/agent/src/tools/registry.js';

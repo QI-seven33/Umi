@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {UmiApplication} from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import {DesktopService} from '../apps/desktop/service.js';
 import {desktopCommandSchema} from '../packages/protocol/src/desktop.js';
 import {CommandGate} from '../apps/desktop/renderer/src/features/work/CommandGate.js';

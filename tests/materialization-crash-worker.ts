@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join,dirname } from 'node:path';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel,call,eventually } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';
 import type { PreparedRequest } from '../packages/agent/src/ports.js';

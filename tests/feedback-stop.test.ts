@@ -86,7 +86,7 @@ test('验收：小项目 11 文件读取→模型完整可见→修改→真实 
     const output=f.app.previewProcess(f.c.conversationId,command.id,'stdout');
     assert.equal(output.receipt!.exitCode,0);assert.match(output.text,/pass 1/);
     assert.equal(readFileSync(join(f.mount.root,'calc.cjs'),'utf8'),source.replace('a-b','a+b'));
-    assert.equal(readFileSync(join(f.workspace,'calc.cjs'),'utf8'),source);
+    assert.equal(readFileSync(join(f.workspace,'calc.cjs'),'utf8'),source.replace('a-b','a+b'));
     console.log(JSON.stringify({sample:'coding',readFiles:11,readBytes:Buffer.byteLength(source),exitCode:0}));
   } finally { await f.close(); }
 });
@@ -123,7 +123,7 @@ test('验收：日常中文 CRLF 文件真实分页→局部修改→历史/资�
     const run=f.app.send(f.c.conversationId,uid(),'整理中文记录');
     assert.equal((await f.app.wait(run.runId)).status,'completed');
     assert.equal(readFileSync(join(f.mount.root,'notes.txt'),'utf8'),source.replace('买牛奶','买牛奶和面包'));
-    assert.equal(readFileSync(join(f.workspace,'notes.txt'),'utf8'),source);
+    assert.equal(readFileSync(join(f.workspace,'notes.txt'),'utf8'),source.replace('买牛奶','买牛奶和面包'));
     assert(f.app.store.tools(run.runId).every(t=>t.state==='succeeded'));
     const t=f.app.store.tools(run.runId)[0]!, service=new DesktopService(f.app);
     let rendered='',startByte=0,nextStartByte:number|null=0;

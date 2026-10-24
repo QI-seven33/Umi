@@ -36,6 +36,7 @@ export class DeliveryFiles {
   build(env: Environment, mountId: string, paths?: string[]) {
     const repo = this.files.repo,
       m = repo.mount(mountId, env.id);
+    if(m.direct) throw new UmiError('DIRECT_EDIT_ACTIVE','此目录已直接编辑真实文件，无需冻结或交付；修改记录可查看 diff 和恢复');
     this.files.mountContext({}, env, m.id, undefined, undefined, true);
     const baseline = repo.baseline(m),
       current = this.current(m),

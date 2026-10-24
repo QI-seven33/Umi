@@ -78,12 +78,12 @@ test('真实循环：细分片HTML超过旧传输总量仍只写一次；大网�
   try {
     const c = app.createConversation(source, { thinking: 'normal' });
     const mount = app.files.repo.mounts(c.environmentId)[0]!; mountId = mount.id;
-    const run = app.send(c.conversationId, uid(), '创建离线验收HTML，不向来源目录交付。');
+    const run = app.send(c.conversationId, uid(), '在已授权目录直接创建离线验收HTML。');
     assert.equal((await app.wait(run.runId)).status, 'completed');
     assert.equal(requests, 2); assert.equal(app.store.tools(run.runId).length, 1);
     assert.equal(app.store.tools(run.runId)[0]!.state, 'succeeded');
     assert.equal(readFileSync(join(mount.root, 'island.html'), 'utf8'), html);
-    assert(!existsSync(join(source, 'island.html')));
+    assert(existsSync(join(source, 'island.html')));
     const complete = app.store.events(c.conversationId).find(e => e.type === 'model.attempt_completed')!;
     assert.equal(complete.type, 'model.attempt_completed'); if (complete.type !== 'model.attempt_completed') return;
     ref = complete.payload.responseRef;

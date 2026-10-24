@@ -6,6 +6,12 @@
 
 ## 文件、来源与交付
 
+- [自然语言文件恢复与回复可读性（2026-10-23，未发布）](20261023-natural-restore-and-readable-responses.zh-CN.md)
+
+- [连续恢复、授权广播与工作区删除修复（2026-10-23，未发布）](20261023-restore-and-workspace-management.zh-CN.md)
+
+- [目录直接编辑与可撤销工作区授权（2026-10-23，未发布）](20261023-direct-files.zh-CN.md)
+
 - [真实HTML任务与跨轮副本事实（2026-10-22）](20261022-live-html-and-resource-facts.zh-CN.md)
 
 - [Umi 有界发现与元数据分页](../file-discovery-20261011.zh-CN.md)
@@ -14,6 +20,20 @@
 - [Umi 任务验收与续作：第一阶段](../task-acceptance-20261011.zh-CN.md)
 
 ## 执行、反馈与性能
+
+- [提交前事实链与无OS沙箱边界审查（2026-10-24）](20261024-facts-and-unsandboxed-boundaries.zh-CN.md)：批准/派发/计划持久化、冷重放、无害原生命令边界验证与剩余限制。
+
+- [流片段范围存储与投影保留（2026-10-24，未发布）](20261024-stream-ranges-and-projection-retention.zh-CN.md)：DB12新批次物理行减少、完整逻辑历史、内存保留及实际文件任务对照。
+
+- [查询热路径与整文件恢复契约（2026-10-24，未发布）](20261024-stability-hot-paths.zh-CN.md)
+
+- [事件正文分块与直改边界修复（2026-10-23，未发布）](20261023-event-blocks-and-direct-boundaries.zh-CN.md)
+
+- [任务内命令许可与删除热路径修复（2026-10-23，未发布）](20261023-task-command-permissions-and-deletion.zh-CN.md)
+
+- [启动与历史读取修复（2026-10-22，未发布）](20261022-startup-and-projection-cache.zh-CN.md)
+
+- [启动与历史会话读取诊断（2026-10-22）](20261022-startup-diagnosis.zh-CN.md)
 
 - [按需任务记录与仅思考响应续作（2026-10-22）](20261022-model-autonomy.zh-CN.md)
 

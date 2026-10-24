@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { DesktopService } from '../apps/desktop/service.js';
 import { NativeOpenClient } from '../apps/desktop/native-open-client.js';
 import { deliveredTarget, verifiedDocumentPath } from '../packages/adapters/src/host-files/delivered-open.js';

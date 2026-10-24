@@ -234,7 +234,7 @@ export class CommandPreparation {
       scope,
       ...(preparation ? { preparation } : {}),
     });
-    if (preparation) {
+    {
       const signature = (s: ProcessSnapshot) =>
         hash({
           mode: s.mode,
@@ -257,7 +257,7 @@ export class CommandPreparation {
         if (original && signature(original) === signature(snapshot))
           throw new UmiError(
             'PERMISSION_DENIED',
-            '本轮该准备命令已被拒绝，不能更换检查回执或目的描述再次申请',
+            '本任务该具体命令已被拒绝，不能更换参数外壳或目的描述再次申请',
           );
       }
     }

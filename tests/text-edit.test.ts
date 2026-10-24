@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { replaceUniqueUtf8 } from '../packages/adapters/src/host-files/text-edit.js';
 import { fileIdentity } from '../packages/adapters/src/host-files/paths.js';
 import { uid } from '../packages/agent/src/identity.js';

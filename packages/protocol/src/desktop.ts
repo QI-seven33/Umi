@@ -25,9 +25,17 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
   z.object({type:z.literal('skills_list'),refresh:z.boolean().default(false)}).strict(),
   z.object({type:z.literal('skills_enable'),name:skillName,version:skillVersion,enabled:z.boolean()}).strict(),
   z.object({type:z.literal('skills_preview'),name:skillName,version:skillVersion,...skillPreviewRange}).strict(),
+  z.object({type:z.literal('list_directory_access'),...conversation}).strict(),
+  z.object({type:z.literal('revoke_directory_access'),...conversation,grantId:id}).strict(),
+  z.object({type:z.literal('list_file_changes'),beforeChangeId:id.optional(),...conversation}).strict(),
+  z.object({type:z.literal('preview_file_change'),...conversation,changeId:id,...range}).strict(),
+  z.object({type:z.literal('inspect_file_change'),...conversation,changeId:id}).strict(),
+  z.object({type:z.literal('restore_file_change'),...conversation,changeId:id,confirm:z.literal(true)}).strict(),
   z.object({ type: z.literal('list'), archived: z.boolean().default(false) }).strict(),
   z.object({ type: z.literal('restore'), ...conversation }).strict(),
   z.object({ type: z.literal('delete_conversation'), ...conversation, confirm: z.literal(true) }).strict(),
+  z.object({ type: z.literal('delete_workspace'), workspaceId: id, confirm: z.literal(true) }).strict(),
+  z.object({ type: z.literal('workspace_deletion_status'), workspaceId: id }).strict(),
   z
     .object({ type: z.literal('approval_detail'), ...conversation, approvalId: id })
     .strict(),
@@ -55,6 +63,7 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
       ...conversation,
       approvalId: id,
       decision: z.enum(['allow', 'deny']),
+      scope:z.enum(['once','task']).optional(),
     })
     .strict(),
   z.object({ type: z.literal('answer_question'), ...conversation, questionId: id, answers: answersSchema }).strict(),

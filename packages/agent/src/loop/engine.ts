@@ -118,7 +118,7 @@ export class AgentEngine {
         r.phase === 'finalize' &&
         !this.store.messages(r.conversation_id).some((m) => !m.applied)
           ? []
-          : this.registry.specs();
+          : this.registry.specs(this.store.environment(r.environment_id));
     try {
       const c = this.context.inspect(facts, specs),
         policyFingerprint = hash(this.context.policy(facts.settings)),
@@ -261,7 +261,7 @@ export class AgentEngine {
         this.store.applyInputs(runId);
         const current = this.store.getRun(runId),
           finalizing = current.phase === 'finalize';
-        const specs = finalizing ? [] : this.registry.specs();
+        const specs = finalizing ? [] : this.registry.specs(this.store.environment(run.environment_id));
         let taskProjection: unknown = null;
         const facts = () => {
           if (

@@ -14,7 +14,7 @@ import {
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel, call, text, eventually, removeTestRoot } from './fixtures.js';
 import type { Step } from './fixtures.js';
 import type { PreparedRequest } from '../packages/agent/src/ports.js';
@@ -424,7 +424,7 @@ test('C11：阶段 2 数据库升级保留原消息、scratch 定位与事件游
     await app.close();
     const upgraded = new SqliteStore(join(root, 'data'));
     try {
-      assert.equal(upgraded.all('SELECT * FROM schema_migrations').length, 7);
+      assert.equal(upgraded.all('SELECT * FROM schema_migrations').length,12);
       assert.deepEqual(upgraded.messages(c.conversationId), messages);
       assert.deepEqual(upgraded.events(c.conversationId), events);
     } finally {

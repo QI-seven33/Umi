@@ -1212,3 +1212,31 @@ body,
 .settings-import-files span {font-size:11px;color:var(--text-muted);flex:none;}
 .settings-import-detail .settings-skill-preview {padding:0;}
 .settings-skill-origin {overflow-wrap:anywhere;}
+
+/* 历史尚未到达不能显示为空会话；输入区仍可正常使用。 */
+.umi-history-state { display:flex; align-items:center; justify-content:center; gap:12px; padding:36px 24px; color:var(--text-secondary); font-size:14px; }
+.umi-history-state button { border:1px solid var(--border-color, #8884); border-radius:8px; padding:5px 10px; background:transparent; color:var(--text-primary); cursor:pointer; }
+
+/* 工作区管理按钮与同一行的新会话按钮共用尺寸；菜单沿用会话菜单。 */
+.workspace-row:has(.workspace-item-menu) .workspace-new-chat { opacity:1; }
+.workspace-row .workspace-more { margin-right:0; }
+
+/* 对话排版沿用原主题；强调层级可扫读，宽表格在内容内部滚动。 */
+.message.assistant .message-body strong {font-weight:700;color:var(--text-primary);}
+.message-body .inline-file-link {display:inline;border:0;border-radius:4px;padding:1px 4px;font:inherit;color:#2e74d7;background:#2e74d70a;cursor:pointer;overflow-wrap:anywhere;text-align:inherit;}
+.message-body .inline-file-link:hover {text-decoration:underline;background:var(--bg-hover);}
+.message-body .inline-file-link:focus-visible {outline:2px solid #2e74d7;outline-offset:2px;}
+.message-table-scroll {max-width:100%;overflow-x:auto;margin:14px 0;}
+.message-table-scroll table {width:max-content;min-width:100%;margin:0;}
+.message-table-scroll th,.message-table-scroll td {vertical-align:top;line-height:1.65;}
+.message.assistant .message-body :is(h1,h2,h3,h4) {font-weight:650;line-height:1.5;margin:22px 0 10px;}
+.message.assistant .message-body :is(h1,h2,h3,h4):first-child {margin-top:0;}
+.message.assistant .message-body li {margin:5px 0;line-height:1.75;}
+
+.workspace-access-dialog .workspace-grant-row {display:flex;align-items:center;gap:12px;margin:14px 0;overflow-wrap:anywhere;}
+.workspace-access-dialog .workspace-grant-row>span {flex:1;min-width:0;}
+.workspace-access-dialog small {display:block;color:var(--text-secondary);margin-top:4px;}
+.workspace-access-dialog .workspace-grant-row button {flex:none;font:inherit;padding:4px 8px;border:1px solid var(--border-color);border-radius:6px;background:transparent;color:inherit;}
+
+:root body .composer-approval .approval-allow-task {color:var(--text-primary);background:transparent;border:1px solid var(--border-color);}
+:root body .composer-approval .approval-allow-task:hover {background:var(--bg-secondary);}

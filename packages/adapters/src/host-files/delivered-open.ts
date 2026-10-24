@@ -56,6 +56,7 @@ export function registerDeliveredOpen(registry: ToolRegistry, files: ResourceFil
   const schema = z.object({ changeSetId: z.string().min(1), path: filePath }).strict();
   registry.register({
     name: 'open_delivered_file',
+    available:env=>!files.repo.direct.enabled(env.id),
     description: '按用户要求，使用系统默认应用打开已成功交付且当前版本匹配的文档/HTML/图片。可跨轮传原 changeSetId 和相对路径；此次打开需要具体批准，无需恢复旧读取权限或重新交付。系统接收打开请求不证明页面渲染或内容正确。不要用宿主脚本代替此动作。',
     schema, effect: 'host-code',
     prepare: (args, env) => {

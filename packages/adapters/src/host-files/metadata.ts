@@ -56,6 +56,7 @@ export function metadataInventory(
     prefix?: string;
     fileOnly?: string;
     skipEnvironments?: boolean;
+    allowPath?: (absolute:string)=>boolean;
     signal?: AbortSignal;
     now?: () => number;
   } = {},
@@ -97,6 +98,7 @@ export function metadataInventory(
     return false;
   };
   const add = (absolute: string, path: string) => {
+    if(options.allowPath && !options.allowPath(absolute)) {skip(path,'protected-control-data');return false;}
     const s = lstatSync(absolute, { bigint: true });
     if (s.isSymbolicLink()) {
       skip(path, 'link', true);
@@ -124,6 +126,7 @@ export function metadataInventory(
   };
   const walk = (absolute: string, base: string, depth: number) => {
     if (stopped()) return;
+    if(options.allowPath && !options.allowPath(absolute)) {skip(base,'protected-control-data');return;}
     safeRoot(absolute);
     directories.set(absolute, stamp(absolute));
     const dir = opendirSync(absolute);

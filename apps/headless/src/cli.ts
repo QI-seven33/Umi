@@ -14,6 +14,11 @@ import { filePath } from '../../../packages/protocol/src/resources.js';
 
 const ref = z.string().min(1).max(160);
 const commands = z.discriminatedUnion('type', [
+  z.object({type:z.literal('revoke_directory_access'),conversationId:ref,grantId:ref}).strict(),
+  z.object({type:z.literal('list_file_changes'),conversationId:ref,beforeChangeId:ref.optional()}).strict(),
+  z.object({type:z.literal('preview_file_change'),conversationId:ref,changeId:ref,startByte:z.number().int().nonnegative().default(0),byteLength:z.number().int().min(1).max(64000).default(64000)}).strict(),
+  z.object({type:z.literal('inspect_file_change'),conversationId:ref,changeId:ref}).strict(),
+  z.object({type:z.literal('restore_file_change'),conversationId:ref,changeId:ref,confirm:z.literal(true)}).strict(),
   z
     .object({
       type: z.literal('create'),
@@ -118,8 +123,9 @@ write({
     workMemory: true,
     scratchApproval: true,
     resources: true,
-    workingCopy: true,
-    delivery: true,
+    directFiles: true,
+    workingCopy: true, // 旧记录兼容
+    delivery: true, // 旧副本交付兼容
     userQuestions: true,
     frozenFilePreview: true,
     nativeOpen: false,
@@ -143,6 +149,11 @@ async function handle(line: string) {
     if (!parsed.success) throw new UmiError('PROTOCOL_INVALID', '命令字段不符合协议');
     const c = parsed.data;
     switch (c.type) {
+      case 'revoke_directory_access': write({kind:'result',type:c.type,...app.revokeDirectoryAccess(c.conversationId,c.grantId)});break;
+      case 'list_file_changes': write({kind:'result',type:c.type,changes:app.files.repo.direct.changes(c.conversationId,c.beforeChangeId)});break;
+      case 'preview_file_change': write({kind:'result',type:c.type,...app.files.direct.preview(c.conversationId,c.changeId,c.startByte,c.byteLength)});break;
+      case 'inspect_file_change': write({kind:'result',type:c.type,...app.files.direct.inspect(c.conversationId,c.changeId)});break;
+      case 'restore_file_change': write({kind:'result',type:c.type,...app.restoreFileChange(c.conversationId,c.changeId)});break;
       case 'create':
         write({
           kind: 'result',

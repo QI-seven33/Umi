@@ -170,22 +170,21 @@ export function Composer(props: {
                 {executionPolicy === "ask"
                   ? <ShieldCheck size={14} strokeWidth={1.9} />
                   : <Zap size={14} strokeWidth={1.9} />}
-                <strong>{executionPolicy === "ask" ? "询问执行" : "自动执行（未实现）"}</strong>
+                <strong>{executionPolicy === "ask" ? "询问执行" : "自动执行"}</strong>
                 <ChevronDown size={13} strokeWidth={2} />
               </button>
               {permissionMenuOpen && <div className="permission-menu work-permission-menu">
                 {([
                   {
-                    value: "ask" as ExecutionPolicy, title: "询问执行", detail: "新增资源、源文件交付与宿主命令需要批准",
+                    value: "ask" as ExecutionPolicy, title: "询问执行", detail: "已授权目录直接编辑；新增目录与宿主命令另行批准",
                     icon: <ShieldCheck size={15} strokeWidth={1.9} />
                   },
                   {
-                    value: "auto" as ExecutionPolicy, title: "自动执行（未实现）", detail: "当前仍按具体批准执行；任务内信任待设计",
+                    value: "auto" as ExecutionPolicy, title: "自动执行", detail: "目录内普通读改自动；获准开发命令本任务复用，高危仍询问",
                     icon: <Zap size={15} strokeWidth={1.9} />
                   },
                 ]).map((item) => <button type="button" key={item.value}
                   className={`policy-${item.value}${executionPolicy === item.value ? " selected" : ""}`}
-                  disabled={item.value === "auto"}
                   onClick={() => { onSelectExecutionPolicy(item.value); setPermissionMenuOpen(false); }}>
                   {item.icon}<span><strong>{item.title}</strong><small>{item.detail}</small></span>
                   <Check size={15} />

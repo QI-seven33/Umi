@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Folder, FolderOpen,
-  MoreHorizontal, Plus, SquarePen, Archive,
+  MoreHorizontal, Plus, SquarePen, Archive, Trash2,
 } from "lucide-react";
 
 import type { Conversation, Workspace, ThemeMode } from "../../types/index.js";
@@ -18,6 +18,8 @@ export function Sidebar(props: {
   expandedWorkspaceIds: Set<string>;
   onToggleWorkspace: (id: string) => void;
   onCreateWorkspace: () => void;
+  onRequestDeleteWorkspace: (id: string) => void;
+  onManageWorkspaceAccess: (id: string) => void;
   conversations: Conversation[]; activeId: string;
   onSelectConversation: (id: string) => void;
   onNewConversation: (workspaceId?: string) => void;
@@ -28,7 +30,7 @@ export function Sidebar(props: {
 }) {
   const {
     workspaces, selectedWorkspaceId, onSelectWorkspace, expandedWorkspaceIds,
-    onToggleWorkspace, onCreateWorkspace,
+    onToggleWorkspace, onCreateWorkspace, onRequestDeleteWorkspace, onManageWorkspaceAccess,
     conversations, activeId, onSelectConversation,
     onNewConversation,
     onRequestArchiveConversation,
@@ -75,8 +77,10 @@ export function Sidebar(props: {
         || target.closest(".workspace-item-menu-trigger")) return;
       setWorkItemMenu(null);
     };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setWorkItemMenu(null); };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("keydown", escape); };
   }, [workItemMenu]);
 
   useEffect(() => () => {
@@ -124,11 +128,31 @@ export function Sidebar(props: {
                       {isExpanded ? <FolderOpen size={16} strokeWidth={1.7} /> : <Folder size={16} strokeWidth={1.7} />}
                       <span>{workspace.name}</span>
                     </button>
+                    <button type="button" className="workspace-new-chat workspace-more workspace-item-menu-trigger"
+                      data-menu-trigger="workspace"
+                      onClick={() => {
+                        hideWorkspaceTip();
+                        setWorkItemMenu(current => current?.kind === "workspace" && current.id === workspace.workspaceId
+                          ? null : {kind:"workspace", id:workspace.workspaceId});
+                      }}
+                      aria-label={'管理工作区：'+workspace.name} title="管理工作区"
+                      aria-expanded={workItemMenu?.kind === "workspace" && workItemMenu.id === workspace.workspaceId}>
+                      <MoreHorizontal size={14} strokeWidth={1.7} />
+                    </button>
                     <button type="button" className="workspace-new-chat"
                       onClick={() => { onSelectWorkspace(workspace.workspaceId); onNewConversation(workspace.workspaceId); }}
                       aria-label={`在 ${workspace.name} 中新建对话`} title="在此工作区新建对话">
                       <SquarePen size={14} strokeWidth={1.7} />
                     </button>
+                    {workItemMenu?.kind === "workspace" && workItemMenu.id === workspace.workspaceId && (
+                      <div className="conversation-menu workspace-item-menu" aria-label="工作区菜单">
+                        <button type="button" onClick={()=>{setWorkItemMenu(null);onManageWorkspaceAccess(workspace.workspaceId);}}><FolderOpen size={16}/>目录权限</button>
+                        <button type="button" className="archive-delete"
+                          onClick={() => { setWorkItemMenu(null); onRequestDeleteWorkspace(workspace.workspaceId); }}>
+                          <Trash2 size={16} />删除工作区
+                        </button>
+                      </div>
+                    )}
                   </div>
                   {isExpanded && (
                     <div className="workspace-conversation-list">

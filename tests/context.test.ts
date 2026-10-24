@@ -104,7 +104,7 @@ test('S4-08：模型主动窗口请求在工具组完成后生效，保留指定
     return call('request_context_reset',{reason:'保留用户原话，切换任务窗口',keepSources:[{kind:'message',messageId:originalId,startByte:0,endByte:Buffer.byteLength('精确要求')}]});},text('最终完成')]);
   const app=new UmiApplication(join(root,'data'),model);try{const c=app.createConversation(workspace),r=app.send(c.conversationId,uid(),'精确要求');assert.equal((await app.wait(r.runId)).status,'completed');
     const events=app.store.events(c.conversationId),settled=events.findIndex(e=>e.type==='tool.settled'),committed=events.findIndex(e=>e.type==='context.window_committed');assert(settled<committed);
-    assert.equal(app.store.contextMemory(c.conversationId).window.version,2);assert.equal(app.store.environment(c.environmentId).revision,0);assert.equal(model.requests.length,2);assert.equal(Object.keys(app.store.snapshot(c.conversationId).approvals).length,0);
+    assert.equal(app.store.contextMemory(c.conversationId).window.version,2);assert.equal(app.store.environment(c.environmentId).revision,1);assert.equal(model.requests.length,2);assert.equal(Object.keys(app.store.snapshot(c.conversationId).approvals).length,0);
   }finally{await app.close();removeTestRoot(root);}
 });
 
@@ -115,7 +115,7 @@ test('S4-09：上下文统计区分实际 API 用量与估算，维护费用不�
 test('S4-10：阶段 3 数据库原样升级到阶段 4，原事件与 cursor 不变',async()=>{
   const f=contextFixture(1,20);try{const events=f.app.store.events(f.c.conversationId),cursor=f.app.store.snapshot(f.c.conversationId).cursor;
     f.app.store.db.exec('DROP TABLE conversation_deletions; DELETE FROM schema_migrations WHERE version=7; DROP TABLE memory_entries; DROP TABLE context_maintenance; DELETE FROM schema_migrations WHERE version=4;');await f.app.close();const next=new SqliteStore(join(f.root,'data'));
-    try{assert.equal(next.all('SELECT * FROM schema_migrations').length,7);assert.deepEqual(next.events(f.c.conversationId).slice(0,events.length),events);assert.equal(next.snapshot(f.c.conversationId).memory.window.version,1);const appended=next.events(f.c.conversationId,{...cursor,sequence:cursor.sequence});assert.deepEqual(appended.map(e=>e.type),['run.interrupted','message.committed','run.failure_summary']);assert(next.snapshot(f.c.conversationId).runs[f.runId]?.failureSummary);}finally{next.close();}
+    try{assert.equal(next.all('SELECT * FROM schema_migrations').length,12);assert.deepEqual(next.events(f.c.conversationId).slice(0,events.length),events);assert.equal(next.snapshot(f.c.conversationId).memory.window.version,1);const appended=next.events(f.c.conversationId,{...cursor,sequence:cursor.sequence});assert.deepEqual(appended.map(e=>e.type),['run.interrupted','message.committed','run.failure_summary']);assert(next.snapshot(f.c.conversationId).runs[f.runId]?.failureSummary);}finally{next.close();}
   }finally{await f.close();}
 });
 

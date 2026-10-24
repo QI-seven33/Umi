@@ -46,6 +46,7 @@ export class OutputFiles {
       point: OutputBoundary,
       index: number,
     ) => void | Promise<void>,
+    private readonly protectTarget: (target:string)=>void = ()=>{},
   ) {}
 
   private bytes(env: Environment, descriptor: OutputDescriptor) {
@@ -307,8 +308,9 @@ export class OutputFiles {
     const items = args.items.map((a) => {
       const { descriptor, env: original } = this.descriptor(conversationId, a.outputId);
       if (original.id !== env.id) throw failure('成果不属于当前环境');
-      const target = resolve(a.target),
-        root = safeRoot(dirname(target)),
+      const target = resolve(a.target);
+      this.protectTarget(target);
+      const root = safeRoot(dirname(target)),
         path = basename(target);
       filePath.parse(path);
       const within = relative(store.dataRoot, target);

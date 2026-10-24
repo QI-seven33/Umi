@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { DesktopService } from '../apps/desktop/service.js';
 import { Timeline } from '../apps/desktop/renderer/src/Timeline.js';
 import { ContextManager } from '../packages/agent/src/context/manager.js';

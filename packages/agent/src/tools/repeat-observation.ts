@@ -30,7 +30,7 @@ export function commandRepeatsSinceChange(
     const tool = history[i]!;
     if (tool.environment_id !== current.environment_id || tool.state !== 'succeeded' || !tool.context_ref || !tool.result_ref) continue;
     // 排除任意宿主程序：它的成功/环境修订不能证明读写了哪些内容。
-    if (!['copy-write', 'scratch-write'].includes(registry.get(tool.name).effect)) continue;
+    if (!['copy-write', 'file-write', 'scratch-write'].includes(registry.get(tool.name).effect)) continue;
     const result = store.readArtifact<ToolResult>(tool.result_ref);
     if (result.outcome !== 'succeeded' || result.mutated === false) continue;
     const write = executionContextSchema.parse(store.readArtifact(tool.context_ref));

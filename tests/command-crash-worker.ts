@@ -1,4 +1,4 @@
-import {UmiApplication} from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import {ScriptModel,call,eventually} from './fixtures.js';
 import {uid} from '../packages/agent/src/identity.js';
 const [data,workspace,mode]=process.argv.slice(2);if(!data||!workspace||!mode)throw new Error('缺少参数');let mountId='',conversationId='',runId='',environmentId='';

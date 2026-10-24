@@ -21,6 +21,7 @@ export type Block = {
 export type ConversationState = {
   cursor: Cursor;
   environmentRevision?: number;
+  fileChangeRevision?: string;
   latestRunId?: string; // 最近创建/启动/显式恢复，不能仅按对象的创建顺序选择。
   runs: Record<
     string,
@@ -80,6 +81,9 @@ export type ConversationState = {
       status: 'pending' | 'allow' | 'deny' | 'invalidated';
       requestedAt?: string;
       decidedAt?: string;
+      canReuseCommand?: boolean;
+      decisionSource?: 'user'|'task-grant';
+      sourceApprovalId?: string;
     }
   >;
   messages: {
@@ -245,7 +249,9 @@ function writableProjection(previous: ConversationState, e: WorkEvent): Conversa
       return { ...base, attempts: { ...previous.attempts,
         ...(attempt ? { [e.modelAttemptId!]: { ...attempt } } : {}) } };
     }
-    case 'model.repetition_observed': return base;
+    case 'model.repetition_observed':
+    case 'workspace.access_changed':
+    case 'file.change_recorded': return base;
     case 'message.committed': return { ...base, messages: [...previous.messages] };
     case 'tool.prepared': return { ...base, tools: { ...previous.tools } };
     case 'tool.dispatch_intent':
@@ -583,6 +589,13 @@ export function reduceConversation(
       m.rootIdentity = e.payload.rootIdentity;
       break;
     }
+    case 'file.change_recorded':
+      s.fileChangeRevision=e.sequence;break;
+    case 'workspace.access_changed':
+      break; // 授权/恢复记录由仓储读取，投影不会自行授予权限。
+    case 'resource.direct_bound':
+      s.resources[e.payload.resourceId] = {...s.resources[e.payload.resourceId],mountId:e.payload.mountId,access:e.payload.access};
+      break;
     case 'resource.authorized':
       s.resources[e.payload.resourceId] = {
         ...s.resources[e.payload.resourceId],
@@ -866,6 +879,7 @@ export function reduceConversation(
       s.approvals[e.payload.approvalId] = {
         callId: e.callId!,
         description: e.payload.description,
+        ...(e.payload.canReuseCommand?{canReuseCommand:true}:{}),
         status: 'pending',
         requestedAt: e.occurredAt,
       };
@@ -878,6 +892,7 @@ export function reduceConversation(
         throw new UmiError('PROTOCOL_INVALID', '批准对象不存在或归属错误');
       a.status = e.type === 'approval.decided' ? e.payload.decision : 'invalidated';
       a.decidedAt = e.occurredAt;
+      if(e.type==='approval.decided'&&e.payload.decisionSource){a.decisionSource=e.payload.decisionSource;if(e.payload.sourceApprovalId)a.sourceApprovalId=e.payload.sourceApprovalId;}
       break;
     }
   }

@@ -1,10 +1,12 @@
+import {remarkCjkEmphasis,prepareChatMarkdown} from './remark-cjk-emphasis.js';
+import {resolveFileReference} from './file-links.js';
 import { MessageActions } from './components/ui/MessageActions.js';
 import { InspectionSummary } from './OutputsPanel.js';
 import { resourceFailureLabel } from './recovery.js';
 import { userFacingError } from './ui-error.js';
-import { memo, useState, useEffect, useLayoutEffect, useRef } from 'react';
+import {Children,isValidElement,memo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { ChevronDown, FileText, Atom, Terminal, Search, Sparkles } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, {defaultUrlTransform} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ConversationState, Block } from '../../../../packages/protocol/src/reducer.js';
 import { CodeBlock } from './components/ui/CodeBlock.js';
@@ -20,17 +22,26 @@ export function fileTargetKey(target: FileTarget): string {
   return JSON.stringify(target.attachmentId ? ['attachment', target.attachmentId] : target.changeSetId ? ['changeset', target.changeSetId, target.path] : ['working', target.mountId, target.path]);
 }
 export const Markdown = memo(function Markdown({ text, mounts, onPreview }: { text: string; mounts: any[]; onPreview: (f: FileTarget) => void }) {
-  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-    a: ({ href, children }) => <a href={href} onClick={e => { e.preventDefault(); if (href) void window.umi.openUrl(href); }}>{children}</a>,
-    pre: ({ children }) => <>{children}</>, code: ({ className, children }) => {
-      const value = String(children).replace(/\n$/, ''), lang = /language-(\w+)/.exec(className ?? '')?.[1];
-      if (lang || value.includes('\n')) return <CodeBlock lang={lang ?? 'text'} codeText={value}><code>{value}</code></CodeBlock>;
-      const logical = /^@working\/([^/]+)\/(.+)$/.exec(value), path = logical?.[2] ?? value;
-      const mount = logical ? mounts.find(m => m.mountId === logical[1] || m.resourceId === logical[1]) : mounts.length === 1 ? mounts[0] : null;
-      if (mount && /^[^\s]+\.[a-zA-Z0-9]+$/.test(path) && !path.includes(':') && !path.startsWith('/')) return <button type="button" className="inline-code inline-file-link" onClick={() => onPreview({ mountId: mount.mountId, path })}>{children}</button>;
+  const formatted=prepareChatMarkdown(text);
+  return <ReactMarkdown remarkPlugins={[remarkGfm,[remarkCjkEmphasis,formatted.markers]]} urlTransform={(url,key)=>key==='href'&&resolveFileReference(url,mounts)?url:defaultUrlTransform(url)} components={{
+    a: ({href,children}) => {
+      const target=href?resolveFileReference(href,mounts):null;
+      if(target)return <button type="button" className="inline-file-link" title={target.path} aria-label={'预览文件：'+target.path} onClick={()=>onPreview(target)}>{children}</button>;
+      return href&&/^https?:\/\//i.test(href)?<a href={href} onClick={e=>{e.preventDefault();void window.umi.openUrl(href);}}>{children}</a>:<span>{children}</span>;
+    },
+    table:({children})=><div className="message-table-scroll"><table>{children}</table></div>,
+    pre:({children})=>{
+      const child=Children.toArray(children)[0];
+      if(!isValidElement<{className?:string;children?:unknown}>(child))return <pre>{children}</pre>;
+      const value=String(child.props.children??'').replace(/\n$/,''),lang=/language-([\w+-]+)/.exec(child.props.className??'')?.[1]??'text';
+      return <CodeBlock lang={lang} codeText={value}><code>{value}</code></CodeBlock>;
+    }, code: ({children}) => {
+      const value=String(children);
+      const target=resolveFileReference(value,mounts);
+      if(target)return <button type="button" className="inline-code inline-file-link" title={target.path} aria-label={'预览文件：'+target.path} onClick={()=>onPreview(target)}>{children}</button>;
       return <code className="inline-code">{children}</code>;
     }
-  }}>{text}</ReactMarkdown>;
+  }}>{formatted.text}</ReactMarkdown>;
 });
 function Changes({ id, conversationId, onPreview }: { id: string; conversationId: string; onPreview: (f: FileTarget) => void }) {
   const [data, setData] = useState<any>(null), [error, setError] = useState('');

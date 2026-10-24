@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { DesktopService } from '../apps/desktop/service.js';
 import { Timeline } from '../apps/desktop/renderer/src/Timeline.js';
 import { activityLabel } from '../apps/desktop/renderer/src/activity.js';

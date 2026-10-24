@@ -60,6 +60,7 @@ let win: BrowserWindow | null = null,
   broker: AgentBroker,
   quitting = false,
   config: DesktopConfig;
+let startupReady: ReturnType<AgentBroker['ready']> | undefined;
 
 // 窗口与页面共用不透明纯色背景，避免桌面壁纸或窗口激活状态改变外观。
 function windowBackgroundColor() {
@@ -250,12 +251,16 @@ function installIPC() {
   });
 
   // umi:status：返回 broker 是否 ready。
-  handle('umi:status', () => broker.ready());
+  handle('umi:status', () => {
+    const initial = startupReady; startupReady = undefined;
+    return initial ?? broker.ready();
+  });
 
   handle('umi:choose', async () => {
     // 弹系统目录选择对话框。
     const result = await dialog.showOpenDialog(win!, {
-      title: '选择 Umi 工作区',
+      title: '选择工作文件夹（允许 Umi 直接读改，直到撤销）',
+      buttonLabel: '选择并授权',
       properties: ['openDirectory'],
     });
 
@@ -323,7 +328,7 @@ function installIPC() {
       // 把内部命令 create_internal 和真实 workspace 路径交给 broker。
       return broker.request({
         internal: 'create_internal',
-        payload: { workspace: s.path },
+        payload: { workspace: s.path, rootIdentity:s.identity },
       });
     }
 
@@ -537,6 +542,9 @@ if (!app.requestSingleInstanceLock()) {
           if (error) throw new UmiError('OPEN_FAILED', error);
         },
       );
+      // 与页面加载并行，第一次status仍收到原始启动结果（包括具体失败原因）。
+      startupReady = broker.ready();
+      void startupReady.catch(() => {});
       installIPC();
       createWindow();
 

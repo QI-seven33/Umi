@@ -1,5 +1,5 @@
 import { replaceFilesSteps } from './file-write-fixtures.js';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel, call, eventually } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';
 import type { PreparedRequest } from '../packages/agent/src/ports.js';

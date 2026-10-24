@@ -132,7 +132,8 @@ export class FileWriteTools {
         content: '写入在落盘前取消。',
         data: null,
       };
-    if (!plan.noOp) {
+    if (!plan.noOp && m.direct) this.files.direct.write(m,a.path,ctx,textBytes(a.content),signal,plan.executionId);
+    else if (!plan.noOp) {
       if (plan.mode === 'create') {
         try {
           createExclusive(m.root, a.path, textBytes(a.content), m.rootIdentity);
@@ -169,7 +170,7 @@ export class FileWriteTools {
       verification: plan.noOp ? 'no-op-current-read-verified' : 'written-bytes-verified',
       content: plan.noOp
         ? '内容相同，未落盘。'
-        : '工作副本文本已写入并回读核验；源文件交付仍需独立批准。',
+        : m.direct ? '真实文件已写入，修改记录和恢复内容已保存。' : '工作副本文本已写入并回读核验；源文件交付仍需独立批准。',
       data: {
         mountId: m.id,
         path: a.path,
@@ -189,6 +190,7 @@ export class FileWriteTools {
       m = this.files.repo.mount(a.mountId, ctx.environmentId),
       loc = ctx.locations[0]!;
     this.files.assertPath(m.scope, a.path);
+    this.files.direct.checkObservation(m,a.path);
     if (
       loc.rootRef.kind !== 'mount' ||
       loc.rootRef.mountId !== m.id ||
@@ -204,7 +206,8 @@ export class FileWriteTools {
     if (
       after?.hash === loc.desiredHash &&
       (!noOp || after.identity === loc.beforeIdentity)
-    )
+    ) {
+      if(m.direct && ctx.fileWrite) this.files.direct.reconcile(m,ctx.fileWrite.executionId,true);
       return {
         outcome: 'succeeded',
         mutated: !noOp,
@@ -212,10 +215,12 @@ export class FileWriteTools {
         content: '原目标符合冻结字节；未再次写入，不断言原执行来源。',
         data: { mountId: m.id, path: a.path, observed: after },
       };
+    }
     if (
       (after?.hash ?? null) === loc.beforeHash &&
       (after?.identity ?? null) === loc.beforeIdentity
-    )
+    ) {
+      if(m.direct && ctx.fileWrite) this.files.direct.reconcile(m,ctx.fileWrite.executionId,false);
       return {
         outcome: 'failed',
         mutated: false,
@@ -223,6 +228,7 @@ export class FileWriteTools {
         content: '原目标仍为写入前状态；未再次操作。',
         data: { observed: after },
       };
+    }
     return {
       outcome: 'unknown',
       mutated: false,
@@ -241,9 +247,9 @@ export function registerTextWrite(
   registry.register({
     name: 'write_file',
     description:
-      '写 UTF-8 工作副本文本。mode=create（默认）只新建，存在时拒绝；mode=replace 需完整已见原文，宿主自动绑定版本，自己成功写入的正文无需重读。readExecutionId/expectedReadHash 是可省略的兼容参数，若提供则严格核对。部分修改用 edit_file；可创建父目录，无变化不写，源交付独立批准。',
+      '写获准目录中的 UTF-8 文件。direct=true时立即修改真实文件并保存恢复内容。mode=create（默认）只新建；replace需完整已见原文，宿主自动绑定版本，自写成功正文无需重读。可省略readExecutionId/expectedReadHash，提供时严格核对。部分修改用edit_file，无变化不写。',
     schema: writeFileSchema,
-    effect: 'copy-write',
+    effect: 'file-write',
     prepare: (a, env, id) => writes.prepare(a, env, id),
     execute: (a, ctx, _c, s) => writes.execute(a, ctx, s),
     reconcile: (a, ctx, _c, s) => writes.reconcile(a, ctx, s),

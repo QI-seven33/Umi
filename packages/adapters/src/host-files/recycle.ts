@@ -144,6 +144,14 @@ export function registerRecycle(
 ) {
   const schema = z.object({ resourceId: z.string().min(1), path: filePath }).strict(),
     repo = files.repo;
+  const source=(resourceId:string,environmentId:string,path:string,inspection=false)=>{
+    const c=repo.getCandidate(resourceId,environmentId);
+    files.assertPath(c.scope,path);
+    files.direct.protect(safeFile(files.sourceRoot(c),path,files.sourceIdentity(c)));
+    const mount=repo.direct.mounts(environmentId).find(m=>m.resourceId===c.id);
+    if(mount){if(inspection)files.direct.checkObservation(mount,path);else files.direct.check(mount,false,path);}
+    return c;
+  };
   registry.register({
     name: 'recycle_file',
     description:
@@ -154,7 +162,7 @@ export function registerRecycle(
       if (!enabled)
         throw new UmiError('CAPABILITY_UNAVAILABLE', '当前运行环境没有实现原生回收站');
       const a = schema.parse(input),
-        c = repo.getCandidate(a.resourceId, env.id);
+        c = source(a.resourceId, env.id, a.path);
       if (!repo.authorized(c.id, env.id))
         throw new UmiError('PERMISSION_DENIED', '本任务尚未获准访问这个来源');
       files.assertPath(c.scope, a.path);
@@ -185,7 +193,7 @@ export function registerRecycle(
     },
     async execute(input, ctx, _conversation, signal) {
       const a = schema.parse(input),
-        c = repo.getCandidate(a.resourceId, ctx.environmentId),
+        c = source(a.resourceId, ctx.environmentId, a.path),
         loc = ctx.locations[0]!;
       files.assertPath(c.scope, a.path);
       const before = observe(files.sourceRoot(c), a.path, files.sourceIdentity(c));
@@ -199,6 +207,7 @@ export function registerRecycle(
           content: '原文件在批准后变化，未移入回收站。',
           data: null,
         };
+      repo.store.assertApprovedExecution(repo.scope(ctx.environmentId).executionId!,ctx);
       const result = await native(
         safeFile(files.sourceRoot(c), a.path, files.sourceIdentity(c)),
         before.hash,
@@ -221,7 +230,7 @@ export function registerRecycle(
     },
     async reconcile(input, ctx, _c, signal) {
       const a = schema.parse(input),
-        c = repo.getCandidate(a.resourceId, ctx.environmentId),
+        c = source(a.resourceId, ctx.environmentId, a.path, true),
         loc = ctx.locations[0]!;
       files.assertPath(c.scope, a.path);
       const result = await native(

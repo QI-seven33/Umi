@@ -34,12 +34,12 @@ export class DesktopService {
       ),
     };
   }
-  async handle(command: DesktopCommand | { type: 'create_internal'; workspace: string }) {
+  async handle(command: DesktopCommand | { type: 'create_internal'; workspace: string; rootIdentity?:string }) {
     const a = this.app,
       s = a.store,
       c = command;
     //是"内部创建"就创建会话并返回
-    if (c.type === 'create_internal') return a.createConversation(c.workspace);
+    if (c.type === 'create_internal') return a.createConversation(c.workspace,{},c.rootIdentity);
     //是"列表"就返回会话列表
     if (c.type === 'list') return s.listConversations(c.archived);
     //是"创建"就抛权限错误，拒绝
@@ -47,6 +47,12 @@ export class DesktopService {
       throw new UmiError('PERMISSION_DENIED', '目录选择证据只能由桌面主进程解析');
     //switch (表达式) —— 拿 c.type 的值匹配下面每个 case
     switch (c.type) {
+      case 'list_directory_access': return a.files.repo.direct.grants(String(s.conversation(c.conversationId).environment_id)).map(g=>({id:g.id,root:g.root,access:g.access,revoked:g.revoked===1}));
+      case 'revoke_directory_access': return a.revokeDirectoryAccess(c.conversationId,c.grantId);
+      case 'list_file_changes': return a.files.repo.direct.changes(c.conversationId,c.beforeChangeId);
+      case 'preview_file_change': return a.files.direct.preview(c.conversationId,c.changeId,c.startByte,c.byteLength);
+      case 'inspect_file_change': return a.files.direct.inspect(c.conversationId,c.changeId);
+      case 'restore_file_change': return a.restoreFileChange(c.conversationId,c.changeId);
       case 'skills_import_start': return this.app.skillImports.start(c.input);
       case 'skills_import_list': return this.app.skillImports.list();
       case 'skills_import_detail': return this.app.skillImports.detail(c.id);
@@ -64,6 +70,7 @@ export class DesktopService {
             'SELECT source_root FROM workspaces WHERE id=?',
             conv.workspace_id as string,
           )!;
+        a.files.direct.requireReusable(String(conv.environment_id));
         const original = s.get(
           'SELECT identity FROM resource_candidates WHERE environment_id=? AND initial=1',
           conv.environment_id as string,
@@ -137,6 +144,7 @@ export class DesktopService {
       }
       //返回会话快照，转调本类 snapshot
       case 'snapshot':
+        await s.prepareProjection(c.conversationId);
         return this.snapshot(c.conversationId);
       //按游标拉一批有界事件，附带相关消息、资源、设置、上下文
       case 'events': {
@@ -165,7 +173,7 @@ export class DesktopService {
               ...m,
               attachments: s.messageAttachments(c.conversationId, m.id),
             })),
-          ...(batch.some((e) => e.type.startsWith('resource.'))
+          ...(batch.some((e) => e.type.startsWith('resource.') || e.type==='workspace.access_changed')
             ? {
                 resources: s.runtimeFacts(
                   s.conversation(c.conversationId).environment_id as string,
@@ -205,7 +213,7 @@ export class DesktopService {
       case 'answer_question':
         return a.questions.answer(c.conversationId, c.questionId, c.answers);
       case 'approve':
-        a.approve(c.conversationId, c.approvalId, c.decision);
+        a.approve(c.conversationId, c.approvalId, c.decision,c.scope);
         return { accepted: true };
       // 停止请求确认接收后立即返回；最终清理状态经事件流更新。
       case 'stop':
@@ -223,6 +231,9 @@ export class DesktopService {
         s.editConversation(c.conversationId, c.title);
         return { accepted: true };
       //取消归档会话，返回已接受
+      case 'workspace_deletion_status': return a.store.workspaceDeletionStatus(c.workspaceId);
+      case 'delete_workspace':
+        return a.deleteWorkspace(c.workspaceId);
       case 'delete_conversation':
         return a.deleteArchivedConversation(c.conversationId);
       case 'restore':

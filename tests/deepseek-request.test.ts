@@ -25,7 +25,7 @@ function validateTools(body: any) {
     assert(tool.function.parameters.properties);
     assert(!names.has(tool.function.name)); names.add(tool.function.name);
   }
-  assert(names.has('ask_user_question')); assert(names.has('edit_file')); assert(names.has('open_delivered_file'));
+  assert(names.has('ask_user_question')); assert(names.has('edit_file')); assert(names.has('open_delivered_file') || names.has('request_directory_access'));
   const edit = body.tools.find((t: any) => t.function.name === 'edit_file').function.parameters;
   assert.deepEqual(edit.required, ['mountId', 'path']);
   assert(!edit.anyOf);assert.equal(edit.oneOf.length,2); // 根仍为object，形态互斥显式出现在模型规格。
@@ -79,6 +79,6 @@ test('真实循环/适配器：你好携带完整工具表通过本地服务校�
     const edit = app.send(task.conversationId, uid(), '把第一处和第二处的原文改为新文'); await app.wait(edit.runId);
     assert.equal(app.store.getRun(edit.runId).status, 'completed'); assert.equal(requests, 4);
     assert.equal(readFileSync(join(mount.root, 'a.txt'), 'utf8'), '第一处新文\n第二处新文\n');
-    assert.equal(readFileSync(join(source, 'a.txt'), 'utf8'), '第一处原文\n第二处原文\n');
+    assert.equal(readFileSync(join(source, 'a.txt'), 'utf8'), '第一处新文\n第二处新文\n');
   } finally { await app.close(); removeTestRoot(root); }
 });

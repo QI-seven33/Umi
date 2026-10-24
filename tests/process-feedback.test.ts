@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { commandOutputPreview } from '../packages/adapters/src/host-process/output-preview.js';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel, call, text, eventually, removeTestRoot } from './fixtures.js';
 import type { LegacyWindowsProcessPort } from '../packages/adapters/src/host-process/port.js';
 import { uid } from '../packages/agent/src/identity.js';

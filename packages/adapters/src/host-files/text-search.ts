@@ -29,7 +29,8 @@ export function registerTextSearch(registry: ToolRegistry, files: ResourceFiles)
       const query = Buffer.from(a.query);
       if (query.toString('utf8') !== a.query || a.query.includes('\0')) throw new UmiError('TOOL_ARGUMENTS_INVALID', '查询必须是完整 UTF-8 文本');
       const inventory = metadataInventory(m.root, { maxEntries: 5000, maxDepth: 16, maxMs: 1500 }, {
-        expectedRoot: m.rootIdentity, signal, ...((a.path ?? a.prefix) ? { prefix: a.path ?? a.prefix! } : {}),
+        expectedRoot: m.rootIdentity, signal,
+        ...(m.direct?{allowPath:(path:string)=>{try{files.direct.protect(path);return true;}catch{return false;}}}:{}), ...((a.path ?? a.prefix) ? { prefix: a.path ?? a.prefix! } : {}),
         ...(m.scope.kind === 'file' ? { fileOnly: m.scope.path } : a.path ? { fileOnly: a.path } : {}),
       });
       const matches: Match[] = [], lines = new Set<string>(), matchedFiles = new Set<string>();
@@ -41,6 +42,7 @@ export function registerTextSearch(registry: ToolRegistry, files: ResourceFiles)
         await yieldToHost(undefined, { signal });
         if (Date.now() - started > 2500 || scannedBytes + item.size > 32 * 1024 * 1024 || matches.length >= 10000) { complete = false; skipped.push({ path: item.path, reason: 'search-budget' }); break; }
         if (item.size > 4 * 1024 * 1024) { complete = false; skipped.push({ path: item.path, reason: 'file-over-4MiB' }); continue; }
+        try {files.direct.check(m,false,item.path);} catch(e) {if(e instanceof UmiError && e.code==='PERMISSION_DENIED'){complete=false;skipped.push({path:item.path,reason:'protected-control-data'});continue;}throw e;}
         const before = observe(m.root, item.path, m.rootIdentity);
         if (!before) { complete = false; skipped.push({ path: item.path, reason: 'missing' }); continue; }
         if (before.size !== item.size) throw new UmiError('RESOURCE_CHANGED', '搜索清单后文件大小变化，请重新搜索');

@@ -33,6 +33,7 @@ export const mountSchema = z
     scope: resourceScopeSchema.default({ kind: 'directory' }),
     sourceRoot: z.string(),
     sourceIdentity: id,
+    direct: z.object({grantId: id, revision: z.number().int().positive()}).strict().optional(),
   })
   .strict();
 export type Mount = z.infer<typeof mountSchema>;

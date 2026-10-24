@@ -14,9 +14,11 @@ export type ToolDefinition = {
     | 'scratch-write'
     | 'network'
     | 'copy-write'
+    | 'file-write'
     | 'resource'
     | 'source-write'
     | 'host-code';
+  available?: (env: Environment) => boolean;
   prepare: (args: unknown, env: Environment, executionId?: string) => ExecutionContext;
   approvalRequired?: (args: unknown, context: ExecutionContext) => boolean;
   approvalDescription?: (args: unknown, context: ExecutionContext) => string;
@@ -64,8 +66,9 @@ export class ToolRegistry {
     if (!t) throw new UmiError('UNKNOWN_TOOL', '请求了未注册工具');
     return t;
   }
-  specs(): ToolSpec[] {
+  specs(env?: Environment): ToolSpec[] {
     return [...this.definitions.values()]
+      .filter(t=>!env || !t.available || t.available(env))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((t) => ({
         name: t.name,

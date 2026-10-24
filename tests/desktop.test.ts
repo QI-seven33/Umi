@@ -58,7 +58,7 @@ test('S5-04：旧阶段 4 库升级至 5，原消息、迁移指纹和游标保�
       next.store.all('SELECT version,checksum FROM schema_migrations WHERE version<=4'),
       checksums,
     );
-    assert.equal(next.store.get('SELECT max(version) v FROM schema_migrations')!.v, 7);
+    assert.equal(next.store.get('SELECT max(version) v FROM schema_migrations')!.v,12);
   } finally {
     await next.close();
     removeTestRoot(f.root);

@@ -43,6 +43,13 @@ jobs:
           dist/tests/program-observation.test.js
           dist/tests/process-feedback.test.js
           dist/tests/conversation-deletion.test.js
+          dist/tests/hot-path-indexes.test.js
+          dist/tests/direct-files.test.js
+          dist/tests/natural-history.test.js
+          dist/tests/event-blocks.test.js
+          dist/tests/workspace-deletion.test.js
+          dist/tests/projection-cache.test.js
+          dist/tests/response-format.test.js
           dist/tests/deepseek-request.test.js
           dist/tests/file-discovery.test.js
           dist/tests/interaction.test.js

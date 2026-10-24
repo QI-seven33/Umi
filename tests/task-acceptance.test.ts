@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { uid } from '../packages/agent/src/identity.js';
 import { bytesHash } from '../packages/adapters/src/host-files/paths.js';
 import { initialState, reduceConversation } from '../packages/protocol/src/reducer.js';

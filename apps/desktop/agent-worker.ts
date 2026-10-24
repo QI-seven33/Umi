@@ -1,3 +1,4 @@
+import {dirname} from 'node:path';
 import { verificationSkillFetch } from './verification-skill-source.js';
 import { NativeOpenClient } from './native-open-client.js';
 import { z } from 'zod';
@@ -35,7 +36,7 @@ const nativeOpen = new NativeOpenClient(message => port.postMessage(message), ()
 port.on('message', ({ data }: Electron.MessageEvent) => {
   if (nativeOpen.receive(data)) return;
   const request = ipcRequestSchema.safeParse(data);
-  const priority = Boolean(app && request.success && request.data.payload.type === 'stop');
+  const priority = Boolean(app && request.success && ['stop', 'list', 'revoke_directory_access', 'workspace_deletion_status'].includes(request.data.payload.type));
   void queue.dispatch(async () => {
     let correlationId: string | undefined;
     try {
@@ -49,6 +50,7 @@ port.on('message', ({ data }: Electron.MessageEvent) => {
             ? new DesktopVerificationModel()
             : new DeepSeekAdapter(() => key, c.config.baseUrl),
           {
+            protectedFileRoots:[dirname(c.dataRoot)],
             ...(c.verification?{skillFetch:verificationSkillFetch}:{}),
             search: { key: () => key, baseUrl: c.config.baseUrl },
             openDocument: nativeOpen.open,
@@ -112,12 +114,13 @@ port.on('message', ({ data }: Electron.MessageEvent) => {
           return;
         }
         const c2 = z
-          .object({ workspace: z.string().min(1) })
+          .object({ workspace: z.string().min(1),rootIdentity:z.string().min(1).optional() })
           .strict()
           .parse(c.payload);
         const result = await service!.handle({
           type: 'create_internal',
           workspace: c2.workspace,
+          ...(c2.rootIdentity?{rootIdentity:c2.rootIdentity}:{}),
         });
         port.postMessage({ kind: 'result', instanceId, correlationId, payload: result });
         return;

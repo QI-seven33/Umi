@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {randomUUID} from 'node:crypto';
+import {setTimeout as delay} from 'node:timers/promises';
+import type {BrowserWindow} from 'electron';
+import type {AgentBroker} from './broker.js';
+import type {Snapshot} from './renderer/src/transport.js';
+
+export async function verifyCommandPermissions(broker:AgentBroker,win:BrowserWindow,dataRoot:string){
+ const names:string[]=[],workspace=dataRoot+'-command-permissions';mkdirSync(workspace);
+ writeFileSync(join(workspace,'probe.cjs'),"require('node:fs').appendFileSync('effects.txt','x')");
+ const c=await broker.request({internal:'create_internal',payload:{workspace}}) as {conversationId:string};
+ const snapshot=()=>broker.request({type:'snapshot',conversationId:c.conversationId}) as Promise<Snapshot>;
+ const until=async<T>(read:()=>Promise<T>,test:(value:T)=>boolean)=>{for(let n=0;n<160;n++){const value=await read();if(test(value))return value;await delay(100);}throw Error('自动模式桌面验收条件未满足');};
+ const loaded=new Promise<void>(resolve=>win.webContents.once('did-finish-load',()=>resolve()));
+ await win.webContents.executeJavaScript('localStorage.setItem("umi.work.activeThread",'+JSON.stringify(c.conversationId)+');location.reload()');await loaded;
+ await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.composer textarea:not(:disabled)')"),Boolean);
+ await win.webContents.executeJavaScript("document.querySelector('.permission-button').click()");
+ await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.permission-menu button')).find(b=>b.querySelector('strong')?.textContent==='自动执行').click()");
+ await until(snapshot,s=>s.settings.executionPolicy==='auto');
+ names.push('真实模式菜单可选择自动执行，设置经固定IPC保存');
+ const send=()=>broker.request({type:'send',conversationId:c.conversationId,commandId:randomUUID(),text:'任务许可桌面验证',attachmentIds:[]}) as Promise<{runId:string}>;
+ const first=await send();
+ await until(snapshot,s=>s.state.runs[first.runId]?.status==='waiting_permission');
+ await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.approval-allow-task:not(:disabled)')"),Boolean);
+ const card=await win.webContents.executeJavaScript("document.querySelector('.umi-approval').innerText");
+ assert(card.includes('没有文件/网络沙箱'));assert(card.includes('允许本次'));assert(card.includes('本任务允许重复'));
+ writeFileSync(join(dataRoot,'command-task-permission.png'),(await win.webContents.capturePage()).toPNG());
+ await win.webContents.executeJavaScript("document.querySelector('.approval-allow-task').click()");
+ const completed=await until(snapshot,s=>s.state.runs[first.runId]?.status==='completed');
+ assert.equal(readFileSync(join(workspace,'effects.txt'),'utf8'),'xx');
+ const approvals=Object.values(completed.state.approvals);
+ assert.equal(approvals.filter(a=>a.decisionSource==='user'&&a.status==='allow').length,1);
+ assert.equal(approvals.filter(a=>a.decisionSource==='task-grant'&&a.status==='allow').length,1);
+ assert.equal(await win.webContents.executeJavaScript("!!document.querySelector('.umi-approval')"),false);
+ names.push('真实卡片明确区分本次与任务许可，一次用户选择执行两次真实测试命令并保留复用来源');
+ const second=await send();
+ await until(snapshot,s=>s.state.runs[second.runId]?.status==='waiting_permission');
+ await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.approval-deny:not(:disabled)')"),Boolean);
+ await win.webContents.executeJavaScript("document.querySelector('.approval-deny').click()");
+ await until(snapshot,s=>s.state.runs[second.runId]?.status==='completed');
+ assert.equal(readFileSync(join(workspace,'effects.txt'),'utf8'),'xx');
+ names.push('新任务不会继承旧命令许可，真实拒绝后不再产生文件副作用');
+ return names;
+}

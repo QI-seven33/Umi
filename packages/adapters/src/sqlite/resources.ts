@@ -1,3 +1,4 @@
+import { DirectFileRepository } from './direct-files.js';
 import { dirname as rootSource } from 'node:path';
 import { uid } from '../../../agent/src/identity.js';
 import type { SqliteStore } from './store.js';
@@ -22,7 +23,8 @@ import type { ResourceScope } from '../../../protocol/src/resource-scope.js';
 
 // 与核心共用连接、写入锁和事务；资源记录不会另起日志或执行循环。
 export class ResourceRepository {
-  constructor(readonly store: SqliteStore) {}
+  readonly direct: DirectFileRepository;
+  constructor(readonly store: SqliteStore) { this.direct = new DirectFileRepository(store); }
   scope(environmentId: string): EventScope {
     const env = this.store.environment(environmentId),
       c = this.store.get(
@@ -139,6 +141,7 @@ export class ResourceRepository {
     );
   }
   authorized(resourceId: string, environmentId: string, edit = false): boolean {
+    if (this.direct.mounts(environmentId).some(m=>m.resourceId===resourceId)) return this.direct.authorized(resourceId,environmentId,edit);
     const env = this.store.environment(environmentId);
     return Boolean(
       this.store.get(
@@ -178,9 +181,10 @@ export class ResourceRepository {
   mounts(environmentId: string): Mount[] {
     return this.store
       .all('SELECT id FROM mounts WHERE environment_id=? ORDER BY rowid', environmentId)
-      .map((r) => this.mount(r.id as string, environmentId));
+      .map((r) => this.mount(r.id as string, environmentId)).concat(this.direct.mounts(environmentId));
   }
   mount(id: string, environmentId: string): Mount {
+    const direct=this.direct.mount(id,environmentId); if(direct) return direct;
     const r = this.store.get(
       'SELECT * FROM mounts WHERE id=? AND environment_id=?',
       id,

@@ -148,7 +148,7 @@ export async function verifyDesktop(
     }
     assert.equal(await win.webContents.executeJavaScript(`document.querySelector('link[rel="icon"]')?.getAttribute('href')`),'./umi.ico');
     pass('网页与Windows图标共用当前单图标，ICO七种尺寸逐项匹配PNG来源');
-    const workspace = join(dataRoot, 'verification-workspace');
+    const workspace = dataRoot + '-workspace';
     mkdirSync(workspace, { recursive: true });
     // 来源样本在创建工作副本前准备；后续交付必须真的改变这个文件。
     writeFileSync(join(workspace, 'delivery-preview.txt'), '交付前原文', 'utf8');
@@ -916,82 +916,31 @@ export async function verifyDesktop(
     })) as { text: string };
     assert.equal(typedPreview.text, longTyped);
     pass('手写长消息发送前转原文附件，20 次连点仍只提交一次');
-    const delivery = (await broker.request({
-      type: 'send',
-      conversationId: ui.conversationId,
-      commandId: randomUUID(),
-      text: '交付卡片验证',
-      attachmentIds: [],
-    })) as { runId: string };
-    await until(
-      uiSnapshot,
-      (s) => s.state.runs[delivery.runId]?.status === 'waiting_permission',
-    );
-    await until(
-      () =>
-        win.webContents.executeJavaScript(
-          `document.querySelector('.delivery-file-list')?.innerText`,
-        ),
-      (text) => typeof text === 'string' && text.includes('delivery-preview.txt'),
-    );
-    const approvalCard = await win.webContents.executeJavaScript(
-      `document.querySelector('.umi-approval').innerText`,
-    );
-    assert(approvalCard.length < 600);
-    assert(!approvalCard.includes('冻结预览正文'));
-    assert(!approvalCard.includes('beforeContentHash'));
-    pass('真实交付批准仅显示冻结文件范围，不显示 JSON 或整篇正文');
-    // 批准等待使用独立卡片；停止样式在下方真正运行中的任务验证。
-    assert.equal(await win.webContents.executeJavaScript(
-      `document.querySelectorAll('.composer-approval input,.composer-approval textarea,.composer-approval .send-button.stop').length`), 0);
-    assert.equal(readFileSync(join(workspace, 'delivery-preview.txt'), 'utf8'), '交付前原文');
-    const approvalLayout = await composerSize('.composer-approval');
-    assert(approvalLayout.wide.height<330); assert(approvalLayout.narrow.height<380);
-    writeFileSync(join(dataRoot,'approval-matched-preview.png'),(await captureFrame(true)).toPNG());
-    pass('批准卡与输入框在宽窄布局中等宽对齐，18px圆角、12px字体，无等待动画',approvalLayout);
-    await win.webContents.executeJavaScript(
-      `document.querySelector('.delivery-file-list button').click();`,
-    );
-    await until(
-      () =>
-        win.webContents.executeJavaScript(
-          `document.querySelector('.file-preview-scroll')?.textContent`,
-        ),
-      (text) => typeof text === 'string' && text.includes('冻结预览正文'),
-    );
-    assert.equal(
-      (await uiSnapshot()).state.runs[delivery.runId]?.status,
-      'waiting_permission',
-    );
-    const preview = await win.webContents.executeJavaScript(`(() => {const body=document.querySelector('.file-preview-scroll');return {mode:body.dataset.mode,text:body.textContent,overflow:body.scrollWidth<=body.clientWidth+1,extras:!!document.querySelector('.preview-version,.preview-notice,.code-diff,.work-preview-status'),modes:Array.from(document.querySelectorAll('.file-view-options button')).map(n=>n.textContent),path:document.querySelector('.file-preview-path').textContent};})()`);
-    assert.equal(preview.mode,'preview'); assert(preview.text.includes('冻结预览正文')); assert(preview.overflow); assert.equal(preview.extras,false); assert.deepEqual(preview.modes,['原文','预览']); assert.equal(preview.path,join(workspace,'delivery-preview.txt'));
-    pass('冻结文件默认展示结果预览，仅原文/预览两种模式，无版本和分页杂项，预览不推进批准',preview);
-    await delay(500);
-    await Promise.race([win.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`),delay(500)]);
-    await win.webContents.executeJavaScript(
-      `window.__umiMaterial=document.documentElement.dataset.material;document.documentElement.dataset.material='solid'`,
-    );
-    await delay(100);
-    writeFileSync(
-      join(dataRoot, 'delivery-preview.png'),
-      (await captureFrame(true)).toPNG(),
-    );
-    await win.webContents.executeJavaScript(
-      `document.documentElement.dataset.material=window.__umiMaterial;delete window.__umiMaterial`,
-    );
-    await win.webContents.executeJavaScript(
-      `document.querySelector('.umi-approval-actions .approval-allow').click();`,
-    );
-    const deliveredState = await until(uiSnapshot, (s) => s.state.runs[delivery.runId]?.status === 'completed');
-    assert(Object.values(deliveredState.state.tools).some(tool => tool.runId === delivery.runId && tool.name === 'deliver_changeset' && tool.status === 'succeeded'));
-    assert.equal(readFileSync(join(workspace, 'delivery-preview.txt'), 'utf8'), '冻结预览正文。'.repeat(300));
-    pass('真实 UI 允许本次后成功交付，来源完整写回并有成功工具回执');
-    await until(()=>win.webContents.executeJavaScript(`!!document.querySelector('.umi-changes')`),Boolean);
-    await win.webContents.executeJavaScript(`document.querySelector('.umi-changes').open=true`);
-    await until(()=>win.webContents.executeJavaScript(`!!document.querySelector('.umi-changes .umi-file-row')`),Boolean);
-    const fileLinkHover = await hoverStyle('.umi-changes .umi-file-row');
-    const linkColor=fileLinkHover.color.match(/[\d.]+/g).map(Number);assert(linkColor[2]>linkColor[0]+50);assert.equal(fileLinkHover.shadow,'none');assert.equal(fileLinkHover.background,'rgba(0, 0, 0, 0)');
-    pass('可预览文件入口使用主题蓝色，悬停无阴影或灰色卡片底板',fileLinkHover);
+    const directRun = (await broker.request({type:'send',conversationId:ui.conversationId,commandId:randomUUID(),text:'交付卡片验证',attachmentIds:[]})) as {runId:string};
+    const edited=await until(uiSnapshot,s=>s.state.runs[directRun.runId]?.status==='completed');
+    assert(Object.values(edited.state.tools).some(t=>t.runId===directRun.runId&&t.name==='write_file'&&t.status==='succeeded'));
+    assert(!Object.values(edited.state.tools).some(t=>t.runId===directRun.runId&&['build_changeset','deliver_changeset','request_resource'].includes(t.name)));
+    assert.equal(readFileSync(join(workspace,'delivery-preview.txt'),'utf8'),'冻结预览正文。'.repeat(300));
+    pass('真实桌面完整路径直接修改源文件，无物化、交付工具或重复批准');
+    assert.equal(await win.webContents.executeJavaScript("!!document.querySelector('.workspace-files')"),false);
+    await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body .inline-file-link')).some(n=>n.textContent==='绝对路径预览')"),Boolean);
+    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body .inline-file-link')).find(n=>n.textContent==='绝对路径预览').click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.delivery-panel .file-code')?.textContent"),value=>typeof value==='string'&&value.includes('冻结预览正文'));
+    pass('回复中的已授权Windows绝对路径成为蓝色链接，点击打开真实文件预览，顶部旧卡片已移除');
+    const typography=await win.webContents.executeJavaScript("(()=>{const strong=Array.from(document.querySelectorAll('.message-body strong')).find(n=>n.textContent==='文件修改完成：');return {weight:strong?getComputedStyle(strong).fontWeight:'0',table:!!document.querySelector('.message-table-scroll')};})()");
+    assert(Number(typography.weight)>=650);assert(typography.table);
+    pass('中文标点重点显示真实粗体，回复中的Markdown表格沿原配色呈现');
+    const restoredRun=await broker.request({type:'send',conversationId:ui.conversationId,commandId:randomUUID(),text:'这个版本不好，你帮我回退到上个版本吧。',attachmentIds:[]}) as {runId:string};
+    const restored=await until(uiSnapshot,s=>s.state.runs[restoredRun.runId]?.status==='completed');
+    assert(Object.values(restored.state.tools).some(t=>t.runId===restoredRun.runId&&t.name==='restore_file_version'&&t.status==='succeeded'));
+    assert.equal(readFileSync(join(workspace,'delivery-preview.txt'),'utf8'),'交付前原文');
+    await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body strong')).some(n=>n.textContent==='已回退：')"),Boolean);
+    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body .inline-file-link')).at(-1).click()");
+    await until(()=>win.webContents.executeJavaScript("document.querySelector('.delivery-panel .file-code')?.textContent"),value=>typeof value==='string'&&value.includes('交付前原文'));
+    await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body strong')).find(n=>n.textContent==='已回退：')?.scrollIntoView({block:'center'})");
+    await delay(120);
+    writeFileSync(join(dataRoot,'natural-restore-response.png'),(await captureFrame(true)).toPNG());
+    pass('真实自然语言消息沿同一Agent查版本并恢复，文件预览显示实际原文，对话与恢复历史保留');
     const events = (await broker.request({
       type: 'events',
       conversationId: c.conversationId,
@@ -1352,6 +1301,10 @@ export async function verifyDesktop(
     writeFileSync(join(dataRoot,'file-empty-preview.png'),(await captureFrame(true)).toPNG());
     const { verifyRunContinuity } = await import('./verification-run-continuity.js');
     for (const name of await verifyRunContinuity(broker,win,c.conversationId,dataRoot)) pass(name);
+    const {verifyCommandPermissions}=await import('./verification-auto.js');
+    for(const name of await verifyCommandPermissions(broker,win,dataRoot))pass(name);
+    const {verifyWorkspaceDeletion}=await import('./verification-workspace.js');
+    for(const name of await verifyWorkspaceDeletion(broker,win,dataRoot))pass(name);
     writeFileSync(
       report,
       JSON.stringify(

@@ -46,6 +46,23 @@ export class DesktopVerificationModel implements ModelPort {
         { id: 'appearance', prompt: '你希望使用哪种界面风格？', options: [{ label: '简洁', description: '紧凑布局与轻量视觉。' }, { label: '宽松', description: '更大的留白。' }] },
         { id: 'detail', prompt: '报告需要哪些补充？', options: [{ label: '保留证据' }, { label: '只要结论' }] },
       ] }) } }] };
+    } else if(raw.includes('任务许可桌面验证')){
+      const tail=messages.slice(lastUser+1),results=tail.filter(m=>m.role==='tool'),denied=results.some(m=>JSON.parse(m.content).outcome==='denied');
+      const domains:Record<string,any>={};
+      for(const item of messages)if(item.role==='system'&&item.content.startsWith('当前宿主事实按域更新；'))Object.assign(domains,JSON.parse(item.content.slice(item.content.indexOf('\n')+1)));
+      const mountId=domains['runtime.resources'].mounts[0].mountId;
+      message=results.length<2&&!denied?{role:'assistant',content:'执行当前任务的测试命令。',tool_calls:[{id:'task-command-check',type:'function',function:{name:'run_command',arguments:JSON.stringify({program:'node',argv:['--test','probe.cjs'],cwd:{kind:'mount',mountId},timeoutMs:10000})}}]}:
+        {role:'assistant',content:denied?'已遵从拒绝，没有继续执行。':'**测试完成：**两次执行均有真实退出回执。'};
+    } else if (raw.includes('这个版本不好')&&raw.includes('回退')) {
+      const tail=messages.slice(lastUser+1),last=tail.filter(m=>m.role==='tool').at(-1),result=last?JSON.parse(last.content):null;
+      const lastName=tail.filter(m=>m.role==='assistant'&&m.tool_calls?.length).at(-1)?.tool_calls?.[0]?.function.name;
+      const domains:Record<string,any>={};
+      for(const item of messages)if(item.role==='system'&&item.content.startsWith('当前宿主事实按域更新；'))Object.assign(domains,JSON.parse(item.content.slice(item.content.indexOf('\n')+1)));
+      const mountId=domains['runtime.resources'].mounts[0].mountId;
+      const name=lastName==='restore_file_version'?null:lastName==='list_file_versions'?'restore_file_version':'list_file_versions';
+      const args=name==='restore_file_version'?{changeId:result.data.versions[0].restoreChangeId}:{mountId,path:'delivery-preview.txt'};
+      message=name?{role:'assistant',content:'我先定位上一版再恢复。',tool_calls:[{id:'natural-restore',type:'function',function:{name,arguments:JSON.stringify(args)}}]}:
+        {role:'assistant',content:result?.outcome==='succeeded'?'**已回退：**文件恢复到上一轮修改前，历史记录保留。\n\n[delivery-preview.txt](@working/'+mountId+'/delivery-preview.txt)':'恢复没有完成，请按实际冲突处理。'};
     } else if (raw.includes('交付卡片验证')) {
       const last = messages.filter((m) => m.role === 'tool').at(-1),
         result = last ? JSON.parse(last.content) : null,
@@ -74,7 +91,7 @@ export class DesktopVerificationModel implements ModelPort {
           };
           break;
         case 'write_file':
-          name = 'build_changeset';
+          name = domains['runtime.resources'].mounts[0].direct ? null : 'build_changeset';
           args = { mountId };
           break;
         case 'build_changeset':
@@ -117,7 +134,7 @@ export class DesktopVerificationModel implements ModelPort {
               },
             ],
           }
-        : { role: 'assistant', content: '文件交付完成，回执已核验。' };
+        : { role: 'assistant', content: '**文件修改完成：**回执已核验。\n\n[预览文件](@working/'+mountId+'/delivery-preview.txt) · [绝对路径预览](<'+domains['runtime.resources'].mounts[0].sourceRoot+'/delivery-preview.txt>)\n\n| 项目 | 状态 |\n| --- | --- |\n| 文件 | **已保存** |' };
     } else if (raw.includes('快速提交验证'))
       message = { role: 'assistant', content: '收到，附件已接收。' };
     else if (raw.startsWith('请阅读附件“长消息.txt”'))

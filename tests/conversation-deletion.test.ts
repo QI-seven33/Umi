@@ -5,7 +5,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,renameSync,s
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {setTimeout as delay} from 'node:timers/promises';
-import {UmiApplication} from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import {DesktopService} from '../apps/desktop/service.js';
 import {desktopCommandSchema,readySchema} from '../packages/protocol/src/desktop.js';
 import {ConversationDeletion} from '../packages/adapters/src/sqlite/conversation-deletion.js';
@@ -37,7 +37,7 @@ test('永久删除协议：必须明确确认、只接受会话ID；未归档不
     assert.throws(()=>desktopCommandSchema.parse({type:'delete_conversation',conversationId:f.c.conversationId,confirm:true,path:f.workspace}));
     await assert.rejects(()=>f.service.handle(desktopCommandSchema.parse({type:'delete_conversation',conversationId:f.c.conversationId,confirm:true})),/先归档/);
     const names=f.app.registry.specs().map(s=>s.name);assert(names.includes('search_web'));assert(!names.some(n=>/delete.*conversation|deepseek_server_web_search/.test(n)));
-    assert.equal(f.app.store.databaseVersion,7);assert.equal(readySchema.shape.databaseVersion.value,7);
+    assert.equal(f.app.store.databaseVersion,12);assert.equal(readySchema.shape.databaseVersion.value,12);
   }finally{await f.close();}
 });
 test('永久删除：真实循环的搜索/抓取/附件/交付/成果导出全部清理，源文件和已导出文件保留',async()=>{
@@ -143,7 +143,7 @@ test('迁移7：旧6库数据/指纹保持，普通资源范围删除仍被禁�
     f.app.store.db.exec('DROP TABLE conversation_deletions; DROP TRIGGER immutable_resource_scope_delete; DELETE FROM schema_migrations WHERE version=7;');f.app.store.db.exec(RESOURCE_SCOPE_SCHEMA_SQL);
     await f.app.close();const next=new UmiApplication(join(f.root,'data'),new ScriptModel([]));
     try{
-      assert.equal(next.store.databaseVersion,7);assert.deepEqual(next.store.events(f.c.conversationId),before);assert.deepEqual(next.store.all('SELECT * FROM schema_migrations WHERE version<=6'),fingerprints);
+      assert.equal(next.store.databaseVersion,12);assert.deepEqual(next.store.events(f.c.conversationId),before);assert.deepEqual(next.store.all('SELECT * FROM schema_migrations WHERE version<=6'),fingerprints);
       const mount=next.files.repo.mounts(f.c.environmentId)[0]!;const candidate=next.store.get('SELECT id FROM resource_candidates WHERE environment_id=?',f.c.environmentId)!;
       if(!next.store.get('SELECT resource_id FROM resource_scopes WHERE resource_id=?',candidate.id!))next.store.run('INSERT INTO resource_scopes VALUES(?,?)',candidate.id!,'{"kind":"directory"}');
       assert.throws(()=>next.store.run('DELETE FROM resource_scopes WHERE resource_id=?',candidate.id!),/明确删除/);assert(mount);

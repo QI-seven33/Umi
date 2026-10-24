@@ -1,3 +1,4 @@
+import {DirectFileAccess} from './direct-access.js';
 import { existsSync, lstatSync, readFileSync, mkdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
 import { metadataInventory, metadataPage, discoveryRoots } from './metadata.js';
@@ -31,8 +32,10 @@ import type {
 } from '../../../protocol/src/resource-scope.js';
 
 export class ResourceFiles {
-  constructor(readonly repo: ResourceRepository) {}
+  readonly direct: DirectFileAccess;
+  constructor(readonly repo: ResourceRepository,protectedRoots:readonly string[]=[]) { this.direct=new DirectFileAccess(repo,protectedRoots); }
   initialize(environmentId: string): void {
+    if(this.repo.direct.enabled(environmentId)) {this.direct.initialize(environmentId);return;}
     const c = this.repo.store.get(
         'SELECT id FROM conversations WHERE environment_id=?',
         environmentId,
@@ -298,7 +301,7 @@ export class ResourceFiles {
       notice:
         page.status === 'restart_required'
           ? '目录元数据已变化，请去掉 cursor 重新搜索'
-          : '只观察已声明范围内的元数据；空结果不代表文件不存在。cursor 只翻页本次覆盖结果，达到遍历预算请缩小 root/depth。query 只筛选结果，不缩小遍历范围。正文读取仍需 request_resource。',
+          : '只观察已声明范围内的元数据；空结果不代表文件不存在。cursor 只翻页本次覆盖结果，达到遍历预算请缩小 root/depth。query 只筛选结果，不缩小遍历范围。正文读取仍需 '+(this.repo.direct.enabled(env.id)?'request_directory_access':'request_resource')+'。',
       nextCursor: page.nextCursor,
     };
   }
@@ -314,6 +317,7 @@ export class ResourceFiles {
       { maxEntries: 5000, maxDepth: 16, maxMs: 1500 },
       {
         expectedRoot: m.rootIdentity,
+        ...(m.direct?{allowPath:(path:string)=>{try{this.direct.protect(path);return true;}catch{return false;}}}:{}),
         prefix,
         ...(signal ? { signal } : {}),
         ...(m.scope.kind === 'file' ? { fileOnly: m.scope.path } : {}),
@@ -413,8 +417,10 @@ export class ResourceFiles {
     if (!this.repo.authorized(m.resourceId, env.id, edit))
       throw new UmiError('PERMISSION_DENIED', '当前任务没有该工作副本所需权限');
     safeRoot(m.root, m.rootIdentity);
+    this.direct.check(m,edit,path);
     const ctx = {
       ...hostContext(input, env),
+      ...(m.direct?{directoryGrant:{id:m.direct.grantId,revision:m.direct.revision}}:{}),
       ...(m.scope.kind === 'file' ? { resourceScope: m.scope } : {}),
     };
     if (!path) return ctx;
@@ -699,6 +705,7 @@ export class ResourceFiles {
   }
   read(m: Mount, path: string, startByte = 0, byteLength = 8192, expectedHash?: string, lines?: { startLine: number; lineCount: number }) {
     this.assertPath(m.scope, path);
+    this.direct.check(m,false,path);
     const entry = observe(m.root, path, m.rootIdentity);
     if (!entry) throw new UmiError('NOT_FOUND', '工作副本文件不存在');
     if (expectedHash && entry.hash !== expectedHash) throw new UmiError('RESOURCE_CHANGED', '工作副本版本已改变，请从头读取预览');

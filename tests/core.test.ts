@@ -89,7 +89,7 @@ test('A11/A18/A45：应用退出保留原批准，重启后恢复同环境完成
     await f.app.close();const model=new ScriptModel([text('已核实写入'),text('托管测试已完成')]);const reopened=new UmiApplication(join(f.root,'data'),model);
     assert.equal(reopened.store.getRun(receipt.runId).status,'interrupted');reopened.approve(f.conversationId,a,'allow');
     assert.equal((await reopened.wait(receipt.runId)).status,'completed');const env=reopened.store.environment(f.environmentId);
-    assert.equal(readFileSync(join(env.root,'task','scratch','test.txt'),'utf8'),'hello');assert.equal(env.revision,1);
+    assert.equal(readFileSync(join(env.root,'task','scratch','test.txt'),'utf8'),'hello');assert.equal(env.revision,2);
     const record=reopened.store.tools(receipt.runId)[0]!;const ctx=executionContextSchema.parse(reopened.store.readArtifact(record.context_ref!));
     assert.equal(ctx.environmentId,f.environmentId);assert.equal(ctx.locations[0]?.relativePath,'test.txt');assert.equal(ctx.locations[0]?.rootRef.kind,'task');
     await reopened.close();

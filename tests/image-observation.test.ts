@@ -156,7 +156,7 @@ test('图片观察：独立编码器生成的JPEG/GIF/WebP均按真实容器识�
 test('图片观察：授权在prepare后撤销，执行时重新检查，未保存/发送图片',async()=>{
   let id='';const f=fixture([()=>call('read_image',{mountId:id,path:'图.png'}),r=>{assert.equal(lastResult(r).outcome,'failed');assert.equal(images(r).length,0);return text('已拒绝撤销权限的读取');}]);id=f.mount.id;
   const def=f.app.registry.get('read_image'),original=def.prepare;
-  def.prepare=(args,env,executionId)=>{const ctx=original(args,env,executionId);f.app.store.run('DELETE FROM capabilities WHERE resource_id=? AND environment_id=?',f.mount.resourceId,env.id);return ctx;};
+  def.prepare=(args,env,executionId)=>{const ctx=original(args,env,executionId);f.app.files.repo.direct.revoke(env.id,f.mount.direct!.grantId);return ctx;};
   try{await f.run();assert.equal(f.app.store.get("SELECT count(*) n FROM artifacts WHERE kind='image-observation-snapshot'")!.n,0);}finally{await f.close();}
 });
 test('图片观察：维护窗口后释放活跃名额，原始工具组和旧图片仍可追溯',async()=>{

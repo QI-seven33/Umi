@@ -1,6 +1,6 @@
 {
   "name": "umi",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Umi 桌面助手与唯一 TypeScript Agent 核心",

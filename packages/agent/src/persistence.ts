@@ -185,11 +185,13 @@ export interface PersistencePort {
     description: string,
     generation: number,
   ): string;
+  reuseCommandApproval(toolId:string,context:ExecutionContext,generation:number):boolean;
   invalidateApproval(toolId: string, reason: string): void;
   decideApproval(
     conversationId: string,
     approvalId: string,
     decision: 'allow' | 'deny',
+    scope?:'once'|'task',
   ): void;
   dispatch(toolId: string, context: ExecutionContext, generation: number, effect?: string): void;
   settle(

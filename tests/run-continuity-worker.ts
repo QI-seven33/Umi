@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';
 import type { ModelFrame,PreparedRequest } from '../packages/agent/src/ports.js';

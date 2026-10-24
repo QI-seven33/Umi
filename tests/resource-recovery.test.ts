@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { ScriptModel,text,eventually,removeTestRoot } from './fixtures.js';
 import type { DeliveryReceipt } from '../packages/protocol/src/resources.js';
 

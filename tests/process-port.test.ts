@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, renameSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { UmiApplication } from '../apps/headless/src/application.js';
+import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
 import { UmiError } from '../packages/protocol/src/model.js';
 import { uid } from '../packages/agent/src/identity.js';
 import type { LegacyWindowsProcessPort } from '../packages/adapters/src/host-process/port.js';
