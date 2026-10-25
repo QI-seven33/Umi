@@ -7,6 +7,7 @@ import { registerSkills } from '../../../packages/agent/src/tools/skills.js';
 import { registerImageObservation } from '../../../packages/adapters/src/host-files/image-observation.js';
 import { runDiagnostics } from '../../../packages/agent/src/loop/run-diagnostics.js';
 import { FrozenPreview } from '../../../packages/adapters/src/host-files/frozen-preview.js';
+import {registerDirectOpen} from '../../../packages/adapters/src/host-files/direct-open.js';
 import { registerDeliveredOpen } from '../../../packages/adapters/src/host-files/delivered-open.js';
 import type { DocumentOpener } from '../../../packages/protocol/src/native-open.js';
 import { UserQuestions, registerQuestions } from '../../../packages/agent/src/tools/questions.js';
@@ -172,7 +173,8 @@ export class UmiApplication {
     ];
     if (options.openDocument) {
       const open = options.openDocument;
-      modules.push(toolModule('umi.open-delivered', '1.0.0', ['umi.files'], r => registerDeliveredOpen(r, this.files, open)));
+      modules.push(toolModule('umi.open-delivered', '1.0.0', ['umi.files'], r => registerDeliveredOpen(r, this.files, open)),
+        toolModule('umi.open-file', '1.0.0', ['umi.files'], r => registerDirectOpen(r,this.files,open)));
     }
     if (options.search) {
       const search = options.search;

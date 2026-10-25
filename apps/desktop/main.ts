@@ -1,3 +1,5 @@
+import { DesktopPreferenceStore } from './preferences.js';
+import { desktopPreferencePatchSchema, dataLocationSchema } from '../../packages/protocol/src/desktop-preferences.js';
 import { verifiedDocumentPath } from '../../packages/adapters/src/host-files/delivered-open.js';
 import { documentTargetSchema } from '../../packages/protocol/src/native-open.js';
 import {
@@ -85,6 +87,11 @@ const userData =
 // app.setPath('userData', userData)：覆盖 Electron 默认的用户数据目录。
 // 这会影响 app.getPath('userData') 以及 Chromium 的缓存、Cookie 等位置。
 app.setPath('userData', userData);
+const preferences = new DesktopPreferenceStore(userData);
+const ui = (zh: string, en: string) => preferences.read().language === 'en' ? en : zh;
+function desktopPaths() {
+  return { data: userData, agent: join(userData, 'agent'), exports: preferences.read().exportDirectory ?? app.getPath('downloads'), application: dirname(app.getPath('exe')) };
+}
 
 function configFile() {
   return join(userData, 'desktop-config.json');
@@ -221,6 +228,26 @@ function titleBarOverlay() {
 }
 
 function installIPC() {
+  handle('umi:preferences', () => preferences.read());
+  handle('umi:preferences-update', (_event, raw) => preferences.save(desktopPreferencePatchSchema.parse(raw)));
+  handle('umi:application-info', () => ({ version: app.getVersion(), development: !app.isPackaged, paths: desktopPaths() }));
+  handle('umi:data-location', async (_event, raw) => {
+    const location = dataLocationSchema.parse(raw);
+    if (process.argv.includes('--verify-desktop')) throw new UmiError('VERIFICATION_ONLY', '测试不打开外部应用');
+    const error = await shell.openPath(desktopPaths()[location]);
+    if (error) throw new UmiError('OPEN_FAILED', error);
+  });
+  handle('umi:export-directory', async () => {
+    if (process.argv.includes('--verify-desktop')) throw new UmiError('VERIFICATION_ONLY', '测试不打开系统目录选择器');
+    const selection = await dialog.showOpenDialog(win!, {
+      title: ui('默认导出位置', 'Default export folder'), properties: ['openDirectory'],
+      defaultPath: desktopPaths().exports,
+    });
+    if (selection.canceled || !selection.filePaths[0]) return null;
+    const path = resolve(selection.filePaths[0]);
+    if (!statSync(path).isDirectory()) throw new UmiError('PATH_INVALID', '目录无效');
+    return preferences.save({ exportDirectory: path });
+  });
   handle('umi:window-info', () => ({ development: !app.isPackaged }));
   handle('umi:menu', async (_e, raw) => {
     const parsed = desktopMenuRequestSchema.safeParse(raw);
@@ -228,11 +255,11 @@ function installIPC() {
     const arg = parsed.data, current = win!;
     const menu = Menu.buildFromTemplate(desktopMenuTemplate(arg.menu, !app.isPackaged, {
       about: () => { void dialog.showMessageBox(current, {
-        type: 'info', title: '关于 Umi', message: 'Umi',
-        detail: '版本 ' + app.getVersion() + (app.isPackaged ? '' : '（开发版）'),
+        type: 'info', title: ui('关于 Umi', 'About Umi'), message: 'Umi',
+        detail: ui('版本 ', 'Version ') + app.getVersion() + (app.isPackaged ? '' : ui('（开发版）', ' (development)')),
       }); },
       quit: () => app.quit(),
-    }));
+    }, preferences.read().language));
     const [width = 1, height = 1] = current.getContentSize();
     await new Promise<void>(resolveMenu => menu.popup({
       window: current,
@@ -259,8 +286,8 @@ function installIPC() {
   handle('umi:choose', async () => {
     // 弹系统目录选择对话框。
     const result = await dialog.showOpenDialog(win!, {
-      title: '选择工作文件夹（允许 Umi 直接读改，直到撤销）',
-      buttonLabel: '选择并授权',
+      title: ui('选择工作文件夹（允许 Umi 直接读改，直到撤销）', 'Choose a working folder (allow direct edits until revoked)'),
+      buttonLabel: ui('选择并授权', 'Choose and authorize'),
       properties: ['openDirectory'],
     });
 
@@ -297,9 +324,9 @@ function installIPC() {
     });
     const descriptor = (await broker.request(c)) as { name: string };
     const result = await dialog.showSaveDialog(win!, {
-      title: '选择成果导出目标（发送请求后仍需批准）',
-      defaultPath: descriptor.name.split(/[\\/]/).at(-1) || '成果',
-      buttonLabel: '生成导出请求',
+      title: ui('选择成果导出目标（发送请求后仍需批准）', 'Choose export target (approval required after sending)'),
+      defaultPath: join(desktopPaths().exports, descriptor.name.split(/[\\/]/).at(-1) || '成果'),
+      buttonLabel: ui('生成导出请求', 'Prepare export request'),
     });
     return result.canceled || !result.filePath ? null : { target: result.filePath };
   });
@@ -477,7 +504,8 @@ function createWindow() {
   win.on('close', (event) => {
     if (!quitting) {
       event.preventDefault();
-      win!.hide();
+      if (preferences.read().closeAction === 'quit') app.quit();
+      else win!.hide();
     }
   });
 
@@ -549,6 +577,11 @@ if (!app.requestSingleInstanceLock()) {
       createWindow();
 
       if (process.argv.includes('--verify-desktop')) {
+        if (process.argv.includes('--verify-close-only')) {
+          const { verifyCloseWindow } = await import('./verification-close.js');
+          await verifyCloseWindow(win!, userData);
+          return;
+        }
         const { verifyDesktop } = await import('./verification.js');
         await verifyDesktop(broker, win!, userData);
         quitting = true;

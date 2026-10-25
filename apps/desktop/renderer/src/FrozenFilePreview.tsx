@@ -1,3 +1,4 @@
+import { t as uiText } from './ui-language.js';
 import { useEffect, useRef, useState } from 'react';
 import { frozenFilePageSchema } from '../../../../packages/protocol/src/file-preview.js';
 import type { FrozenFilePage } from '../../../../packages/protocol/src/file-preview.js';
@@ -20,7 +21,7 @@ export function FrozenFilePreview({ conversationId, target }: { conversationId: 
     let live = true; const ticket = ++generation.current;
     current.current = null; setPage(null); setError(''); setBusy(true);
     void read(0).then(value => { if (live && ticket === generation.current) { if (value.operation === 'delete' && side === 'after') { setSide('before'); return; } current.current = value; setPage(value); } })
-      .catch(e => { if (live) setError(userFacingError(e) || '冻结内容读取失败，可以重试。'); })
+      .catch(e => { if (live) setError(userFacingError(e) || uiText("冻结内容读取失败，可以重试。")); })
       .finally(() => { if (live) setBusy(false); });
     return () => { live = false; generation.current++; };
   }, [conversationId, target.changeSetId, target.path, side, reload]);
@@ -33,7 +34,7 @@ export function FrozenFilePreview({ conversationId, target }: { conversationId: 
     finally { lock.current = false; if (ticket === generation.current) setBusy(false); }
   };
   return <div className="work-preview-content frozen-preview" aria-busy={busy}>
-    <PreviewToolbar path={page?.displayPath ?? target.path} mode={mode} onMode={setMode} busy={busy} onReload={() => setReload(n => n + 1)} actions={page?.after && page.delivered ? [{ label: '用系统默认应用打开', kind: 'system', run: () => window.umi.request({ type: 'open_delivered', conversationId, changeSetId: target.changeSetId!, path: target.path }) }] : []} />
+    <PreviewToolbar path={page?.displayPath ?? target.path} mode={mode} onMode={setMode} busy={busy} onReload={() => setReload(n => n + 1)} actions={page?.after && page.delivered ? [{ label: uiText("用系统默认应用打开"), kind: 'system', run: () => window.umi.request({ type: 'open_delivered', conversationId, changeSetId: target.changeSetId!, path: target.path }) }] : []} />
     <FileContent path={target.path} mode={mode} text={page?.text ?? ''} unsupported={page?.binary} busy={busy} error={error} hasMore={Boolean(page?.truncated)} onMore={more} />
   </div>;
 }

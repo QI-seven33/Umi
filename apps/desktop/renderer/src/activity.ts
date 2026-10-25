@@ -1,3 +1,4 @@
+import { t as uiText, getUiLanguage } from './ui-language.js';
 import type {
   Block,
   ConversationState,
@@ -7,6 +8,7 @@ export const toolNames: Record<string, string> = {
   list_skills: '查看技能目录',
   read_skill: '读取技能',
   ask_user_question: '询问用户',
+  open_file: '打开文件',
   open_delivered_file: '打开交付文件',
   list_resources: '查看工作副本',
   list_user_requirements: '查看用户要求',
@@ -121,6 +123,7 @@ const verbs: Record<string, string> = {
   list_skills: '查看技能目录',
   read_skill: '读取技能',
   ask_user_question: '询问用户',
+  open_file: '打开文件',
   open_delivered_file: '打开交付文件',
   list_resources: '查看工作副本',
   list_user_requirements: '查看用户要求',
@@ -167,19 +170,19 @@ const verbs: Record<string, string> = {
 };
 export function activityLabel(items: ActivityItem[], state: ConversationState) {
   const tools = items.filter((i) => i.kind === 'tool').map((i) => state.tools[i.id]!);
-  if (Object.values(state.questions ?? {}).some(question => question.status === 'pending' && tools.some(tool => tool.executionId === state.tools[question.callId]?.executionId))) return '等待你的回答';
+  if (Object.values(state.questions ?? {}).some(question => question.status === 'pending' && tools.some(tool => tool.executionId === state.tools[question.callId]?.executionId))) return uiText("等待你的回答");
   const ids = new Set(items.filter((i) => i.kind === 'tool').map((i) => i.id));
   if (
     Object.values(state.approvals).some(
       (a) => ids.has(a.callId) && a.status === 'pending',
     )
   )
-    return '等待你的批准';
+    return uiText("等待你的批准");
   const drafts = items.filter(i => i.kind === 'tool-draft');
   const writing = drafts.find(i => i.block.status === 'running' && state.attempts[i.block.attemptId]?.status === 'running');
-  if (writing) return '正在生成工具请求（' + writing.block.text.length.toLocaleString() + ' 字符，尚未执行）';
+  if (writing) return uiText('正在生成工具请求（{count} 字符，尚未执行）',{count:writing.block.text.length.toLocaleString()});
   const active = tools.find((t) => t.status === 'running' || t.status === 'prepared');
-  if (active) return `正在${verbs[active.name] ?? '使用工具'}`;
+  if (active) return getUiLanguage()==='en' ? 'Running: '+uiText(verbs[active.name] ?? '使用工具') : `正在${verbs[active.name] ?? '使用工具'}`;
   if (
     items.some(
       (i) =>
@@ -188,35 +191,36 @@ export function activityLabel(items: ActivityItem[], state: ConversationState) {
         state.runs[i.block.runId]?.status === 'running',
     )
   )
-    return '正在思考';
+    return uiText("正在思考");
   const labels = [
     ...new Set(
       tools
         .filter((t) => t.status === 'succeeded')
-        .map((t) => `已${verbs[t.name] ?? '调用工具'}`),
+        .map((t) => getUiLanguage()==='en' ? 'Done: '+uiText(verbs[t.name] ?? '调用工具') : `已${verbs[t.name] ?? '调用工具'}`),
     ),
   ];
   // 已知失败/拒绝/取消已经结算；只有 unknown 需要核验实际效果。
   const outcomes = [
     ['unknown', '结果待核验'], ['failed', '操作失败'], ['denied', '操作已拒绝'], ['cancelled', '操作已取消'],
   ] as const;
-  const exceptions = outcomes.filter(([status]) => tools.some(t => t.status === status)).map(([, label]) => label);
+  const exceptions = outcomes.filter(([status]) => tools.some(t => t.status === status)).map(([, label]) => uiText(label));
   labels.unshift(...exceptions);
-  if (!labels.length && drafts.length) return '工具请求未完成，未执行';
+  if (!labels.length && drafts.length) return uiText("工具请求未完成，未执行");
   if (!labels.length)
     return items.some((i) => i.kind === 'reasoning' && i.block.status === 'interrupted')
-      ? '思考已中断'
-      : '思考过程';
-  return labels.slice(0, 3).join('，') + (labels.length > 3 ? '等' : '');
+      ? uiText("思考已中断")
+      : uiText("思考过程");
+  return labels.slice(0, 3).join(getUiLanguage()==='en'?', ':'，') + (labels.length > 3 ? (getUiLanguage()==='en'?'…':'等') : '');
 }
 export function clockTime(value?: string) {
   return value
-    ? new Date(value).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(value).toLocaleTimeString(getUiLanguage(), { hour: '2-digit', minute: '2-digit' })
     : '';
 }
 export function elapsedTime(start?: string, end?: string) {
   if (!start || !end) return '';
   const seconds = Math.max(1, Math.round((Date.parse(end) - Date.parse(start)) / 1000));
+  if(getUiLanguage()==='en') return seconds>=3600?`${Math.floor(seconds/3600)}h ${Math.floor(seconds%3600/60)}m`:seconds>=60?`${Math.floor(seconds/60)}m ${seconds%60}s`:`${seconds}s`;
   return seconds >= 3600
     ? `${Math.floor(seconds / 3600)}小时${Math.floor((seconds % 3600) / 60)}分`
     : seconds >= 60

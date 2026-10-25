@@ -303,7 +303,7 @@ test('S5-11：批准等待展示原描述，工具异常/拒绝不是成功，�
         onError: () => {},
       }),
     );
-    assert(card.includes('确认本次操作'));
+    assert(card.includes('需要你的许可'));
     assert(card.includes('a.txt'));
     assert(!html.includes('umi-approval'));
     assert(!html.includes('没有写入'));

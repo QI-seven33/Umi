@@ -1,3 +1,4 @@
+import { t as uiText } from '../../ui-language.js';
 'use client';
 
 import React, { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
@@ -309,9 +310,7 @@ const HoldButton: React.FC<HoldButtonProps> = ({
           <span className="hold-button__label hold-button__label--fill">{labels}</span>
         </span>
       </span>
-      <span id={hintId} className="hold-button__sr">
-        长按 {Math.round(holdTime / 100) / 10} 秒确认
-      </span>
+      <span id={hintId} className="hold-button__sr">{uiText("长按")}{Math.round(holdTime / 100) / 10}{uiText("秒确认")}</span>
     </button>
   );
 };

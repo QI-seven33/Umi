@@ -1,3 +1,4 @@
+import { t as uiText } from '../../ui-language.js';
 import {useEffect,useRef,useState} from 'react';
 import type {Workspace} from '../../types/index.js';
 import {userFacingError} from '../../ui-error.js';
@@ -16,7 +17,7 @@ export function DeleteWorkspaceDialog({workspace,onCancel,onDeleted}:{workspace:
   const remove=async()=>{
     if(lock.current)return;lock.current=true;setBusy(true);setError('');
     try {
-      if(uncertain){if(!await reconcile())setError('尚无删除完成凭据；可稍后再次查询。');return;}
+      if(uncertain){if(!await reconcile())setError(uiText("尚无删除完成凭据；可稍后再次查询。"));return;}
       const result=await window.umi.request({type:'delete_workspace',workspaceId:workspace.workspaceId,confirm:true}) as WorkspaceDeletionResult;
       await onDeleted(result);
     } catch(e) {
@@ -24,9 +25,9 @@ export function DeleteWorkspaceDialog({workspace,onCancel,onDeleted}:{workspace:
         if(await reconcile())return;
         const timedOut=(e as {code?:string})?.code==='COMMAND_TIMEOUT';
         if(timedOut)setUncertain(true);
-        setError(userFacingError(e)||'尚未确认删除完成；请稍后查询删除结果。');
+        setError(userFacingError(e)||uiText("尚未确认删除完成；请稍后查询删除结果。"));
       }
-      catch{setUncertain(true);setError('删除响应中断，结果尚未确认；请查询删除结果。不会重复派发删除。');}
+      catch{setUncertain(true);setError(uiText("删除响应中断，结果尚未确认；请查询删除结果。不会重复派发删除。"));}
     }
     finally {lock.current=false;setBusy(false);}
   };
@@ -38,11 +39,11 @@ export function DeleteWorkspaceDialog({workspace,onCancel,onDeleted}:{workspace:
       if(document.activeElement===edge){event.preventDefault();next?.focus();}
     }
   }}><section role="dialog" aria-modal="true" aria-labelledby="workspace-delete-title" aria-describedby="workspace-delete-description">
-    <h3 id="workspace-delete-title">删除这个工作区？</h3><p className="archive-delete-name">{workspace.name}</p>
+    <h3 id="workspace-delete-title">{uiText("删除这个工作区？")}</h3><p className="archive-delete-name">{workspace.name}</p>
     <p className="archive-delete-name">{workspace.path}</p>
-    <p id="workspace-delete-description">该工作区的全部会话（含已归档）、历史记录、恢复备份和目录授权将永久删除，无法恢复。磁盘上的源文件与已导出文件会保留。</p>
+    <p id="workspace-delete-description">{uiText("该工作区的全部会话（含已归档）、历史记录、恢复备份和目录授权将永久删除，无法恢复。磁盘上的源文件与已导出文件会保留。")}</p>
     {error&&<p role="alert">{error}</p>}
-    <div className="umi-confirm-actions"><button ref={cancel} disabled={busy} onClick={onCancel}>取消</button>
-      <button className="archive-delete workspace-delete" disabled={busy} onClick={()=>void remove()}>{busy?'正在处理…':uncertain?'查询删除结果':'删除工作区'}</button></div>
+    <div className="umi-confirm-actions"><button ref={cancel} disabled={busy} onClick={onCancel}>{uiText("取消")}</button>
+      <button className="archive-delete workspace-delete" disabled={busy} onClick={()=>void remove()}>{busy?uiText("正在处理…"):uncertain?uiText("查询删除结果"):uiText("删除工作区")}</button></div>
   </section></div>;
 }

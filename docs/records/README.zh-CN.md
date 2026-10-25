@@ -4,7 +4,13 @@
 
 当前实现先看[技术状态](../current-state.zh-CN.md)、[运行契约](../runtime-contracts.zh-CN.md)和[已知问题](../known-issues.zh-CN.md)。最近汇总见[2026-10-21源码更新](../changes/20261021.zh-CN.md)，已发布行为见[版本说明索引](../releases/README.zh-CN.md)。
 
+## 桌面体验
+
+- [桌面界面与设备偏好（2026-10-25，纳入0.3.1）](20261025-desktop-interface-and-preferences.zh-CN.md)
+
 ## 文件、来源与交付
+
+- [文件引用核验与直改文档打开修复（2026-10-24，纳入0.3.1）](20261024-file-links-and-document-opening.zh-CN.md)
 
 - [自然语言文件恢复与回复可读性（2026-10-23，未发布）](20261023-natural-restore-and-readable-responses.zh-CN.md)
 

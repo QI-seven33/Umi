@@ -1,3 +1,4 @@
+import { t as uiText } from '../../../ui-language.js';
 import { FileText, Image as ImageIcon, X } from "lucide-react";
 
 import type { Attachment } from "../../../types/index.js";
@@ -19,12 +20,12 @@ export function AttachmentList({
           <div className="attachment-info">
             <button type="button" className="attachment-name" disabled={a.state!=="done"} onClick={()=>onPreview(a.id)}>{a.name}</button>
             <div className="attachment-meta">
-              {(a.state === "done" || a.state === "selected") && (formatSize(a.size)+(/\.(docx|xlsx)$/i.test(a.name)?" · 本地提取文本":""))}
-              {a.state === "uploading" && "上传中…"}
-              {a.state === "error" && (a.error || "上传失败")}
+              {(a.state === "done" || a.state === "selected") && (formatSize(a.size)+(/\.(docx|xlsx)$/i.test(a.name)?uiText(" · 本地提取文本"):""))}
+              {a.state === "uploading" && uiText("上传中…")}
+              {a.state === "error" && (a.error || uiText("上传失败"))}
             </div>
           </div>
-          <button type="button" className="attachment-remove" onClick={() => onRemove(a.id)} aria-label={`移除 ${a.name}`}>
+          <button type="button" className="attachment-remove" onClick={() => onRemove(a.id)} aria-label={uiText('移除 {name}',{name:a.name})}>
             <X size={14} />
           </button>
         </div>

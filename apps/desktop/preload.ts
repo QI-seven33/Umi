@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld(
   'umi',
   Object.freeze({
     //Object.freeze —— 冻结对象：属性不能再增、删、改  作用：防止页面代码篡改 window.umi，比如不能 window.umi.request = 恶意函数
+    preferences: () => invoke('umi:preferences'),
+    updatePreferences: (patch: unknown) => invoke('umi:preferences-update', patch),
+    applicationInfo: () => invoke('umi:application-info'),
+    showDataLocation: (location: unknown) => invoke('umi:data-location', location),
+    chooseExportDirectory: () => invoke('umi:export-directory'),
     request: (c: unknown) => invoke('umi:request', c),
     setTheme: (theme: unknown) => invoke('umi:theme', theme),
     windowInfo: () => invoke('umi:window-info'),

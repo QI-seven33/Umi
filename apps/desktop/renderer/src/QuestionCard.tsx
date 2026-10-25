@@ -1,3 +1,4 @@
+import { t as uiText } from './ui-language.js';
 import { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { QuestionRequest, Answers } from '../../../../packages/protocol/src/question.js';
@@ -18,8 +19,8 @@ export function QuestionCard({ id, request, conversationId, onStop }: {
     try { await window.umi.request({ type: 'answer_question', conversationId, questionId: id, answers: selected }); }
     catch (e) { lock.current = false; setBusy(false); setError(userFacingError(e)); }
   };
-  return <section className="umi-question" aria-label="需要你的回答" aria-busy={busy}>
-    <header className="umi-question-header"><span>需要你的回答{request.questions.length > 1 && <small>{index + 1} / {request.questions.length}</small>}</span><button type="button" onClick={onStop}>停止任务</button></header>
+  return <section className="umi-question" aria-label={uiText("需要你的回答")} aria-busy={busy}>
+    <header className="umi-question-header"><span>{uiText("需要你的回答")}{request.questions.length > 1 && <small>{index + 1} / {request.questions.length}</small>}</span><button type="button" onClick={onStop}>{uiText("停止任务")}</button></header>
     <div className="umi-question-body"><fieldset key={question.id} disabled={busy}>
       <legend>{question.prompt}</legend>
       <div className="question-options">{question.options.map((option, optionIndex) => {
@@ -31,14 +32,14 @@ export function QuestionCard({ id, request, conversationId, onStop }: {
       })}
       <label className={`umi-question-option ${answers[question.id]?.optionIndex === null ? 'is-selected' : ''}`}><input type="radio" name={`${id}-${question.id}`}
         checked={Boolean(answers[question.id] && answers[question.id]?.optionIndex === null)}
-        onChange={() => setAnswers(value => ({ ...value, [question.id]: { optionIndex: null, text: '' } }))} /><span>自定义回答</span></label></div>
-      {answers[question.id]?.optionIndex === null && <textarea autoFocus aria-label={`自定义回答：${question.prompt}`} maxLength={8000} value={answers[question.id]?.text ?? ''} rows={2}
+        onChange={() => setAnswers(value => ({ ...value, [question.id]: { optionIndex: null, text: '' } }))} /><span>{uiText("自定义回答")}</span></label></div>
+      {answers[question.id]?.optionIndex === null && <textarea autoFocus aria-label={uiText('自定义回答：{prompt}',{prompt:question.prompt})} maxLength={8000} value={answers[question.id]?.text ?? ''} rows={2}
         onChange={e => setAnswers(value => ({ ...value, [question.id]: { optionIndex: null, text: e.target.value } }))} />}
     </fieldset></div>
     {error && <p role="alert">{error}</p>}
-    <div className="umi-question-actions"><div>{index > 0 && <button type="button" disabled={busy} className="question-previous" onClick={() => setIndex(index - 1)}><ChevronLeft size={14} />上一问</button>}</div>
-      {index < request.questions.length - 1 ? <button type="button" disabled={!answered(question.id) || busy} onClick={() => setIndex(index + 1)}>下一问<ChevronRight size={14} /></button>
-        : <button type="button" disabled={!complete || busy} onClick={() => void submit()}>{busy ? '正在提交…' : '提交回答'}</button>}
+    <div className="umi-question-actions"><div>{index > 0 && <button type="button" disabled={busy} className="question-previous" onClick={() => setIndex(index - 1)}><ChevronLeft size={14} />{uiText("上一问")}</button>}</div>
+      {index < request.questions.length - 1 ? <button type="button" disabled={!answered(question.id) || busy} onClick={() => setIndex(index + 1)}>{uiText("下一问")}<ChevronRight size={14} /></button>
+        : <button type="button" disabled={!complete || busy} onClick={() => void submit()}>{busy ? uiText("正在提交…") : uiText("提交回答")}</button>}
     </div>
   </section>;
 }

@@ -1,3 +1,4 @@
+import { t as uiText, getUiLanguage } from '../../ui-language.js';
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import type { Message } from "../../types/index.js";
@@ -88,14 +89,14 @@ export function ConversationMap({ messages, canvasRef, onNavigate }: {
     setPreviewY(Math.max(58, Math.min(Math.max(58, bounds.height - 58), center)));
     setHoveredId(id); setPreviewId(id);
   };
-  return <nav ref={railRef} className="conversation-map" aria-label="历史消息时间线"
+  return <nav ref={railRef} className="conversation-map" aria-label={uiText("历史消息时间线")}
     onMouseLeave={() => setHoveredId(null)}>
     <div ref={ticksRef} className="conversation-map-ticks">
       {turns.map((turn, index) => {
         const distance = hoveredIndex < 0 ? Infinity : Math.abs(index - hoveredIndex);
         const width = distance < 5 ? 10 + 21 * Math.exp(-distance * .55): 9;
         return <button key={turn.id} type="button" className={turn.id === activeId ? "active" : ""}
-          aria-label={`跳转到第 ${index + 1} 轮${timestamp(turn.createdAt)}`}
+          aria-label={uiText('跳转到第 {index} 轮 {time}',{index:index+1,time:timestamp(turn.createdAt)})}
           aria-current={turn.id === activeId ? "location" : undefined}
           style={{ "--tick-width": `${width}px` } as CSSProperties}
           onMouseEnter={(event) => showPreview(turn.id, event.currentTarget)}
@@ -113,10 +114,10 @@ export function ConversationMap({ messages, canvasRef, onNavigate }: {
     <div className={`conversation-map-preview ${hoveredId && preview ? "is-visible" : ""}`}
       role="tooltip" aria-hidden={!hoveredId} style={{ "--preview-y": `${previewY}px` } as CSSProperties}>
       {preview && <>
-        <strong>{preview.text.trim() || preview.attachments?.map(attachment => attachment.name).join("、") || "附件消息"}</strong>
+        <strong>{preview.text.trim() || preview.attachments?.map(attachment => attachment.name).join("、") || uiText("附件消息")}</strong>
         {answer?.text && <p>{answer.text}</p>}
         <time dateTime={preview.createdAt ? new Date(preview.createdAt).toISOString() : undefined}>
-          {timestamp(preview.createdAt) || "时间未记录"}
+          {timestamp(preview.createdAt) || uiText("时间未记录")}
         </time>
       </>}
     </div>
@@ -124,7 +125,7 @@ export function ConversationMap({ messages, canvasRef, onNavigate }: {
 }
 
 function timestamp(createdAt: number | null) {
-  return createdAt && Number.isFinite(createdAt) ? new Intl.DateTimeFormat("zh-CN", {
+  return createdAt && Number.isFinite(createdAt) ? new Intl.DateTimeFormat(getUiLanguage(), {
     month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
   }).format(createdAt) : "";
 }

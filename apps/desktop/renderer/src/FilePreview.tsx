@@ -1,3 +1,4 @@
+import { t as uiText } from './ui-language.js';
 import { FileContent } from './FileContent.js';
 import { PreviewToolbar } from './PreviewToolbar.js';
 import type { PreviewMode } from './PreviewToolbar.js';
@@ -38,7 +39,7 @@ function LiveFilePreview({ conversationId, target, revision }: { conversationId:
     let live = true; const ticket = ++generation.current, requestedRevision = revision;
     current.current = null; setPreview(null); setError(''); setBusy(true);
     void read().then(value => { if (live && ticket === generation.current) { validatedRevision.current = requestedRevision; current.current = value; setPreview(value); } }).catch(e => {
-      if (live) setError(userFacingError(e) || '预览回执暂未返回，可以重试。');
+      if (live) setError(userFacingError(e) || uiText("预览回执暂未返回，可以重试。"));
     }).finally(() => { if (live) setBusy(false); });
     return () => { live = false; generation.current++; };
   }, [version]);
@@ -61,11 +62,11 @@ function LiveFilePreview({ conversationId, target, revision }: { conversationId:
     } catch (e) {
       if (ticket !== generation.current) return;
       if ((e as { code?: string }).code === 'PREVIEW_CHANGED' || (e as { code?: string }).code === 'RESOURCE_CHANGED') setReload(n => n + 1);
-      else setError(userFacingError(e) || '下一段预览暂未返回，可以重试。');
+      else setError(userFacingError(e) || uiText("下一段预览暂未返回，可以重试。"));
     } finally { pageLock.current = false; if (ticket === generation.current) setBusy(false); }
   };
   return <div className="work-preview-content" aria-busy={busy}>
-    <PreviewToolbar path={preview?.displayPath ?? (target.attachmentId ? '附件 / ' + target.path : target.path)} mode={mode} onMode={setMode} busy={busy} onReload={() => setReload(n => n + 1)} actions={target.attachmentId ? [] : [{ label: '在文件夹中显示', kind: 'folder', run: () => window.umi.request({ type: 'open_file', conversationId, mountId: target.mountId, path: target.path }) }]} />
+    <PreviewToolbar path={preview?.displayPath ?? (target.attachmentId ? uiText("附件 /") + target.path : target.path)} mode={mode} onMode={setMode} busy={busy} onReload={() => setReload(n => n + 1)} actions={target.attachmentId ? [] : [{ label: uiText("在文件夹中显示"), kind: 'folder', run: () => window.umi.request({ type: 'open_file', conversationId, mountId: target.mountId, path: target.path }) }]} />
     {preview?.sourceNote && <p className="file-preview-unsupported" role="note">{preview.sourceNote}</p>}
     <FileContent path={target.path} mode={mode} text={preview?.text ?? ''} dataUrl={preview?.dataUrl} unsupported={preview?.previewSupported === false} busy={busy} error={error} hasMore={Boolean(preview?.truncated)} onMore={loadMore} />
   </div>;

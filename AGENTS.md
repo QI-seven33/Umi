@@ -22,8 +22,8 @@
 
 - 工程使用根目录 npm package，Node 版本要求 `>=24.11.0 <25`；沿用锁文件和现有脚本。
 - `npm run dev` 会重新构建桌面资源；`npm run desktop` 使用已有 dist。便携包内有独立 dist，源码变化需要重新打包才能进入便携包。
-- 通过 Umi 的退出菜单完整退出；关闭窗口只是隐藏。第二实例可能只唤回已有窗口。
-- CSS 加载顺序是 `global.css → desktop.css → surface.css`；添加覆盖规则前先检查最终生效的样式。
+- 通过 Umi 的退出菜单完整退出；关闭窗口默认隐藏，可在通用设置中改为退出。第二实例可能只唤回已有窗口。
+- CSS 加载顺序是 `global.css → desktop.css → surface.css → interactions.css → file-preview.css → workspace-layout.css → refinements.css`；添加覆盖规则前先检查最终生效的样式。
 - 根据改动行为和用户当次要求安排验证，准确说明执行过哪些检查；历史验收数量不是本次测试结果。
 - 真实模型验证脚本可能产生费用，按任务授权使用；不要修改生产会话数据来做测试。
 - 用户允许为Umi进行桌面自动化回归测试，使用隔离测试窗口、临时数据库及离线模型；排除的是给Umi增加computer use/桌面操纵产品能力，不是开发验收。该测试授权不包含操作其它应用、生产会话库或付费API。

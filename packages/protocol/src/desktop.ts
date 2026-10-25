@@ -42,6 +42,7 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('create'), selectionId: id }).strict(),
   z.object({ type: z.literal('new_conversation'), ...conversation }).strict(),
   z.object({ type: z.literal('tool_detail'), ...conversation, callId: id, summaryOnly: z.boolean().optional(), startByte: z.number().int().nonnegative().optional(), byteLength: z.number().int().min(1).max(64000).optional() }).strict(),
+  z.object({ type: z.literal('resolve_file_links'), ...conversation, references: z.array(z.string().min(1).max(2048)).min(1).max(32) }).strict(),
   z.object({ type: z.literal('snapshot'), ...conversation }).strict(),
   z.object({ type: z.literal('events'), ...conversation, cursor: cursorSchema }).strict(),
   z
@@ -229,6 +230,11 @@ export const desktopMenuRequestSchema = z.object({
 }).strict();
 export type DesktopMenuRequest = z.infer<typeof desktopMenuRequestSchema>;
 export type DesktopBridge = {
+  preferences: () => Promise<import('./desktop-preferences.js').DesktopPreferences>;
+  updatePreferences: (patch: import('./desktop-preferences.js').DesktopPreferencePatch) => Promise<import('./desktop-preferences.js').DesktopPreferences>;
+  applicationInfo: () => Promise<import('./desktop-preferences.js').DesktopInformation>;
+  showDataLocation: (location: import('./desktop-preferences.js').DataLocation) => Promise<void>;
+  chooseExportDirectory: () => Promise<import('./desktop-preferences.js').DesktopPreferences | null>;
   windowInfo: () => Promise<{ development: boolean }>;
   showMenu: (request: DesktopMenuRequest) => Promise<void>;
   request: (command: DesktopInput) => Promise<unknown>;

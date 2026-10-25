@@ -1,3 +1,4 @@
+import { t as uiText } from './ui-language.js';
 import { userFacingError } from './ui-error.js';
 import { useEffect, useRef, useState } from 'react';
 import { FileText, RefreshCw } from 'lucide-react';
@@ -27,15 +28,15 @@ type Preview = OutputDescriptor & {
   endByte: number;
   truncated: boolean;
 };
-const errorText = (e: unknown) => userFacingError(e) || '操作回执暂未返回，请查看会话状态。';
+const errorText = (e: unknown) => userFacingError(e) || uiText("操作回执暂未返回，请查看会话状态。");
 export const exportRequest = (outputId: string, target: string) =>
   `请使用 export_outputs 导出这份已生成成果，目标文件已由我选择：\n${JSON.stringify({ items: [{ outputId, target }] }, null, 2)}\n请按原批准流程执行；目标已有文件时停止，不覆盖。`;
 const receiptLabels: Record<ExportReceipt['status'], string> = {
-  written: '已写入并核验',
-  verified: '当前目标已核验',
-  conflict: '目标冲突',
-  not_started: '未开始',
-  unknown: '无法确认',
+  written: uiText("已写入并核验"),
+  verified: uiText("当前目标已核验"),
+  conflict: uiText("目标冲突"),
+  not_started: uiText("未开始"),
+  unknown: uiText("无法确认"),
 };
 
 export function InspectionSummary({
@@ -45,11 +46,11 @@ export function InspectionSummary({
 }) {
   if (!report) return null;
   return (
-    <section className="umi-inspection" aria-label="执行准备检查">
-      <small>最近一次准备检查 · 历史观察，执行前仍需复查</small>
+    <section className="umi-inspection" aria-label={uiText("执行准备检查")}>
+      <small>{uiText("最近一次准备检查 · 历史观察，执行前仍需复查")}</small>
       <br />
       <strong>
-        {report.status === 'observed' ? '已完成只读观察' : '准备条件需要处理'}
+        {report.status === 'observed' ? uiText("已完成只读观察") : uiText("准备条件需要处理")}
       </strong>
       <p>{report.root}</p>
       {report.issues.map((i, index) => (
@@ -106,20 +107,19 @@ function ExportRecord({
         if (e.currentTarget.open && !receipts) void inspect();
       }}
     >
-      <summary>
-        导出记录 ·{' '}
+      <summary>{uiText("导出记录 ·")}{' '}
         {status === 'succeeded'
-          ? '原执行完成'
+          ? uiText("原执行完成")
           : status === 'unknown'
-            ? '原执行结果未知'
+            ? uiText("原执行结果未知")
             : status === 'denied'
-              ? '原执行已拒绝'
-              : '查看执行结果'}
+              ? uiText("原执行已拒绝")
+              : uiText("查看执行结果")}
       </summary>
-      <small>核验只观察原目标，不会重试写入。以下是本次观察结果。</small>
+      <small>{uiText("核验只观察原目标，不会重试写入。以下是本次观察结果。")}</small>
       {error && <p role="alert">{error}</p>}
       <button type="button" disabled={busy} onClick={() => void inspect()}>
-        {busy ? '正在核验…' : '重新核验原目标'}
+        {busy ? uiText("正在核验…") : uiText("重新核验原目标")}
       </button>
       {receipts?.map((r, index) => (
         <div key={index} className="umi-export-target">
@@ -147,9 +147,7 @@ function ExportRecord({
                     }
                   });
               }}
-            >
-              打开文件位置
-            </button>
+            >{uiText("打开文件位置")}</button>
           )}
         </div>
       ))}
@@ -264,7 +262,7 @@ export function OutputsPanel({
       const selected = await window.umi.chooseOutputTarget(conversationId, id);
       if (live.current && selected) {
         onDraft(exportRequest(id, selected.target));
-        setNotice('导出请求已放入输入框。发送后确认具体范围。');
+        setNotice(uiText("导出请求已放入输入框。发送后确认具体范围。"));
       }
     } catch (e) {
       if (live.current) setError(errorText(e));
@@ -275,8 +273,8 @@ export function OutputsPanel({
   if (!conversationId)
     return (
       <section className="umi-outputs">
-        <h3>任务成果</h3>
-        <p>选择工作区并开始对话后，成果会显示在这里。</p>
+        <h3>{uiText("任务成果")}</h3>
+        <p>{uiText("选择工作区并开始对话后，成果会显示在这里。")}</p>
       </section>
     );
   const exports = tools
@@ -289,24 +287,24 @@ export function OutputsPanel({
     .sort((a, b) => (BigInt(a[1].sequence) > BigInt(b[1].sequence) ? -1 : 1))
     .slice(0, 10);
   return (
-    <section className="umi-outputs" aria-label="任务成果">
+    <section className="umi-outputs" aria-label={uiText("任务成果")}>
       <header>
-        <h3>任务成果{page ? ` · ${page.total}` : ''}</h3>
+        <h3>{uiText("任务成果")}{page ? ` · ${page.total}` : ''}</h3>
         <button
           type="button"
-          aria-label="刷新成果"
+          aria-label={uiText("刷新成果")}
           disabled={loading}
           onClick={() => setRefresh((v) => v + 1)}
         >
           <RefreshCw size={14} />
         </button>
       </header>
-      <p>生成的文件与交付记录</p>
+      <p>{uiText("生成的文件与交付记录")}</p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {loading && <p role="status">正在读取成果列表…</p>}
+      {loading && <p role="status">{uiText("正在读取成果列表…")}</p>}
       {page && !page.entries.length && (
-        <p>暂无成果。任务生成的文件会显示在这里。</p>
+        <p>{uiText("暂无成果。任务生成的文件会显示在这里。")}</p>
       )}
       <ul className="umi-output-list">
         {page?.entries.map((d) => (
@@ -319,18 +317,15 @@ export function OutputsPanel({
               <FileText size={14} /> {d.name}
             </button>
             <small title={d.outputId}>
-              {d.size.toLocaleString()} 字节 · {d.mime}
-              <br />
-              内容摘要 {d.hash.slice(0, 12)}
+              {d.size.toLocaleString()}{uiText("字节 ·")}{d.mime}
+              <br />{uiText("内容摘要")}{d.hash.slice(0, 12)}
             </small>
             <div className="umi-output-actions">
               <button
                 type="button"
                 disabled={choosing}
                 onClick={() => void choose(d.outputId)}
-              >
-                请求导出
-              </button>
+              >{uiText("请求导出")}</button>
             </div>
           </li>
         ))}
@@ -340,9 +335,7 @@ export function OutputsPanel({
           type="button"
           disabled={loading || offset === 0}
           onClick={() => setOffset(Math.max(0, offset - 10))}
-        >
-          上一页
-        </button>
+        >{uiText("上一页")}</button>
         <small>
           {page
             ? `${page.offset + 1 > page.total ? 0 : page.offset + 1}–${page.offset + page.entries.length} / ${page.total}`
@@ -354,32 +347,27 @@ export function OutputsPanel({
           onClick={() => {
             if (page?.nextOffset != null) setOffset(page.nextOffset);
           }}
-        >
-          下一页
-        </button>
+        >{uiText("下一页")}</button>
       </div>
-      {previewBusy && <p role="status">正在核验并读取成果…</p>}
+      {previewBusy && <p role="status">{uiText("正在核验并读取成果…")}</p>}
       {previewError && <p role="alert">{previewError}</p>}
       {preview && (
-        <section aria-label="成果预览">
+        <section aria-label={uiText("成果预览")}>
           <h4>{preview.name}</h4>
           {preview.kind === 'text' ? (
             <pre className="umi-output-preview">{preview.text}</pre>
           ) : (
             <p>{preview.message}</p>
           )}
-          <small>
-            已核验完整成果，当前显示字节 {preview.startByte}–{preview.endByte}。
+          <small>{uiText("已核验完整成果，当前显示字节")}{preview.startByte}–{preview.endByte}。
           </small>
           {preview.kind === 'text' && preview.truncated && (
             <div className="umi-output-actions">
-              <small>预览按段读取，原成果完整保留。</small>
+              <small>{uiText("预览按段读取，原成果完整保留。")}</small>
               <button
                 type="button"
                 onClick={() => void read(preview.outputId, preview.endByte)}
-              >
-                读取下一段
-              </button>
+              >{uiText("读取下一段")}</button>
             </div>
           )}
           <button
@@ -388,14 +376,12 @@ export function OutputsPanel({
               previewGeneration.current++;
               setPreview(null);
             }}
-          >
-            关闭预览
-          </button>
+          >{uiText("关闭预览")}</button>
         </section>
       )}
       {!!exports.length && (
         <>
-          <h4>最近的导出记录</h4>
+          <h4>{uiText("最近的导出记录")}</h4>
           {exports.map(([id, t]) => (
             <ExportRecord
               key={id}

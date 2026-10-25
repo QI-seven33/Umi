@@ -1,3 +1,4 @@
+import { t as uiText } from './ui-language.js';
 import { useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
 import type { DesktopMenuRequest } from '../../../../packages/protocol/src/desktop.js';
@@ -18,10 +19,10 @@ export function TitleBar({ left, onToggle, settingsOpen }: {
     catch (failure) { setError(userFacingError(failure)); }
     finally { setOpen(null); }
   };
-  return <header className="app-titlebar" aria-label="应用顶栏">
-    <button type="button" className="sidebar-toggle left-title-toggle" aria-label={left ? '收起侧边栏' : '展开侧边栏'} aria-expanded={left} disabled={settingsOpen} onClick={onToggle}><PanelIcon side="left" /></button>
-    <nav aria-label="应用菜单">
-      {([{ id: 'app', label: '应用', key: 'a' }, { id: 'edit', label: '编辑', key: 'e' }, ...(development ? [{ id: 'development' as const, label: '开发', key: 'd' }] : [])] as const).map(item =>
+  return <header className="app-titlebar" aria-label={uiText("应用顶栏")}>
+    <button type="button" className="sidebar-toggle left-title-toggle" aria-label={left ? uiText("收起侧边栏") : uiText("展开侧边栏")} aria-expanded={left} disabled={settingsOpen} onClick={onToggle}><PanelIcon side="left" /></button>
+    <nav aria-label={uiText("应用菜单")}>
+      {([{ id: 'app', label: uiText("应用"), key: 'a' }, { id: 'edit', label: uiText("编辑"), key: 'e' }, ...(development ? [{ id: 'development' as const, label: uiText("开发"), key: 'd' }] : [])] as const).map(item =>
         <button type="button" className="titlebar-menu" key={item.id} data-menu={item.id} accessKey={item.key} aria-haspopup="menu" aria-expanded={open === item.id} onClick={event => void show(item.id, event)}>{item.label}</button>
       )}
     </nav>

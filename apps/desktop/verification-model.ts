@@ -134,7 +134,7 @@ export class DesktopVerificationModel implements ModelPort {
               },
             ],
           }
-        : { role: 'assistant', content: '**文件修改完成：**回执已核验。\n\n[预览文件](@working/'+mountId+'/delivery-preview.txt) · [绝对路径预览](<'+domains['runtime.resources'].mounts[0].sourceRoot+'/delivery-preview.txt>)\n\n| 项目 | 状态 |\n| --- | --- |\n| 文件 | **已保存** |' };
+        : { role: 'assistant', content: '**文件修改完成：**回执已核验。\n\n[预览文件](@working/'+mountId+'/delivery-preview.txt) · [绝对路径预览](<'+domains['runtime.resources'].mounts[0].sourceRoot+'/delivery-preview.txt>)\n\n命令示例：`msedge.exe`、`python -m http.server`；不存在的文件：`missing-preview.html`。\n\n| 项目 | 状态 |\n| --- | --- |\n| 文件 | **已保存** |' };
     } else if (raw.includes('快速提交验证'))
       message = { role: 'assistant', content: '收到，附件已接收。' };
     else if (raw.startsWith('请阅读附件“长消息.txt”'))

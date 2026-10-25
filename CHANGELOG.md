@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-25
+
+- 优化设置、权限、目录授权与归档界面的布局、圆角和控件，减少重复文案、装饰边框与投影；完整操作详情仍可展开核对，批准语义不变。
+- 新增独立的简体中文/English 界面语言、关闭窗口行为、减少动效和存储位置页；可选择默认导出目录，不改写聊天、历史标题、模型设置或操作权限，不迁移既有数据。
+- 新增会话重命名、可展开的侧栏标题搜索和长标题悬停滚动；缩小归档确认并采用白色至蓝色长按进度，补齐空预览栏顶部横线。
+- 技能启用改为统一的蓝色圆角开关，移除聊天输入区内部多余焦点框。
+- 文件预览链接先核实现存授权目标；简写按有界来源补全，命令/程序名、缺失文件和歧义引用保留原文；查询去重，点击重新核验。
+- 直接编辑环境新增需独立批准的系统文档打开工具，复用既有打开通道；普通命令子进程清理、旧副本与未知效果处理语义不变。
+- 补齐 Windows 命令环境的三项 ProgramFiles 类标准路径变量，继续过滤密钥及非白名单环境变量。
+- 数据库保持 DB12，提示版本保持 umi-persona-25。本版变化、构建验证与限制见 [0.3.1 版本说明](docs/releases/0.3.1.zh-CN.md)。
+
 ## [0.3.0] - 2026-10-24
 
 ### 文件工作流与权限
@@ -130,7 +141,8 @@
 
 这是实验性预发布。HTML 首帧偶发空白、启动写者标记、部分预算终止正文及迁移就绪标识问题仍待处理；宿主命令没有 OS 文件/网络沙箱。详见[已知问题](docs/known-issues.zh-CN.md)和[本版发布说明](docs/releases/0.2.0-alpha.1.zh-CN.md)。
 
-[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/QI-seven33/Umi/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/QI-seven33/Umi/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/QI-seven33/Umi/releases/tag/v0.3.0
 [0.2.1]: https://github.com/QI-seven33/Umi/releases/tag/v0.2.1
 [0.2.0]: https://github.com/QI-seven33/Umi/releases/tag/v0.2.0

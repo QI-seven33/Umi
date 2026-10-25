@@ -27,8 +27,10 @@ export async function verifyWorkspaceDeletion(broker:AgentBroker,win:BrowserWind
  assert(layout.left);assert.equal(layout.width,layout.freshWidth);assert.equal(layout.height,layout.freshHeight);assert.equal(layout.shadow,'none');assert.equal(layout.sidebar,232);
  writeFileSync(join(dataRoot,'workspace-menu-preview.png'),(await win.webContents.capturePage()).toPNG());names.push('工作区行在新会话按钮左侧显示同尺寸管理按钮，使用会话菜单与原232px侧栏');
  await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('[aria-label=工作区菜单] button')).find(n=>n.textContent==='目录权限').click()");
- await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.workspace-access-dialog button')).some(n=>n.textContent==='撤销授权')"),Boolean);
- await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.workspace-access-dialog button')).find(n=>n.textContent==='撤销授权').click()");
+ await until(()=>win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.workspace-access-dialog button')).some(n=>n.textContent==='撤销')"),Boolean);
+ writeFileSync(join(dataRoot,'workspace-access-preview.png'),(await win.webContents.capturePage()).toPNG());
+ assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-access-dialog')).boxShadow"),'none');
+ await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.workspace-access-dialog button')).find(n=>n.textContent==='撤销').click()");
  await until(()=>broker.request({type:'list_directory_access',conversationId:second.conversationId}),grants=>(grants as any[]).some(g=>g.revoked));
  await win.webContents.executeJavaScript("document.querySelector('.workspace-access-dialog .umi-confirm-actions button').click()");
  await until(()=>win.webContents.executeJavaScript("!document.querySelector('.workspace-access-dialog')"),Boolean);

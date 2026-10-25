@@ -1,3 +1,4 @@
+import { t as uiText } from '../../../ui-language.js';
 import {shouldSend} from '../../settings/input-preferences.js';
 import type {SendShortcut} from '../../settings/input-preferences.js';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -51,15 +52,11 @@ export function Composer(props: {
     100,
     Math.round((100 * (contextStats?.tokens ?? 0)) / (contextStats?.budget || 1)),
   );
-  const contextLabel = !contextStats ? "上下文统计尚未就绪" :
+  const contextLabel = !contextStats ? uiText("上下文统计尚未就绪") :
     `${contextPercent}% · ${(contextStats.tokens / 1000).toFixed(1)}K / ${(contextStats.budget / 1000).toFixed(1)}K ` +
-    (contextStats.cached ? "已保存统计，等待更新" : contextStats.scope === "latest_request" ? "最近请求" : "已存会话") +
-    (contextStats.token_source === "provider" ? "实际输入" : "估算输入");
-  const contextDetail = !contextStats ? contextLabel : `${contextLabel}；模型窗口 ${contextStats.context_window.toLocaleString()}；` +
-    `输出预留 ${contextStats.output_reserved.toLocaleString()}；安全余量 ${contextStats.safety_margin.toLocaleString()}；` +
-    `已压缩 ${contextStats.summarized_messages} 条记录，用户原文保留` +
-    (contextStats.images_omitted ? "；当前模型不支持历史图像，原始记录保留" :
-      contextStats.includes_images ? "；图片用量以服务端返回为准" : "");
+    (contextStats.cached ? uiText("已保存统计，等待更新") : contextStats.scope === "latest_request" ? uiText("最近请求") : uiText("已存会话")) +
+    (contextStats.token_source === "provider" ? uiText("实际输入") : uiText("估算输入"));
+  const contextDetail = !contextStats ? contextLabel : uiText('{label}；模型窗口 {window}；输出预留 {output}；安全余量 {margin}；已压缩 {count} 条记录，用户原文保留', {label:contextLabel,window:contextStats.context_window.toLocaleString(),output:contextStats.output_reserved.toLocaleString(),margin:contextStats.safety_margin.toLocaleString(),count:contextStats.summarized_messages}) + (contextStats.images_omitted ? uiText('；当前模型不支持历史图像，原始记录保留') : contextStats.includes_images ? uiText('；图片用量以服务端返回为准') : '');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -131,7 +128,7 @@ export function Composer(props: {
     <form ref={sectionRef} className="composer-section" onSubmit={props.approvalPanel || props.questionPanel ? e => e.preventDefault() : onSubmit}>
       {props.intro}
       {props.notice && <div className="composer-notice">{props.notice}</div>}
-      {props.approvalPanel ? <div className="composer composer-approval" aria-label="等待批准">
+      {props.approvalPanel ? <div className="composer composer-approval" aria-label={uiText("等待批准")}>
         <div className="approval-dock-content">{props.approvalPanel}</div>
       </div> : props.questionPanel ? <div className="composer composer-question">{props.questionPanel}</div> : <div className={`composer ${dragging ? "dragging" : ""}`}
         onDragOver={(e) => { e.preventDefault(); setDragging(true); onDragOver(e); }}
@@ -141,11 +138,11 @@ export function Composer(props: {
         {streaming && !props.stopping && <span className="composer-breathing" aria-hidden="true" />}
         <AttachmentList attachments={attachments} onRemove={onRemoveAttachment} onPreview={onPreviewAttachment} />
         {attachments.some((item) => item.kind === "image") && !currentModel?.capabilities.vision &&
-          <p className="confirm-error">当前 Pro 不支持图片输入，请切换至 DeepSeek Flash。</p>}
+          <p className="confirm-error">{uiText("当前 Pro 不支持图片输入，请切换至 DeepSeek Flash。")}</p>}
 
         <textarea ref={textareaRef} value={prompt} onChange={onPromptChange}
           disabled={!workspace}
-          placeholder={workspace ? "描述你希望 Umi 完成的任务..." : "选择一个工作区开始..."}
+          placeholder={workspace ? uiText("描述你希望 Umi 完成的任务...") : uiText("选择一个工作区开始...")}
           rows={1}
           onKeyDown={(e) => {
             if (shouldSend(e.nativeEvent,props.sendShortcut??'enter')) {
@@ -156,7 +153,7 @@ export function Composer(props: {
 
         <div className="composer-tools">
           <div className="tool-group">
-            <button type="button" className="round-button" aria-label="添加附件"
+            <button type="button" className="round-button" aria-label={uiText("添加附件")}
               onClick={() => fileInputRef.current?.click()}>
               <Plus size={18} />
             </button>
@@ -170,17 +167,17 @@ export function Composer(props: {
                 {executionPolicy === "ask"
                   ? <ShieldCheck size={14} strokeWidth={1.9} />
                   : <Zap size={14} strokeWidth={1.9} />}
-                <strong>{executionPolicy === "ask" ? "询问执行" : "自动执行"}</strong>
+                <strong>{executionPolicy === "ask" ? uiText("询问执行") : uiText("自动执行")}</strong>
                 <ChevronDown size={13} strokeWidth={2} />
               </button>
               {permissionMenuOpen && <div className="permission-menu work-permission-menu">
                 {([
                   {
-                    value: "ask" as ExecutionPolicy, title: "询问执行", detail: "已授权目录直接编辑；新增目录与宿主命令另行批准",
+                    value: "ask" as ExecutionPolicy, title: uiText("询问执行"), detail: uiText("已授权目录直接编辑；新增目录与宿主命令另行批准"),
                     icon: <ShieldCheck size={15} strokeWidth={1.9} />
                   },
                   {
-                    value: "auto" as ExecutionPolicy, title: "自动执行", detail: "目录内普通读改自动；获准开发命令本任务复用，高危仍询问",
+                    value: "auto" as ExecutionPolicy, title: uiText("自动执行"), detail: uiText("目录内普通读改自动；获准开发命令本任务复用，高危仍询问"),
                     icon: <Zap size={15} strokeWidth={1.9} />
                   },
                 ]).map((item) => <button type="button" key={item.value}
@@ -219,25 +216,25 @@ export function Composer(props: {
                 onClick={() => {setThinkingMenuOpen(false);setModelMenuOpen((o) => !o);}}
                 aria-expanded={modelMenuOpen} aria-controls={menuId}
                 title={currentModel ? `${currentModel.name} · API：${currentModel.id}` : undefined}
-                aria-label={currentModel ? `模型：${currentModel.name}；API：${currentModel.id}；思考强度：${THINKING_LABELS[thinking]}` : "模型不可用"}>
+                aria-label={currentModel ? uiText('模型：{name}；API：{id}；思考强度：{level}',{name:currentModel.name,id:currentModel.id,level:THINKING_LABELS[thinking]}) : uiText("模型不可用")}>
                 <span className="model-button-name">{currentModel?.name.startsWith("DeepSeek-")
                   ? <><span className="model-button-brand">DeepSeek-</span>{currentModel.name.slice("DeepSeek-".length)}</>
-                  : currentModel?.name ?? "模型不可用"}</span>
+                  : currentModel?.name ?? uiText("模型不可用")}</span>
                 {currentModel?.capabilities.thinking &&
                   <span className={`model-button-effort level-${thinking}`}>{THINKING_LABELS[thinking]}</span>}
                 <ChevronDown size={15} />
               </button>
               {modelMenuOpen && (
                 <div ref={modelMenuRef} id={menuId} className="model-menu">
-                  <div className="model-menu-list" role="group" aria-label="模型选择">
+                  <div className="model-menu-list" role="group" aria-label={uiText("模型选择")}>
                     {modelOptions.map((model) => (
                       <button key={model.id} type="button" data-model-id={model.id}
                         className={`model-menu-item ${model.id === selectedModel ? "selected" : ""}`}
-                        aria-pressed={model.id === selectedModel} title={`API 模型：${model.id}`}
+                        aria-pressed={model.id === selectedModel} title={uiText('API 模型：{id}',{id:model.id})}
                         onClick={() => { onSelectModel(model.id); setThinkingMenuOpen(false); setModelMenuOpen(false); }}
                         disabled={!model.available}>
                         <span className="model-menu-text">
-                          <strong>{model.name}</strong><small>{model.available ? model.description : "未配置或不可用"}</small>
+                          <strong>{model.name}</strong><small>{model.available ? uiText(model.description) : uiText("未配置或不可用")}</small>
                         </span>
                         <span className="model-menu-check" aria-hidden="true">{model.id === selectedModel && <Check size={16} />}</span>
                       </button>
@@ -255,13 +252,13 @@ export function Composer(props: {
                           requestAnimationFrame(() => thinkingOptionsRef.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus());
                         }}
                         onClick={() => setThinkingMenuOpen((open) => !open)}>
-                        <span>思考强度</span>
+                        <span>{uiText("思考强度")}</span>
                         <span className="thinking-row-value">
                           {THINKING_LABELS[thinking]}<ChevronRight size={14} />
                         </span>
                       </button>
                       {thinkingMenuOpen && (
-                        <div ref={thinkingOptionsRef} id={`${menuId}-thinking`} className="thinking-submenu" role="radiogroup" aria-label="思考强度">
+                        <div ref={thinkingOptionsRef} id={`${menuId}-thinking`} className="thinking-submenu" role="radiogroup" aria-label={uiText("思考强度")}>
                           {(["off", "normal", "high"] as const).map(level => (
                             <button key={level} type="button" role="radio" aria-checked={thinking === level}
                               className={`thinking-option${thinking === level ? " selected" : ""}`}
@@ -286,11 +283,11 @@ export function Composer(props: {
               )}
             </div>
             {streaming ? (
-              <button type="button" className="send-button stop" aria-label={props.stopping ? "正在停止" : "终止生成"} disabled={props.stopping} onClick={onStop}>
+              <button type="button" className="send-button stop" aria-label={props.stopping ? uiText("正在停止") : uiText("终止生成")} disabled={props.stopping} onClick={onStop}>
                 <span className="stop-square" />
               </button>
             ) : (
-              <button className="send-button" type="submit" disabled={!canSend} aria-label="发送消息" title={props.sendShortcut==='mod-enter'?'发送（Ctrl / ⌘ + Enter）；换行（Enter）':'发送（Enter）；换行（Shift+Enter）'}>
+              <button className="send-button" type="submit" disabled={!canSend} aria-label={uiText("发送消息")} title={props.sendShortcut==='mod-enter'?uiText("发送（Ctrl / ⌘ + Enter）；换行（Enter）"):uiText("发送（Enter）；换行（Shift+Enter）")}>
                 <ArrowUp size={16} strokeWidth={2.2} />
               </button>
             )}
@@ -298,14 +295,14 @@ export function Composer(props: {
         </div>
 
         {!isAtBottom && !modelMenuOpen && !thinkingMenuOpen && !permissionMenuOpen && (
-          <button type="button" className="scroll-to-bottom" onClick={onScrollToBottom} aria-label="回到底部">
+          <button type="button" className="scroll-to-bottom" onClick={onScrollToBottom} aria-label={uiText("回到底部")}>
             <ChevronDown size={16} strokeWidth={2.2} />
           </button>
         )}
       </div>}
 
       <div className="composer-footer">
-        <p className="disclaimer">内容由AI生成，请仔细甄别</p>
+        <p className="disclaimer">{uiText("内容由AI生成，请仔细甄别")}</p>
       </div>
     </form>
   );

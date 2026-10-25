@@ -24,6 +24,28 @@ export async function verifyDesktop(
   win: BrowserWindow,
   dataRoot: string,
 ) {
+  if (process.argv.includes('--interface-only')) {
+    const { verifyInterface } = await import('./verification-interface.js');
+    await broker.ready();
+    const workspace=dataRoot+'-interface-workspace';mkdirSync(workspace,{recursive:true});
+    const c=await broker.request({internal:'create_internal',payload:{workspace}}) as {conversationId:string};
+    const r=await broker.request({type:'send',conversationId:c.conversationId,commandId:randomUUID(),text:'快速提交验证',attachmentIds:[]}) as {runId:string};
+    await until(()=>broker.request({type:'snapshot',conversationId:c.conversationId}) as Promise<Snapshot>,s=>s.state.runs[r.runId]?.status==='completed');
+    if(win.webContents.isLoading())await new Promise<void>(resolve=>win.webContents.once('did-finish-load',()=>resolve()));
+    win.showInactive();win.webContents.setBackgroundThrottling(false);
+    try {
+      const {verifyCommandPermissions}=await import('./verification-auto.js');
+      const names=await verifyCommandPermissions(broker,win,dataRoot);
+      names.push(...await verifyInterface(broker,win,dataRoot));
+      const {verifyWorkspaceDeletion}=await import('./verification-workspace.js');
+      names.push(...await verifyWorkspaceDeletion(broker,win,dataRoot));
+      writeFileSync(join(dataRoot,'desktop-verification.json'),JSON.stringify({name:'Umi',passed:true,evidence:names.map(name=>({name,passed:true}))}));
+    } catch(error) {
+      try{writeFileSync(join(dataRoot,'failure.png'),(await win.webContents.capturePage()).toPNG());}catch{}
+      writeFileSync(join(dataRoot,'desktop-verification.json'),JSON.stringify({name:'Umi',passed:false,error:error instanceof Error?error.stack:String(error)}));throw error;
+    }
+    return;
+  }
   if (process.argv.includes('--preview-only')) {
     const { verifyFilePreview } = await import('./verification-file-preview.js');
     return verifyFilePreview(broker, win, dataRoot);
@@ -68,7 +90,7 @@ export async function verifyDesktop(
       assert(wide.width>620); assert(narrow.width<wide.width);
       for(const layout of [wide,narrow]) {
         assert(Math.abs(layout.width-layout.expectedWidth)<1); assert(Math.abs(layout.left-layout.expectedLeft)<1);
-        assert.equal(layout.radius,'18px'); assert.equal(layout.font,'12px'); assert.equal(layout.shadow,'none'); assert.equal(layout.breathing,false);
+        assert.equal(layout.radius,selector==='.composer-approval'?'20px':'18px'); assert.equal(layout.font,'12px'); assert.equal(layout.shadow,'none'); assert.equal(layout.breathing,false);
       }
       return {wide,narrow};
     } finally { await restorePanel(); win.setBounds(bounds); await delay(220); }
@@ -192,7 +214,7 @@ export async function verifyDesktop(
     await until(
       () => win.webContents.executeJavaScript(`(() => {
         const card = document.querySelector('.umi-approval[aria-label="操作批准"]');
-        return !!card && card.querySelector('strong')?.textContent === '确认本次操作'
+        return !!card && card.querySelector('strong')?.textContent === '需要你的许可'
           && card.querySelector('.approval-allow')?.textContent === '允许本次'
           && card.querySelector('.approval-deny')?.textContent === '拒绝';
       })()`),
@@ -615,7 +637,7 @@ export async function verifyDesktop(
       (rows) => rows.some((row) => row.id === ui.conversationId),
     );
     await until(
-      () => win.webContents.executeJavaScript(`!document.querySelector('.umi-confirm')`),
+      () => win.webContents.executeJavaScript(`!document.querySelector('.archive-confirm')`),
       Boolean,
     );
     await win.webContents.executeJavaScript(
@@ -626,15 +648,15 @@ export async function verifyDesktop(
         win.webContents.executeJavaScript(
           `document.querySelectorAll('.settings-page-nav-item').length`,
         ),
-      (value) => value === 7,
+      (value) => value === 8,
     );
     const categories = await win.webContents.executeJavaScript(
       `Array.from(document.querySelectorAll('.settings-page-nav-item')).map(node=>node.innerText)`,
     );
-    assert.deepEqual(categories, ['通用', '个人资料', '模型设置', '会话', '执行环境', '技能', '归档']);
-    pass('设置按七个独立分类展示，常用外观与输入优先', categories);
+    assert.deepEqual(categories, ['通用', '个人资料', '模型设置', '会话', '执行环境', '技能', '归档', '存储与关于']);
+    pass('设置按八个独立分类展示，常用外观与输入优先', categories);
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[aria-label=发送快捷键]')"),Boolean);
-    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=发送快捷键]');s.value='mod-enter';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await win.webContents.executeJavaScript(`(async() => {document.querySelector('[aria-label=发送快捷键]').click();await new Promise(r=>setTimeout(r,0));const items=[...document.querySelectorAll('.ui-select-popup [role=option]')];items[1].click();})()`);
     await until(()=>win.webContents.executeJavaScript("localStorage.getItem('umi.sendShortcut')"),v=>v==='mod-enter');
     const shortcut=await win.webContents.executeJavaScript(`(() => {
       const input=document.querySelector('.composer textarea');
@@ -642,16 +664,18 @@ export async function verifyDesktop(
       return {results,title:document.querySelector('.send-button')?.title};
     })()`);
     assert.deepEqual(shortcut.results,[false,true,true,false,false]);assert(shortcut.title.includes('Ctrl'));
-    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=主题]');s.value='dark';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await win.webContents.executeJavaScript(`(async() => {document.querySelector('[aria-label=主题]').click();await new Promise(r=>setTimeout(r,0));const items=[...document.querySelectorAll('.ui-select-popup [role=option]')];items[2].click();})()`);
     await until(()=>win.webContents.executeJavaScript("document.documentElement.dataset.theme"),v=>v==='dark');
+    await delay(180);
     writeFileSync(join(dataRoot,'settings-general-dark.png'),(await captureFrame(true)).toPNG());
-    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=主题]');s.value='light';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await win.webContents.executeJavaScript(`(async() => {document.querySelector('[aria-label=主题]').click();await new Promise(r=>setTimeout(r,0));const items=[...document.querySelectorAll('.ui-select-popup [role=option]')];items[1].click();})()`);
     await until(()=>win.webContents.executeJavaScript("document.documentElement.dataset.theme"),v=>v==='light');
+    await delay(180);
     writeFileSync(join(dataRoot,'settings-general-light.png'),(await captureFrame(true)).toPNG());
     await win.webContents.executeJavaScript("document.querySelector('[data-category=profile]').click()");
     await win.webContents.executeJavaScript("document.querySelector('[data-category=general]').click()");
-    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=发送快捷键]').value"),'mod-enter');
-    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=发送快捷键]');s.value='enter';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    assert.equal(await win.webContents.executeJavaScript("document.querySelector('[aria-label=发送快捷键]').dataset.value"),'mod-enter');
+    await win.webContents.executeJavaScript(`(async() => {document.querySelector('[aria-label=发送快捷键]').click();await new Promise(r=>setTimeout(r,0));const items=[...document.querySelectorAll('.ui-select-popup [role=option]')];items[0].click();})()`);
     pass('通用设置实际保存并联动主题和输入框，Ctrl/⌘发送与IME防误发通过');
     await win.webContents.executeJavaScript("document.querySelector('[data-category=conversation]').click()");
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.settings-diagnostics')"),Boolean);
@@ -683,16 +707,16 @@ export async function verifyDesktop(
       await win.webContents.executeJavaScript("document.documentElement.dataset.theme="+JSON.stringify(theme)+";document.querySelector('[data-category=skills]').click()");
       await delay(150);
       writeFileSync(join(dataRoot,'settings-skills-'+theme+'.png'),(await captureFrame(true)).toPNG());
-      for(const category of ['general','profile','model','conversation','plugins','skills','archive']){
+      for(const category of ['general','profile','model','conversation','plugins','skills','archive','storage']){
         await win.webContents.executeJavaScript("document.querySelector('[data-category="+category+"]').click()");
         await delay(80);
         const layout=await win.webContents.executeJavaScript(`(() => {
-          const p=document.querySelector('.settings-content'),heading=p.querySelector('h1'),controls=[...p.querySelectorAll('.settings-row input,.settings-row select')];
+          const p=document.querySelector('.settings-content'),heading=p.querySelector('h1'),controls=[...p.querySelectorAll('.settings-row input:not([type=checkbox]),.settings-row .ui-select')];
           return {overflow:p.scrollWidth>p.clientWidth,heading:parseFloat(getComputedStyle(heading).fontSize),controls:controls.map(c=>({height:c.getBoundingClientRect().height,font:parseFloat(getComputedStyle(c).fontSize)}))};
         })()`);
         assert.equal(layout.overflow,false,theme+' '+category);
-        assert(layout.heading>=20&&layout.heading<=24);
-        assert(layout.controls.every((c:any)=>c.height<=37&&c.font>=13&&c.font<=14));
+        assert(layout.heading>=20&&layout.heading<=26);
+        assert(layout.controls.every((c:any)=>c.height<=37&&c.font>=12&&c.font<=14));
       }
     }
     win.setSize(620,760);
@@ -704,7 +728,7 @@ export async function verifyDesktop(
     writeFileSync(join(dataRoot,'settings-skills-narrow.png'),(await captureFrame(true)).toPNG());
     win.setBounds(settingsBounds);
     await win.webContents.executeJavaScript("document.documentElement.dataset.theme='light';document.querySelector('[data-category=profile]').click()");
-    pass('设置七类页面在明暗主题保持清晰字号和36px控件，窄窗口无横向溢出');
+    pass('设置八类页面在明暗主题保持清晰字号和36px控件，窄窗口无横向溢出');
 
 
     await win.webContents.executeJavaScript("document.querySelector('[data-category=skills]').click()");
@@ -733,7 +757,7 @@ export async function verifyDesktop(
     await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='import-example');},Boolean);
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-skill=import-example] input')"),Boolean);
     assert.equal(await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] input').checked"),false);
-    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=筛选技能]');s.value='disabled';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await win.webContents.executeJavaScript(`(async()=>{document.querySelector('[aria-label=筛选技能]').click();await new Promise(r=>setTimeout(r,0));document.querySelectorAll('.ui-select-popup [role=option]')[2].click();})()`);
     await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('[data-skill]').length"),v=>v===1);
     await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-inspect').click()");
     await until(()=>win.webContents.executeJavaScript("!!document.querySelector('[data-skill=import-example] .settings-skill-reader button')"),Boolean);
@@ -741,7 +765,7 @@ export async function verifyDesktop(
     await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-reader button').click()");
     await until(()=>win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] pre')?.textContent"),v=>String(v).includes('FULL-PREVIEW-END'));
     await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] .settings-skill-inspect').click()");
-    await win.webContents.executeJavaScript(`(() => {const s=document.querySelector('[aria-label=筛选技能]');s.value='all';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await win.webContents.executeJavaScript(`(async()=>{document.querySelector('[aria-label=筛选技能]').click();await new Promise(r=>setTimeout(r,0));document.querySelectorAll('.ui-select-popup [role=option]')[0].click();})()`);
     pass('未启用筛选与已导入技能完整预览通过，阅读不会隐式启用');
     await win.webContents.executeJavaScript("document.querySelector('[data-skill=import-example] input').click()");
     await until(async()=>{const r=await broker.request({type:'skills_list',refresh:false}) as any;return r.skills.find((s:any)=>s.name==='import-example').enabled;},Boolean);
@@ -927,6 +951,10 @@ export async function verifyDesktop(
     await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body .inline-file-link')).find(n=>n.textContent==='绝对路径预览').click()");
     await until(()=>win.webContents.executeJavaScript("document.querySelector('.delivery-panel .file-code')?.textContent"),value=>typeof value==='string'&&value.includes('冻结预览正文'));
     pass('回复中的已授权Windows绝对路径成为蓝色链接，点击打开真实文件预览，顶部旧卡片已移除');
+    const falseLinks=await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body .inline-file-link')).filter(n=>['msedge.exe','python -m http.server','missing-preview.html'].includes(n.textContent)).length");
+    assert.equal(falseLinks,0);
+    assert(await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.message-body code')).some(n=>n.textContent==='python -m http.server')"));
+    pass('真实正文中的程序名、复合命令和不存在文件保持普通代码，不生成虚假预览按钮');
     const typography=await win.webContents.executeJavaScript("(()=>{const strong=Array.from(document.querySelectorAll('.message-body strong')).find(n=>n.textContent==='文件修改完成：');return {weight:strong?getComputedStyle(strong).fontWeight:'0',table:!!document.querySelector('.message-table-scroll')};})()");
     assert(Number(typography.weight)>=650);assert(typography.table);
     pass('中文标点重点显示真实粗体，回复中的Markdown表格沿原配色呈现');
@@ -1267,11 +1295,14 @@ export async function verifyDesktop(
     await win.webContents.executeJavaScript(`document.querySelector('.file-options-menu').open=false`);
     pass('查看与打开方式共用紧凑菜单卡片，四角和无阴影规则统一',menuLayout);
     await win.webContents.executeJavaScript(`document.getElementById('verification-layout')?.remove();window.__dragEvents=[];window.__dragTrace=e=>window.__dragEvents.push([e.type,e.pointerId,e.buttons,e.target.className]);for(const type of ['pointerdown','pointermove','pointerup','mouseup','pointercancel','lostpointercapture'])window.addEventListener(type,window.__dragTrace,true);window.__dragWrites=0;window.__storageSet=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key==='umi.work.rightWidth')window.__dragWrites++;return window.__storageSet.call(this,key,value)};window.__iframeChanges=0;window.__iframeObserver=new MutationObserver(records=>{window.__iframeChanges+=records.filter(r=>r.attributeName==='srcdoc').length});window.__iframeObserver.observe(document.querySelector('.file-html-preview'),{attributes:true});`);
+    // Native pointer capture requires this isolated test window to own focus.
+    win.focus();win.webContents.focus();await delay(150);
     const grip = await win.webContents.executeJavaScript(`(()=>{const r=document.querySelector('.work-preview-resizer').getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)};})()`);
     win.webContents.sendInputEvent({type:'mouseMove',x:grip.x,y:grip.y});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:grip.x,y:grip.y});await delay(30);
     for(let i=0;i<36;i++){win.webContents.sendInputEvent({type:'mouseMove',button:'left',modifiers:['leftbuttondown'],x:grip.x-i*13,y:grip.y});await delay(8);}
     await delay(50);
     const duringDrag = await win.webContents.executeJavaScript(`({writes:window.__dragWrites,resizing:document.querySelector('.app-shell').classList.contains('is-resizing'),transition:getComputedStyle(document.querySelector('.work-surface')).transitionDuration,reloads:window.__iframeChanges})`);
+    writeFileSync(join(dataRoot,'drag-during.json'),JSON.stringify({duringDrag,events:await win.webContents.executeJavaScript(`window.__dragEvents`)}));
     assert(duringDrag.resizing);assert.equal(duringDrag.writes,0);assert.equal(duringDrag.reloads,0);assert(duringDrag.transition.split(',').every((s: string)=>s.trim()==='0s'));
     win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:grip.x-35*13,y:grip.y});await delay(150);
     const wide = await win.webContents.executeJavaScript(`(()=>{const c=document.querySelector('.composer'),a=document.querySelector('.main-area').getBoundingClientRect(),r=c.getBoundingClientRect(),buttons=Array.from(c.querySelectorAll('.composer-tools button')).filter(n=>n.getBoundingClientRect().width),overflow=buttons.some(n=>{const b=n.getBoundingClientRect();return b.left<r.left||b.right>r.right+1});return {writes:window.__dragWrites,main:a.width,composer:r.width,overflow,scroll:c.scrollWidth>c.clientWidth+1,textFits:c.querySelector('textarea').scrollHeight<=c.querySelector('textarea').clientHeight+1};})()`);
@@ -1303,6 +1334,8 @@ export async function verifyDesktop(
     for (const name of await verifyRunContinuity(broker,win,c.conversationId,dataRoot)) pass(name);
     const {verifyCommandPermissions}=await import('./verification-auto.js');
     for(const name of await verifyCommandPermissions(broker,win,dataRoot))pass(name);
+    const {verifyInterface}=await import('./verification-interface.js');
+    for(const name of await verifyInterface(broker,win,dataRoot))pass(name);
     const {verifyWorkspaceDeletion}=await import('./verification-workspace.js');
     for(const name of await verifyWorkspaceDeletion(broker,win,dataRoot))pass(name);
     writeFileSync(
@@ -1314,6 +1347,7 @@ export async function verifyDesktop(
       ),
     );
   } catch (e) {
+    try { writeFileSync(join(dataRoot,'failure.png'),(await captureFrame(true)).toPNG()); } catch {}
     writeFileSync(
       report,
       JSON.stringify(

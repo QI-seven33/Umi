@@ -1,6 +1,8 @@
 # Umi 当前技术状态
 
-核对日期：2026-10-24。适用Umi0.3.0源码；package版本0.3.0、DATABASE_VERSION=12、PROMPT_VERSION=`umi-persona-25`。直接编辑与任务内命令许可纳入本版，构建及交付范围见[0.3.0版本说明](releases/0.3.0.zh-CN.md)。源码、便携包和既有安装目录以版本与指纹分别核对，发布不会自动更新本机安装。
+核对日期：2026-10-25。适用Umi0.3.1源码；package版本0.3.1、DATABASE_VERSION=12、PROMPT_VERSION=`umi-persona-25`。本版加入桌面界面与设备偏好、标题管理、文件引用核验和独立批准的系统文档打开；沿用0.3.0的直接编辑、任务内具体命令许可与DB12历史格式，不新增数据库格式迁移。
+
+构建、验证与交付范围见[0.3.1版本说明](releases/0.3.1.zh-CN.md)，此前交付见[0.3.0版本说明](releases/0.3.0.zh-CN.md)。源码、便携包和既有安装目录按版本与构建指纹分别核对；远端资产以GitHub实际Release为准，发布不会自动更新本机安装。
 
 ## 技术与依赖
 
@@ -57,7 +59,7 @@ SQLite数据库为umi.sqlite，使用外键/WAL与同步持久化，WriterLock�
 
 完整assistant工具调用/结果消息组成组维护，最新原话和来源受保护。旧原话可用有界来源索引定位，再从历史追回；摘要/笔记是派生资料，不授予权限或撤销原话。模型维护失败、达到既有限额等情况下走本地索引/摘录路径，不能假称已读全文。
 
-请求carry与按域宿主事实增量用于稳定前缀；只读缓存诊断区分字段值、编码与新增尾部，不改写旧请求，不以命中比例代替任务成功。大历史常见状态事件采用局部复制；0.3.0已增加可重建持久化会话投影，校验构建、日志与缓存完整性后仅重放新增事件，缺失或失效时回退完整重建。桌面重建分段让出线程，停止与只读列表可穿插；后台与页面并行启动，加载/失败/空会话分开显示。没有自动留存清理；初次或失效重建仍有成本，已安装0.2.1不自动更新。实际测量、缓存写入时机和验证范围见[修复记录](records/20261022-startup-and-projection-cache.zh-CN.md)，前因见[启动诊断](records/20261022-startup-diagnosis.zh-CN.md)。
+请求carry与按域宿主事实增量用于稳定前缀；只读缓存诊断区分字段值、编码与新增尾部，不改写旧请求，不以命中比例代替任务成功。大历史常见状态事件采用局部复制；0.3.0已增加可重建持久化会话投影，校验构建、日志与缓存完整性后仅重放新增事件，缺失或失效时回退完整重建。桌面重建分段让出线程，停止与只读列表可穿插；后台与页面并行启动，加载/失败/空会话分开显示。没有自动留存清理；初次或失效重建仍有成本，旧安装目录不自动更新。实际测量、缓存写入时机和验证范围见[修复记录](records/20261022-startup-and-projection-cache.zh-CN.md)，前因见[启动诊断](records/20261022-startup-diagnosis.zh-CN.md)。
 
 ## 文件、命令与交付
 
@@ -67,7 +69,7 @@ SQLite数据库为umi.sqlite，使用外键/WAL与同步持久化，WriterLock�
 - 回执/哈希是可选兼容参数，由宿主自动绑定当前已见版本；显式提供仍严格核对。成功自写正文可直接作为后续编辑依据，局部编辑的内部knownRanges只传播已见原文和新替换字节。未读、隐藏、过期、身份替换与歧义继续拒绝。
 - run_command与run_shell绑定具体程序、参数/脚本、cwd、环境与根身份，沿批准、派发、Job管理和回执链执行。默认30秒、最大300秒；输出有有界首尾预览及最多64MiB脱敏归档。read_process_output保留范围分页，并支持可选find字面定位与原字节位置、续查；未命中不排除未归档内容。未知副作用先核验，不重跑。
 - build_changeset/deliver_changeset只为旧副本提供冻结和写回兼容；新直改环境不向模型提供这两个工具。独立create/capture_output冻结成果，export_outputs按具体目标独占创建、不覆盖，inspect_export只检查原目标。
-- open_delivered_file的系统接收回执不等于网页可用。内置HTML是静态预览，不执行脚本。
+- 0.3.1用open_file在独立批准后通过原主进程端口打开直改文档，旧副本继续open_delivered_file；普通命令正常退出仍清理Job子孙。系统接收回执不等于网页可用。内置HTML是静态预览，不执行脚本。
 
 Docker/WSL仅是用户配置的可选外部命令入口，不托管daemon/发行版或证明隔离。executionPolicy的auto已接入任务内具体开发命令许可首版：首次仍询问，只有用户选择“本任务允许重复”后复用，停止/新输入/切换设置/重启或对象变化后失效；高危和不支持的命令继续逐次询问。不是任意新命令免批或OS隔离，见[本轮契约](records/20261023-task-command-permissions-and-deletion.zh-CN.md)。
 
@@ -79,7 +81,7 @@ DOCX/XLSX原件最大8MiB，派生文本有2MiB等有界提取限制。DOCX提�
 
 Skill采用SKILL.md/YAML与小目录、按需搜索及分页。read_skill默认8192、最多64000字节，按任务需要续读；设置可在导入/启用前查看完整SKILL.md。开关读写统一64KiB以覆盖128项本地技能。umi-code/research/artifacts为可选基础方法。公开GitHub包先固定commit/tree/blob清单，后台草稿→预览→确认发布，默认停用；来源、导入实例与本地版本分开。读取不执行脚本，不强制改写，不赋予新权限。
 
-桌面支持工作区/会话、流式时间线、批准和选项问答、附件、设置、预览、归档和确认永久删除。工作区行的新会话按钮左侧提供同款管理菜单；确认删除整组会话（含归档/草稿）与授权，不删除真实源文件，活动任务/未知效果阻止删除。设置有通用/资料/模型/会话/执行环境/技能/归档七类，通用主题与发送快捷键按设备保存，诊断默认折叠。欢迎语Thus begins the story.、232px侧栏及原配色/边缘保持。关闭窗口仅隐藏，菜单退出才结束；源码变化需要重建，已有便携包不会自动更新。
+桌面支持工作区/会话、流式时间线、批准和选项问答、附件、设置、预览、归档和确认永久删除。工作区行的新会话按钮左侧提供同款管理菜单；确认删除整组会话（含归档/草稿）与授权，不删除真实源文件，活动任务/未知效果阻止删除。设置有通用/资料/模型/会话/执行环境/技能/归档/存储与关于八类；界面语言、关闭行为、减少动效独立存入设备偏好，主题、发送快捷键和个人资料继续按设备保存。界面语言不修改模型语言、消息或标题；诊断默认折叠。欢迎语Thus begins the story.、232px侧栏及原配色/边缘保持。关闭窗口默认隐藏，可在通用设置改为退出；菜单始终可以完整退出。源码变化需要重建，已有便携包不会自动更新。
 
 ## 工具范围
 
@@ -88,13 +90,15 @@ Skill采用SKILL.md/YAML与小目录、按需搜索及分页。read_skill默认8
 | 用途 | 工具 |
 | --- | --- |
 | 来源与文件 | discover_resource、request_directory_access、request_resource（旧）、list_resources、list_files、stat_file、read_file、search_text、write_file、edit_file、delete_file、recycle_file、list_file_versions、read_file_version、restore_file_version |
-| 交付与成果 | build_changeset、deliver_changeset、open_delivered_file、create_output、capture_output、list_outputs、read_output、export_outputs、inspect_export |
+| 交付与成果 | open_file（直改文档打开）、build_changeset、deliver_changeset、open_delivered_file、create_output、capture_output、list_outputs、read_output、export_outputs、inspect_export |
 | 执行 | inspect_execution、run_command、run_shell、read_process_output、get_execution_plugins、inspect_tool_execution、write_scratch |
 | 资料 | search_web、fetch_webpage、read_webpage、list_attachments、search_attachment、read_attachment、read_image、read_artifact |
 | 历史/任务/记忆 | search_history、read_history、list_user_requirements、record_requirement、record_work_note、read_work_memory、request_context_reset、record_task_checkpoint、read_task_checkpoints、set_task_state、ask_user_question |
 | Skill | list_skills、read_skill |
 
 ## 当前验证与分发边界
+
+2026-10-25的0.3.1重新通过类型检查、核心793/793、源码及实际便携exe各118/118项离线桌面检查，打包版退出选项有独立进程验收。272项运行文件、安装器载荷、ZIP完整性与最终SHA-256一致。界面语言/偏好未改写消息、标题或模型设置，文件预览及原批准/恢复/删除链路有实际业务回执。未执行安装/升级/卸载、系统目录选择器或真实模型验收；托管CI另按本版提交核对，见[0.3.1版本说明](releases/0.3.1.zh-CN.md)。下文保留各阶段原日期的验证记录，不替代本版结果。
 
 2026-10-24的0.3.0发布构建已通过类型检查、完整核心781/781、源码与实际便携exe各110/110项离线Electron验收；256项运行文件、安装器实际载荷及ZIP完整性和最终SHA-256一致。真实文件改写、自然语言恢复、命令批准/复用与工作区删除沿实际桌面链路验收；不代表付费模型任务成功率或实际安装/升级/卸载已验收。版本、构建指纹及下载见[0.3.0发布说明](releases/0.3.0.zh-CN.md)。
 

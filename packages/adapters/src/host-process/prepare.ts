@@ -33,7 +33,8 @@ export function bridgeProgram() {
 }
 export function bridgeEnvironment(): Record<string, string> {
   const env: Record<string, string> = {};
-  for (const key of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP'])
+  // Windows常规安装路径用于SDK/浏览器等探测；仍不继承整份宿主环境。
+  for (const key of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP', 'ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432'])
     if (process.env[key]) env[key] = process.env[key]!;
   env.PATH = join(process.env.SystemRoot!, 'System32');
   env.PSModulePath = join(

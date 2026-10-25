@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { t as uiText, getUiLanguage } from '../../ui-language.js';
+import { OverflowTitle } from '../../components/ui/OverflowTitle.js';
+import { useEffect, useId, useRef, useState } from "react";
 import {
   Folder, FolderOpen,
-  MoreHorizontal, Plus, SquarePen, Archive, Trash2,
+  MoreHorizontal, Plus, SquarePen, Archive, Trash2, Search, X, Pencil,
 } from "lucide-react";
 
 import type { Conversation, Workspace, ThemeMode } from "../../types/index.js";
@@ -24,6 +26,7 @@ export function Sidebar(props: {
   onSelectConversation: (id: string) => void;
   onNewConversation: (workspaceId?: string) => void;
   onRequestArchiveConversation: (id: string, title: string) => void;
+  onRenameConversation: (id: string, title: string) => void;
   avatar: string | null; username: string; themeMode: ThemeMode;
   onSelectTheme: (theme: ThemeMode) => void;
   onOpenSettings: () => void;
@@ -33,10 +36,16 @@ export function Sidebar(props: {
     onToggleWorkspace, onCreateWorkspace, onRequestDeleteWorkspace, onManageWorkspaceAccess,
     conversations, activeId, onSelectConversation,
     onNewConversation,
-    onRequestArchiveConversation,
+    onRequestArchiveConversation, onRenameConversation,
     avatar, username, themeMode, onSelectTheme, onOpenSettings,
   } = props;
 
+  const [query,setQuery]=useState(''),[searchOpen,setSearchOpen]=useState(false);
+  const searchId=useId(),searchInput=useRef<HTMLInputElement>(null),searchTrigger=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{if(searchOpen)searchInput.current?.focus();},[searchOpen]);
+  const closeSearch=()=>{setQuery('');setSearchOpen(false);searchTrigger.current?.focus();};
+  const search=query.trim().normalize('NFKC').toLocaleLowerCase();
+  const matches=(title:string)=>!search||title.normalize('NFKC').toLocaleLowerCase().includes(search);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -91,26 +100,31 @@ export function Sidebar(props: {
 
 
   return (
-    <aside className="left-sidebar" aria-label="会话导航">
+    <aside className="left-sidebar" aria-label={uiText("会话导航")}>
       <button type="button" className="new-chat" onClick={() => onNewConversation()}
         disabled={!selectedWorkspaceId}>
-        <SquarePen size={16} strokeWidth={1.7} />新对话
-      </button>
+        <SquarePen size={16} strokeWidth={1.7} />{uiText("新对话")}</button>
 
       {(
-        <section className="workspace-section" aria-label="工作区">
+        <section className="workspace-section" aria-label={uiText("工作区")}>
           <div className="workspace-section-heading">
-            <span>工作区</span>
+            <span>{uiText("工作区")}</span>
+            <div className="workspace-heading-actions">
+              <button ref={searchTrigger} type="button" className="icon-button workspace-search-toggle"
+                aria-label={uiText("搜索会话")} title={uiText("搜索会话")} aria-expanded={searchOpen} aria-controls={searchOpen?searchId:undefined}
+                onClick={()=>{if(searchOpen)closeSearch();else setSearchOpen(true);}}><Search size={15} strokeWidth={1.7}/></button>
             <button type="button" className="icon-button"
-              onClick={onCreateWorkspace} aria-label="新建工作区" title="新建工作区">
+              onClick={onCreateWorkspace} aria-label={uiText("新建工作区")} title={uiText("新建工作区")}>
               <Plus size={16} strokeWidth={1.7} />
             </button>
+            </div>
           </div>
+          {searchOpen&&<div id={searchId} className="conversation-search"><Search size={14}/><input ref={searchInput} type="search" aria-label={uiText("搜索会话标题")} placeholder={uiText("搜索会话")} value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();if(query)setQuery('');else closeSearch();}}}/>{query&&<button type="button" aria-label={uiText("清除搜索")} onClick={()=>{setQuery('');searchInput.current?.focus();}}><X size={13}/></button>}</div>}
           <div className="workspace-list">
-            {workspaces.map((workspace) => {
-              const isExpanded = expandedWorkspaceIds.has(workspace.workspaceId);
+            {workspaces.filter(workspace=>!search||conversations.some(c=>c.workspaceId===workspace.workspaceId&&matches(c.title))).map((workspace) => {
+              const isExpanded = Boolean(search) || expandedWorkspaceIds.has(workspace.workspaceId);
               const workspaceConversations = conversations.filter(
-                (conversation) => conversation.workspaceId === workspace.workspaceId,
+                (conversation) => conversation.workspaceId === workspace.workspaceId && matches(conversation.title),
               ).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned))
                 || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
               return (
@@ -135,29 +149,28 @@ export function Sidebar(props: {
                         setWorkItemMenu(current => current?.kind === "workspace" && current.id === workspace.workspaceId
                           ? null : {kind:"workspace", id:workspace.workspaceId});
                       }}
-                      aria-label={'管理工作区：'+workspace.name} title="管理工作区"
+                      aria-label={uiText("管理工作区：")+workspace.name} title={uiText("管理工作区")}
                       aria-expanded={workItemMenu?.kind === "workspace" && workItemMenu.id === workspace.workspaceId}>
                       <MoreHorizontal size={14} strokeWidth={1.7} />
                     </button>
                     <button type="button" className="workspace-new-chat"
                       onClick={() => { onSelectWorkspace(workspace.workspaceId); onNewConversation(workspace.workspaceId); }}
-                      aria-label={`在 ${workspace.name} 中新建对话`} title="在此工作区新建对话">
+                      aria-label={uiText('在 {name} 中新建对话',{name:workspace.name})} title={uiText("在此工作区新建对话")}>
                       <SquarePen size={14} strokeWidth={1.7} />
                     </button>
                     {workItemMenu?.kind === "workspace" && workItemMenu.id === workspace.workspaceId && (
-                      <div className="conversation-menu workspace-item-menu" aria-label="工作区菜单">
-                        <button type="button" onClick={()=>{setWorkItemMenu(null);onManageWorkspaceAccess(workspace.workspaceId);}}><FolderOpen size={16}/>目录权限</button>
+                      <div className="conversation-menu workspace-item-menu" aria-label={uiText("工作区菜单")}>
+                        <button type="button" onClick={()=>{setWorkItemMenu(null);onManageWorkspaceAccess(workspace.workspaceId);}}><FolderOpen size={16}/>{uiText("目录权限")}</button>
                         <button type="button" className="archive-delete"
                           onClick={() => { setWorkItemMenu(null); onRequestDeleteWorkspace(workspace.workspaceId); }}>
-                          <Trash2 size={16} />删除工作区
-                        </button>
+                          <Trash2 size={16} />{uiText("删除工作区")}</button>
                       </div>
                     )}
                   </div>
                   {isExpanded && (
                     <div className="workspace-conversation-list">
                       {workspaceConversations.length === 0 ? (
-                        <span className="workspace-no-conversations">暂无会话</span>
+                        <span className="workspace-no-conversations">{uiText("暂无会话")}</span>
                       ) : workspaceConversations.map((conversation) => (
                         <div className={`workspace-conversation-wrap ${conversation.id === activeId ? "active" : ""}`}
                           key={conversation.id}>
@@ -167,11 +180,11 @@ export function Sidebar(props: {
                               onSelectWorkspace(workspace.workspaceId);
                               onSelectConversation(conversation.id);
                             }}>
-                            <span>{conversation.title}</span>
+                            <OverflowTitle text={conversation.title}/>
                           </button>
                           <time className="conversation-activity-time"
                             dateTime={conversation.updatedAt ? new Date(conversation.updatedAt).toISOString() : undefined}
-                            title={conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString("zh-CN") : undefined}>
+                            title={conversation.updatedAt ? new Date(conversation.updatedAt).toLocaleString(getUiLanguage()) : undefined}>
                             {activityLabel(conversation.updatedAt, now)}
                           </time>
                           <button type="button" className="conversation-more workspace-item-menu-trigger"
@@ -181,18 +194,17 @@ export function Sidebar(props: {
                                 ? null
                                 : { kind: "conversation", id: conversation.id }
                             ))}
-                            aria-label={`管理会话：${conversation.title}`}>
+                            aria-label={uiText('管理会话：{title}',{title:conversation.title})}>
                             <MoreHorizontal size={15} />
                           </button>
                           {workItemMenu?.kind === "conversation" && workItemMenu.id === conversation.id && (
-                            <div className="conversation-menu workspace-item-menu">
+                            <div className="conversation-menu workspace-item-menu"><button type="button" className="rename-conversation" onClick={()=>{setWorkItemMenu(null);onRenameConversation(conversation.id,conversation.title);}}><Pencil size={15}/>{uiText("重命名")}</button>
                               <button type="button" className="archive-conversation"
                                 onClick={() => {
                                   setWorkItemMenu(null);
                                   onRequestArchiveConversation(conversation.id, conversation.title);
                                 }}>
-                                <Archive size={16} />归档会话
-                              </button>
+                                <Archive size={16} />{uiText("归档会话")}</button>
                             </div>
                           )}
                         </div>
@@ -202,7 +214,8 @@ export function Sidebar(props: {
                 </section>
               );
             })}
-            {workspaces.length === 0 && <span className="workspace-empty">暂无工作区</span>}
+            <div className="search-result-status" role="status">{search&&!conversations.some(c=>matches(c.title))&&uiText("没有匹配的会话")}</div>
+            {workspaces.length === 0 && <span className="workspace-empty">{uiText("暂无工作区")}</span>}
           </div>
         </section>
       )}
@@ -228,7 +241,5 @@ function formatCreatedAt(value: string | null) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `创建于 ${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return uiText('创建于 {time}', {time: new Intl.DateTimeFormat(getUiLanguage(),{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(date)});
 }

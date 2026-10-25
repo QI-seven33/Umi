@@ -25,8 +25,9 @@ export async function verifyCommandPermissions(broker:AgentBroker,win:BrowserWin
  await until(snapshot,s=>s.state.runs[first.runId]?.status==='waiting_permission');
  await until(()=>win.webContents.executeJavaScript("!!document.querySelector('.approval-allow-task:not(:disabled)')"),Boolean);
  const card=await win.webContents.executeJavaScript("document.querySelector('.umi-approval').innerText");
- assert(card.includes('没有文件/网络沙箱'));assert(card.includes('允许本次'));assert(card.includes('本任务允许重复'));
- writeFileSync(join(dataRoot,'command-task-permission.png'),(await win.webContents.capturePage()).toPNG());
+ assert(card.includes('没有文件与网络沙箱'));assert(card.includes('允许本次'));assert(card.includes('本任务允许重复'));
+ await win.webContents.executeJavaScript('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+ writeFileSync(join(dataRoot,'command-task-permission.png'),(await win.webContents.capturePage(undefined,{stayAwake:true})).toPNG());
  await win.webContents.executeJavaScript("document.querySelector('.approval-allow-task').click()");
  const completed=await until(snapshot,s=>s.state.runs[first.runId]?.status==='completed');
  assert.equal(readFileSync(join(workspace,'effects.txt'),'utf8'),'xx');

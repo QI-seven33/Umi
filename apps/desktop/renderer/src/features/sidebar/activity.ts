@@ -1,3 +1,4 @@
+import { t, getUiLanguage } from '../../ui-language.js';
 /** SQLite datetime('now') 为 UTC；显式补时区，避免当作浏览器本地时间。 */
 export function parseActivityTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -13,11 +14,11 @@ export function activityLabel(value: number | null | undefined, now: number): st
   const date = new Date(value), current = new Date(now);
   const day = (input: Date) => Date.UTC(input.getFullYear(), input.getMonth(), input.getDate());
   const elapsed = Math.floor((day(current) - day(date)) / 86_400_000);
-  if (elapsed <= 0) return "今天";
-  if (elapsed === 1) return "昨天";
-  if (elapsed < 7) return "7天";
-  if (elapsed < 30) return "30天";
-  return new Intl.DateTimeFormat("zh-CN", {
+  if (elapsed <= 0) return t("今天");
+  if (elapsed === 1) return t("昨天");
+  if (elapsed < 7) return t("7天");
+  if (elapsed < 30) return t("30天");
+  return new Intl.DateTimeFormat(getUiLanguage(), {
     ...(date.getFullYear() !== current.getFullYear() ? { year: "numeric" as const } : {}),
     month: "2-digit", day: "2-digit",
   }).format(date);

@@ -12,9 +12,9 @@ test('预览链接解析已授权绝对路径、空格/中文、逻辑句柄和�
  assert.equal(resolveFileReference('a.html',mounts),null);assert.deepEqual(resolveFileReference('a.html',mounts.slice(0,1)),{mountId:'project',path:'a.html'});
  for(const value of ['C:/项目/微型世界-other/a.html','C:/秘密/a.html','@working/missing/a.html','@working/project/../a.html','C:/项目/微型世界/../a.html','file:///C:/项目/微型世界/../a.html','javascript:alert(1)','data:text/html,test'])assert.equal(resolveFileReference(value,mounts),null,value);
 });
-test('文件链接在粗体、表格与代码中可预览；未知file路径不转外部跳转',()=>{
+test('未核验的文件只显示原文，保留粗体与表格；未知file路径不转外部跳转',()=>{
  const html=render('**[预览文件](@working/project/a.html)**\n\n`C:\\项目\\微型世界\\a.html`\n\n| 文件 | 结果 |\n| --- | --- |\n| [查看](@working/project/a.html) | **完成** |\n\n[未知](file:///C:/secret.txt)\n\n[危险](javascript:alert(1))');
- assert.equal((html.match(/aria-label="预览文件：a.html"/g)??[]).length,3);assert(html.includes('<strong><button'));assert(html.includes('message-table-scroll'));assert(!html.includes('href="file:'));assert(!html.includes('href="javascript:'));
+ assert.equal((html.match(/aria-label="预览文件：a.html"/g)??[]).length,0);assert(html.includes('<strong><span')); assert(html.includes('message-table-scroll'));assert(!html.includes('href="file:'));assert(!html.includes('href="javascript:'));
 });
 test('中文标点重点加粗，代码与转义星号原样保留',()=>{
  const html=render('**结论：**已恢复；**“重点”**内容。\n\n\\*\\*结论：\\*\\*这是转义。\n\n`**结论：**代码`\n\n```text\n**结论：**代码块\n```');

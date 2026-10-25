@@ -1,3 +1,4 @@
+import {resolvePreviewReferences} from '../../packages/adapters/src/host-files/file-references.js';
 import { deliveredTarget } from '../../packages/adapters/src/host-files/delivered-open.js';
 import { byteExcerpt } from '../../packages/agent/src/context/bounded.js';
 import { singleResultBody } from '../../packages/agent/src/tools/result.js';
@@ -90,6 +91,7 @@ export class DesktopService {
       //.find(fn)	找第一个满足的，找不到返回 undefined
       //查某个工具调用的参数和结果，不属于本会话就报错
       // 上方 Object.values 学习笔记保留；当前联表核验归属，摘要不扫描快照或读取正文。
+      case 'resolve_file_links': return resolvePreviewReferences(a.files,c.conversationId,c.references);
       case 'tool_detail': {
         const owned = s.get('SELECT t.id FROM tool_executions t JOIN runs r ON r.id=t.run_id WHERE t.call_id=? AND r.conversation_id=?', c.callId, c.conversationId);
         if (!owned) throw new UmiError('PERMISSION_DENIED', '工具不属于当前会话');
