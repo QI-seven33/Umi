@@ -997,7 +997,7 @@ body,
 .composer-approval .umi-approval-body {
   max-height: min(46vh, 380px); overflow-y: auto; overscroll-behavior: auto;
 }
-.composer-approval .operation-description, .composer-approval .delivery-file-list { max-height: none; overflow: visible; }
+.composer-approval .operation-description { max-height: none; overflow: visible; }
 .composer-approval .umi-approval {
   margin: 0; padding: 14px 16px; border: 0; border-radius: 0; background: transparent;
 }
@@ -1099,7 +1099,6 @@ body,
 .umi-preview-modes button[aria-pressed="true"] {
   background: var(--bg-hover); color: var(--text-primary);
 }
-.umi-frozen-versions { display: grid; gap: 4px; padding: 0 16px 8px; color: var(--text-secondary); font-size: 11px; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .umi-question { margin-inline: 12px; } }
 
 /* 问答复用已测量的底部交互区域，正文和提交控件不会被悬浮输入器覆盖。 */

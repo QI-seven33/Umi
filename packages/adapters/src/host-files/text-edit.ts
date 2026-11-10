@@ -19,7 +19,7 @@ import { ToolPreparationError } from '../../../agent/src/tools/registry.js';
 import { textSources, editedKnownRanges } from './text-knowledge.js';
 import type { FileReadEvidencePort } from './read-evidence.js';
 import { ResourceFiles } from './resources.js';
-import { atomicWrite, bytesHash, observe, sameEntry, safeFile } from './paths.js';
+import { bytesHash, observe, sameEntry, safeFile } from './paths.js';
 import { hash } from '../../../agent/src/identity.js';
 
 /** 校验完整 UTF-8 原文；保留 BOM 和原换行，不重编码。 */
@@ -209,7 +209,7 @@ export class FileEditTools {
       return {
         outcome: 'failed',
         mutated: false,
-        content: '副本目标在派发后变化，未替换。',
+        content: '文件目标在派发后变化，未替换。',
         data: null,
       };
     const bytes = readFileSync(safeFile(m.root, a.path, m.rootIdentity)),
@@ -232,9 +232,7 @@ export class FileEditTools {
         content: '编辑在落盘前取消。',
         data: null,
       };
-    if (!plan.noOp && m.direct) this.files.direct.write(m,a.path,ctx,desired.bytes,signal,plan.executionId);
-    else if (!plan.noOp)
-      atomicWrite(m.root, a.path, desired.bytes, m.rootIdentity, undefined, before);
+    if (!plan.noOp) this.files.direct.write(m,a.path,ctx,desired.bytes,signal,plan.executionId);
     const after = observe(m.root, a.path, m.rootIdentity);
     if (
       !after ||
@@ -248,7 +246,7 @@ export class FileEditTools {
       verification: plan.noOp ? 'no-op-current-read-verified' : 'edited-bytes-verified',
       content: plan.noOp
         ? '替换前后相同，未落盘。'
-        : m.direct ? '真实文件已精确修改，修改记录和恢复内容已保存。' : plan.schemaVersion === 1 ? '工作副本唯一片段已替换并回读核验；交付仍需独立确认。' : `工作副本 ${plan.edits.length} 处精确替换已一次落盘并回读核验；交付仍需独立确认。`,
+        : '真实文件已精确修改，修改记录和恢复内容已保存。',
       data: {
         mountId: m.id,
         path: a.path,
@@ -289,7 +287,7 @@ export class FileEditTools {
       observed?.hash === loc.desiredHash &&
       (!plan.noOp || observed.identity === loc.beforeIdentity)
     ) {
-      if(m.direct) this.files.direct.reconcile(m,plan.executionId,true);
+      this.files.direct.reconcile(m,plan.executionId,true);
       return {
         outcome: 'succeeded',
         mutated: !plan.noOp,
@@ -306,7 +304,7 @@ export class FileEditTools {
       };
     }
     if (observed?.hash === loc.beforeHash && observed.identity === loc.beforeIdentity) {
-      if(m.direct) this.files.direct.reconcile(m,plan.executionId,false);
+      this.files.direct.reconcile(m,plan.executionId,false);
       return {
         outcome: 'failed',
         mutated: false,
@@ -334,7 +332,7 @@ export function fileEditModule(
     registry.register({
       name: 'edit_file',
       description:
-        '精确编辑获准文件。direct=true时立即修改真实文件并保存恢复内容。单项用 oldText/newText，多处用 edits（最多32项），不能混用。宿主自动绑定当前版本的已见原文，自己成功写入的正文无需重读；回执/哈希是可省略的兼容参数，若提供则严格核对。oldText 必须全文件唯一并在已见范围内，片段不重叠；失败整批不写。保留原换行/UTF-8；仅旧副本仍需交付。',
+        '精确编辑获准文件。立即修改真实文件并保存恢复内容。单项用 oldText/newText，多处用 edits（最多32项），不能混用。宿主自动绑定当前版本的已见原文，自己成功写入的正文无需重读；回执/哈希是可省略的兼容参数，若提供则严格核对。oldText 必须全文件唯一并在已见范围内，片段不重叠；失败整批不写。保留原换行/UTF-8。',
       schema: editFileSchema,
       effect: 'file-write',
       prepare: (a, env, id) => edits.prepare(a, env, id),

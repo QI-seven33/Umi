@@ -59,7 +59,7 @@ export class DirectFileRepository {
     return Boolean(this.store.get(`SELECT 1 FROM direct_file_mounts m JOIN workspace_file_grants g ON g.id=m.grant_id WHERE m.resource_id=? AND m.environment_id=? AND g.revoked=0 AND (g.access='edit' OR ?=0)`,resourceId,environmentId,edit?1:0));
   }
   assert(m:Mount,edit=false) {
-    if(!m.direct) return;
+    if(!m.direct) throw new UmiError('LEGACY_WORKFLOW_RETIRED','旧副本不再提供执行能力');
     const g=this.grant(m.direct.grantId,m.environmentId);
     if(g.revoked===1)throw new UmiError('ACCESS_REVOKED','目录授权已撤销；请通过工作区授权入口处理');
     if(Number(g.revision)!==m.direct.revision)throw new UmiError('APPROVAL_STALE','目录授权修订已变化，请重新取得当前绑定');

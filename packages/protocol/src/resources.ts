@@ -37,35 +37,3 @@ export const mountSchema = z
   })
   .strict();
 export type Mount = z.infer<typeof mountSchema>;
-export const changeSchema = z
-  .object({
-    path: filePath,
-    before: entrySchema.nullable(),
-    after: entrySchema.nullable(),
-  })
-  .strict();
-export const changeSetSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    id,
-    environmentId: id,
-    mountId: id,
-    baselineRef: id,
-    resourceScope: resourceScopeSchema.optional(),
-    createdAt: z.iso.datetime(),
-    changes: z.array(changeSchema).min(1).max(200),
-  })
-  .strict()
-  .refine(
-    (cs) => new Set(cs.changes.map((c) => c.path)).size === cs.changes.length,
-    '变更集不能重复包含同一文件',
-  );
-export type ChangeSet = z.infer<typeof changeSetSchema>;
-export type DeliveryReceipt = {
-  changeSetId: string;
-  path: string;
-  outcome: 'applied' | 'satisfied' | 'not_applied' | 'unknown';
-  observed: Manifest[string] | null;
-  reason: string;
-  observedAt: string;
-};

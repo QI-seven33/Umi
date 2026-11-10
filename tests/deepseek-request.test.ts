@@ -25,7 +25,7 @@ function validateTools(body: any) {
     assert(tool.function.parameters.properties);
     assert(!names.has(tool.function.name)); names.add(tool.function.name);
   }
-  assert(names.has('ask_user_question')); assert(names.has('edit_file')); assert(names.has('open_delivered_file') || names.has('request_directory_access'));
+  assert(names.has('ask_user_question')); assert(names.has('edit_file')); assert(names.has('request_directory_access')); assert(!names.has('open_delivered_file'));
   const edit = body.tools.find((t: any) => t.function.name === 'edit_file').function.parameters;
   assert.deepEqual(edit.required, ['mountId', 'path']);
   assert(!edit.anyOf);assert.equal(edit.oneOf.length,2); // 根仍为object，形态互斥显式出现在模型规格。

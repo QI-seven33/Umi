@@ -1108,27 +1108,10 @@ select:focus-visible {
 
 .work-review-error { color: #b43f37; }
 
-.delivery-layers {
-    z-index: 0;
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-}
 
-.delivery-layers span {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    top: 0;
-    right: 0;
-}
 
-.delivery-layers span:first-child { background: var(--bg-primary); }
 
-.delivery-layers span:nth-child(2) { background: var(--bg-secondary); }
 
-.delivery-layers span:nth-child(3) { background: var(--bg-hover); }
 
 .work-panel-controls {
     z-index: 3;
@@ -1662,49 +1645,13 @@ select:focus-visible {
 
 /* 消息与执行过程 */
 
-.inline-delivery-files {
-    gap: 8px;
-    max-height: 290px;
-    margin-top: 12px;
-    display: grid;
-    overflow-y: auto;
-}
 
-.inline-delivery-file {
-    border: 1px solid var(--border-light);
-    color: var(--text-secondary);
-    overflow-wrap: anywhere;
-    background: var(--bg-secondary);
-    border-radius: 12px;
-    padding: 9px 11px;
-    font-size: 12px;
-}
 
-.inline-delivery-file details { margin-top: 7px; }
 
-.inline-delivery-file summary { cursor: pointer; }
 
-.inline-delivery-file pre {
-    white-space: pre-wrap;
-    background: var(--bg-primary);
-    border-radius: 8px;
-    max-height: 220px;
-    padding: 8px;
-    font-size: 11px;
-    overflow: auto;
-}
 
-.inline-delivery-status { color: var(--text-muted); margin: 9px 0; font-size: 12px; }
 
-.inline-delivery-error { color: var(--danger); margin: 9px 0; font-size: 12px; }
 
-.inline-delivery-error button {
-    color: var(--accent);
-    cursor: pointer;
-    background: none;
-    border: 0;
-    margin-left: 7px;
-}
 
 @media (width <= 620px) {
     .model-button { max-width: 115px; font-size: 12px; overflow: hidden; }
@@ -2059,11 +2006,8 @@ select:focus-visible {
 
 [data-theme="dark"] .work-action svg { color: var(--text-muted); }
 
-[data-theme="dark"] .delivery-layers span:first-child { background: var(--bg-primary); }
 
-[data-theme="dark"] .delivery-layers span:nth-child(2) { background: var(--bg-secondary); }
 
-[data-theme="dark"] .delivery-layers span:nth-child(3) { background: var(--bg-hover); }
 
 /* 输入区、附件与模型控制 */
 

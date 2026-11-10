@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import {
   metadataInventory,
   discoveryRoots,
@@ -94,7 +94,7 @@ test('发现到物化：文件名命中经明确批准仅复制该文件，邻�
         const data = JSON.parse(
           messages.filter((m) => m.role === 'tool').at(-1)!.content,
         ).data;
-        return call('request_resource', {
+        return call('request_directory_access', {
           candidateId: data.candidates[0].id,
           access: 'read',
           purpose: '阅读单个发现结果',
@@ -199,7 +199,7 @@ test('发现：指定根支持中文/空格、同名文件、扩展名与字面�
     assert.equal(result.contentRead, false);
     assert(!JSON.stringify(result).includes('秘密正文'));
     assert.equal(f.app.files.repo.mounts(f.env.id).length, 1);
-    assert.equal(f.app.store.all('SELECT * FROM capabilities').length, 1);
+    assert.equal(f.app.store.all('SELECT * FROM workspace_file_grants').length, 1);
     const relative = f.app.files.discover(f.env, '乙/学习', undefined, {
       root: f.external,
       kind: 'file',
@@ -290,7 +290,7 @@ test('列举：205 项稳定分页，重启后续页，无 hash 且大文件不�
     assert(first.nextCursor!);
     assert.equal(first.contentRead, false);
     assert(!JSON.stringify(first.files).includes('"hash"'));
-    assert.throws(() => f.app.files.scanMount(f.m), /4 MiB/);
+    assert.equal('scanMount' in f.app.files,false);
     await f.app.close();
     app = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
     const second = app.files.listMetadata(
@@ -389,7 +389,7 @@ test('元数据：隐藏普通文件可见，忽略项/联接/硬链接有原因
     assert.equal(result.coverage.skipped['special-or-hardlink'], 1);
     assert.equal(result.totalExact, false);
     assert.throws(() => f.app.files.listMetadata(f.m, 'linked/secret.txt'), /链接|联接/);
-    assert.throws(() => f.app.files.scanMount(f.m), /链接|硬链接/);
+    assert.throws(() => f.app.files.read(f.m,'hard.txt'), /链接|硬链接/);
   } finally {
     await f.close();
   }

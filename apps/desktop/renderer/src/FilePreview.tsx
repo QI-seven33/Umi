@@ -2,7 +2,6 @@ import { t as uiText } from './ui-language.js';
 import { FileContent } from './FileContent.js';
 import { PreviewToolbar } from './PreviewToolbar.js';
 import type { PreviewMode } from './PreviewToolbar.js';
-import { FrozenFilePreview } from './FrozenFilePreview.js';
 import { useEffect, useRef, useState } from 'react';
 import type { DesktopInput } from '../../../../packages/protocol/src/desktop.js';
 import { fileTargetKey } from './Timeline.js';
@@ -20,7 +19,7 @@ function readOnce(command: DesktopInput, version: string): Promise<PreviewPage> 
   inflight.set(key, pending); return pending;
 }
 export function FilePreview(props: { conversationId: string; target: FileTarget; revision: number }) {
-  return props.target.changeSetId ? <FrozenFilePreview conversationId={props.conversationId} target={props.target} /> : <LiveFilePreview {...props} />;
+  return <LiveFilePreview {...props} />;
 }
 function LiveFilePreview({ conversationId, target, revision }: { conversationId: string; target: FileTarget; revision: number }) {
   const [preview, setPreview] = useState<PreviewPage | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false), [reload, setReload] = useState(0);
@@ -53,7 +52,7 @@ function LiveFilePreview({ conversationId, target, revision }: { conversationId:
     return () => { live = false; };
   }, [revision, preview?.hash]);
   const loadMore = async () => {
-    const previous = current.current, startByte = previous?.nextStartByte ?? (previous?.truncated && !target.changeSetId ? previous.endByte : null), ticket = generation.current;
+    const previous = current.current, startByte = previous?.nextStartByte ?? (previous?.truncated ? previous.endByte : null), ticket = generation.current;
     if (!previous || startByte == null || pageLock.current) return;
     pageLock.current = true; setBusy(true); setError('');
     try {

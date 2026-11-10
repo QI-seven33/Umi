@@ -1,5 +1,4 @@
 import {resolvePreviewReferences} from '../../packages/adapters/src/host-files/file-references.js';
-import { deliveredTarget } from '../../packages/adapters/src/host-files/delivered-open.js';
 import { byteExcerpt } from '../../packages/agent/src/context/bounded.js';
 import { singleResultBody } from '../../packages/agent/src/tools/result.js';
 import type { ToolResult } from '../../packages/agent/src/persistence.js';
@@ -96,7 +95,7 @@ export class DesktopService {
         const owned = s.get('SELECT t.id FROM tool_executions t JOIN runs r ON r.id=t.run_id WHERE t.call_id=? AND r.conversation_id=?', c.callId, c.conversationId);
         if (!owned) throw new UmiError('PERMISSION_DENIED', '工具不属于当前会话');
         const row = s.tool(String(owned.id)), args = JSON.parse(row.args);
-        // 参数中的 path 不是文件存在证据；仅已成功的文件读写提供工作副本入口。
+        // 参数中的 path 不是文件存在证据；仅已成功的文件读写提供获准文件入口。
         const file = row.state === 'succeeded' && ['read_file', 'edit_file', 'write_file'].includes(row.name) && args.mountId && args.path
           ? { mountId: args.mountId, path: args.path } : null;
         if (c.summaryOnly) return {
@@ -243,16 +242,9 @@ export class DesktopService {
         return { accepted: true };
       //查批准详情，工具不属于本会话就报错
       case 'approval_detail': {
-        const approval = s.snapshot(c.conversationId).approvals[c.approvalId];
-        if (!approval) throw new UmiError('PERMISSION_DENIED', '批准不属于当前会话');
-        const row = s.tool(s.approval(c.approvalId).execution_id);
-        if (row.name !== 'deliver_changeset')
-          return { kind: 'operation', description: approval.description };
-        const args = JSON.parse(row.args) as { changeSetId: string };
-        return {
-          kind: 'delivery',
-          ...a.previewChangeSet(c.conversationId, args.changeSetId),
-        };
+        const approval=s.snapshot(c.conversationId).approvals[c.approvalId];
+        if(!approval)throw new UmiError('PERMISSION_DENIED','批准不属于当前会话');
+        return {kind:'operation',description:approval.description};
       }
       //归档会话，返回已接受
       case 'archive':
@@ -287,20 +279,9 @@ export class DesktopService {
         a.files.read(m, c.path, 0, 1);
         const path = realpathSync(safeFile(m.root, c.path, m.rootIdentity));
         if (!statSync(path).isFile())
-          throw new UmiError('PERMISSION_DENIED', '只能打开已核验的副本文件位置');
+          throw new UmiError('PERMISSION_DENIED', '只能打开已核验的获准文件位置');
         return { path };
       }
-      //预览变更集
-      case 'preview_change_file': {
-        const page = a.frozenPreview.read(c.conversationId, c.changeSetId, c.path, c.side, c.startByte, c.byteLength);
-        const env = s.environment(s.conversation(c.conversationId).environment_id as string);
-        const cs = a.files.repo.changeSet(c.changeSetId, env.id), mount = a.files.repo.mount(cs.mountId, env.id);
-        return { ...page, displayPath: resolve(mount.sourceRoot, ...c.path.split('/')) };
-      }
-      case 'open_delivered':
-        return deliveredTarget(a.files, c.conversationId, c.changeSetId, c.path);
-      case 'preview_changeset':
-        return a.previewChangeSet(c.conversationId, c.changeSetId);
       //上传图片
       case 'upload_document':
         return s.uploadDocument(c.conversationId,{name:c.name,format:c.format,base64:c.base64});

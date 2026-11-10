@@ -8,7 +8,7 @@
     "node": ">=24.11.0 <25"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/prune-dist.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "start": "node dist/apps/headless/src/cli.js",

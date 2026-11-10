@@ -43,9 +43,6 @@ const commands = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('answer_question'), conversationId: ref, questionId: ref, answers: answersSchema }).strict(),
-  z.object({ type: z.literal('preview_change_file'), conversationId: ref, changeSetId: ref, path: filePath,
-    side: z.enum(['before', 'after', 'diff']), startByte: z.number().int().nonnegative().default(0),
-    byteLength: z.number().int().min(1).max(64000).default(8192) }).strict(),
   z.object({ type: z.literal('stop'), conversationId: ref, runId: ref }).strict(),
   z.object({ type: z.literal('resume'), conversationId: ref, runId: ref }).strict(),
   z.object({ type: z.literal('recovery'), conversationId: ref, runId: ref }).strict(),
@@ -60,13 +57,6 @@ const commands = z.discriminatedUnion('type', [
       path: filePath,
       startByte: z.number().int().nonnegative().default(0),
       byteLength: z.number().int().min(1).max(64000).default(8192),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal('preview_changeset'),
-      conversationId: ref,
-      changeSetId: ref,
     })
     .strict(),
   z
@@ -124,10 +114,10 @@ write({
     scratchApproval: true,
     resources: true,
     directFiles: true,
-    workingCopy: true, // 旧记录兼容
-    delivery: true, // 旧副本交付兼容
+
+
     userQuestions: true,
-    frozenFilePreview: true,
+
     nativeOpen: false,
     nativeRecycle: process.platform === 'win32',
     shell: process.platform === 'win32',
@@ -171,9 +161,6 @@ async function handle(line: string) {
         break;
       case 'answer_question':
         write({ kind: 'ack', type: c.type, ...app.questions.answer(c.conversationId, c.questionId, c.answers) });
-        break;
-      case 'preview_change_file':
-        write({ kind: 'result', type: c.type, preview: app.frozenPreview.read(c.conversationId, c.changeSetId, c.path, c.side, c.startByte, c.byteLength) });
         break;
       case 'approve':
         app.approve(c.conversationId, c.approvalId, c.decision);
@@ -234,13 +221,6 @@ async function handle(line: string) {
             c.startByte,
             c.byteLength,
           ),
-        });
-        break;
-      case 'preview_changeset':
-        write({
-          kind: 'result',
-          type: c.type,
-          ...app.previewChangeSet(c.conversationId, c.changeSetId),
         });
         break;
       case 'preview_process':

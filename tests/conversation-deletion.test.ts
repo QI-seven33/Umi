@@ -5,7 +5,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,renameSync,s
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {setTimeout as delay} from 'node:timers/promises';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import {DesktopService} from '../apps/desktop/service.js';
 import {desktopCommandSchema,readySchema} from '../packages/protocol/src/desktop.js';
 import {ConversationDeletion} from '../packages/adapters/src/sqlite/conversation-deletion.js';
@@ -40,18 +40,18 @@ test('永久删除协议：必须明确确认、只接受会话ID；未归档不
     assert.equal(f.app.store.databaseVersion,12);assert.equal(readySchema.shape.databaseVersion.value,12);
   }finally{await f.close();}
 });
-test('永久删除：真实循环的搜索/抓取/附件/交付/成果导出全部清理，源文件和已导出文件保留',async()=>{
-  const steps:Step[]=[],f=fixture(steps);let outputId='',changeSetId='';
+test('永久删除：真实循环的搜索/抓取/附件/直改/成果导出全部清理，源文件和已导出文件保留',async()=>{
+  const steps:Step[]=[],f=fixture(steps);let outputId='';
   try{
     const other=f.app.createConversation(f.workspace),otherState=f.app.store.snapshot(other.conversationId),otherEnv=f.app.store.environment(other.environmentId).root;
     const mount=f.app.files.repo.mounts(f.c.environmentId)[0]!,environment=f.app.store.environment(f.c.environmentId).root;
     const data=(r:any)=>JSON.parse(r.body.messages.filter((m:any)=>m.role==='tool').at(-1).content).data;
     steps.push(call('search_web',{query:'测试网页'}),call('fetch_webpage',{url:'https://example.org/doc'}),
       call('write_file',{mountId:mount.id,path:'delivered.txt',content:'已交付正文'}),
-      call('build_changeset',{mountId:mount.id}),r=>{changeSetId=data(r).changeSetId;return call('deliver_changeset',{changeSetId});},
+
       call('create_output',{name:'成果.txt',content:'已导出正文'}),r=>{outputId=data(r).outputId;return call('export_outputs',{items:[{outputId,target:join(f.workspace,'exported.txt')}]});},text('完成。'));
     const attachment=f.app.store.uploadAttachment(f.c.conversationId,'资料.txt','text/plain','仅属于将删除会话的原文'),r=f.app.send(f.c.conversationId,uid(),'搜索并交付',[attachment.id]);
-    assert.equal((await finish(f,r.runId)).status,'completed');assert(outputId&&changeSetId,JSON.stringify(f.app.store.tools(r.runId).map(t=>({name:t.name,state:t.state,result:t.result_ref?f.app.store.readArtifact(t.result_ref):null}))));assert(f.app.store.all("SELECT id FROM artifacts WHERE kind='output-export'").length>=2);
+    assert.equal((await finish(f,r.runId)).status,'completed');assert(outputId,JSON.stringify(f.app.store.tools(r.runId).map(t=>({name:t.name,state:t.state,result:t.result_ref?f.app.store.readArtifact(t.result_ref):null}))));assert(f.app.store.all("SELECT id FROM artifacts WHERE kind='output-export'").length>=2);
     writeFileSync(join(environment,'task','scratch','private.txt'),'托管临时文件');
     f.app.store.editConversation(f.c.conversationId,null,true);
     const result=await f.service.handle(desktopCommandSchema.parse({type:'delete_conversation',conversationId:f.c.conversationId,confirm:true})) as any;
@@ -116,7 +116,10 @@ test('永久删除：目录根替换为联接时拒绝；内部联接仅移除�
 test('永久删除：工作区仍引用托管目录时拒绝，不删除其他会话来源',async()=>{
   const f=fixture();
   try{
-    const root=f.app.store.environment(f.c.environmentId).root,other=f.app.createConversation(root);f.app.store.editConversation(f.c.conversationId,null,true);
+    const root=f.app.store.environment(f.c.environmentId).root;
+    assert.throws(()=>f.app.createConversation(root),/控制数据/);
+    // 模拟旧库中已存在的托管目录引用，验证永久删除的防御检查。
+    const other=f.app.store.createConversation(root);f.app.store.editConversation(f.c.conversationId,null,true);
     assert.throws(()=>f.app.deleteArchivedConversation(f.c.conversationId),/工作区引用/);assert(existsSync(root));assert(f.app.store.conversation(f.c.conversationId));
     f.app.store.editConversation(other.conversationId,null,true);f.app.deleteArchivedConversation(other.conversationId);
     assert.equal(f.app.deleteArchivedConversation(f.c.conversationId).deleted,true);

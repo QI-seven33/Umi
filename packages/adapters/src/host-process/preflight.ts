@@ -167,7 +167,7 @@ export class ExecutionInspection {
       if (args.requiredFiles.includes(file.path) && file.status === 'missing')
         issues.push({
           code: 'REQUIRED_FILE_MISSING',
-          message: `工作副本缺少 ${file.path}；不能把来源存在当作副本存在`,
+          message: `当前执行目录缺少 ${file.path}；不能用其他位置的同名文件代替`,
         });
     }
     const json = (path: string): Record<string, unknown> | undefined => {
@@ -210,7 +210,7 @@ export class ExecutionInspection {
       if (dependencyNames.length && directories[0]!.status !== 'present')
         issues.push({
           code: 'DEPENDENCIES_MISSING',
-          message: '工作副本没有普通 node_modules；物化默认跳过依赖，需先准备再测试',
+          message: '当前执行目录没有可核验的普通 node_modules；按需要批准准备后再测试',
         });
       if (dependencyNames.length && !lock)
         issues.push({
@@ -345,7 +345,7 @@ export function registerInspection(
   registry.register({
     name: 'inspect_execution',
     description:
-      '只读检查选定工作副本/task 目录的清单、明确工具入口、缺失文件及依赖目录，不启动程序或安装依赖。返回当前检查回执；准备命令用 preparation 绑定本工具执行 ID。外部版本未知，目录存在不证明可运行。',
+      '只读检查选定获准目录/task 目录的清单、明确工具入口、缺失文件及依赖目录，不启动程序或安装依赖。返回当前检查回执；准备命令用 preparation 绑定本工具执行 ID。外部版本未知，目录存在不证明可运行。',
     schema: inspectionSchema,
     effect: 'read',
     prepare(input, env, id) {

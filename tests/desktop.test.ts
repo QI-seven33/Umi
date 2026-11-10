@@ -299,7 +299,6 @@ test('S5-11：批准等待展示原描述，工具异常/拒绝不是成功，�
         id: approval[0],
         state: f.app.store.snapshot(f.c.conversationId),
         conversationId: f.c.conversationId,
-        onPreview: () => {},
         onError: () => {},
       }),
     );
@@ -378,7 +377,6 @@ test('S5-13：同一运行中的后续用户指令位于先前阶段正文之后
               id,
               state,
               conversationId: f.c.conversationId,
-              onPreview: () => {},
               onError: () => {},
             }),
           ),

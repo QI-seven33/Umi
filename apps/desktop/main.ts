@@ -1,6 +1,6 @@
 import { DesktopPreferenceStore } from './preferences.js';
 import { desktopPreferencePatchSchema, dataLocationSchema } from '../../packages/protocol/src/desktop-preferences.js';
-import { verifiedDocumentPath } from '../../packages/adapters/src/host-files/delivered-open.js';
+import { verifiedDocumentPath } from '../../packages/adapters/src/host-files/document-open.js';
 import { documentTargetSchema } from '../../packages/protocol/src/native-open.js';
 import {
   app,
@@ -361,14 +361,6 @@ function installIPC() {
 
     // 其它命令：直接 broker.request(c)。
     const result = await broker.request(c);
-
-    if (c.type === 'open_delivered') {
-      if (process.argv.includes('--verify-desktop')) throw new UmiError('OPEN_UNAVAILABLE', '验收模式不启动系统应用');
-      const path = verifiedDocumentPath(documentTargetSchema.parse(result));
-      const error = await shell.openPath(path);
-      if (error) throw new UmiError('OPEN_FAILED', error);
-      return { systemAccepted: true };
-    }
     // 如果是 open_file：拿结果里的 path，用 shell.showItemInFolder
     // 在文件管理器里高亮该文件，返回 { opened: true }。
     if (c.type === 'open_file' || c.type === 'open_export') {

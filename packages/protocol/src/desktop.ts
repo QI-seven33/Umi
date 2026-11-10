@@ -98,9 +98,6 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
       index: z.number().int().min(0).max(19),
     })
     .strict(),
-  z.object({ type: z.literal('preview_change_file'), ...conversation, changeSetId: id, path: filePath,
-    side: z.enum(['before', 'after', 'diff']), ...range }).strict(),
-  z.object({ type: z.literal('open_delivered'), ...conversation, changeSetId: id, path: filePath }).strict(),
   z.object({ type: z.literal('archive'), ...conversation }).strict(),
   z
     .object({
@@ -119,9 +116,6 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
       mountId: id,
       path: filePath,
     })
-    .strict(),
-  z
-    .object({ type: z.literal('preview_changeset'), ...conversation, changeSetId: id })
     .strict(),
   z
     .object({

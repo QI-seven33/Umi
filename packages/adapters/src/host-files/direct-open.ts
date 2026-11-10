@@ -5,7 +5,7 @@ import type {ExecutionContext} from '../../../protocol/src/model.js';
 import type {DocumentOpener,DocumentTarget} from '../../../protocol/src/native-open.js';
 import type {ToolRegistry} from '../../../agent/src/tools/registry.js';
 import type {ResourceFiles} from './resources.js';
-import {verifiedDocumentPath} from './delivered-open.js';
+import {verifiedDocumentPath} from './document-open.js';
 
 const schema=z.object({mountId:z.string().min(1),path:filePath}).strict();
 function targetOf(context:ExecutionContext):DocumentTarget {
@@ -13,14 +13,14 @@ function targetOf(context:ExecutionContext):DocumentTarget {
  if(!location?.beforeHash||!location.beforeIdentity||!location.physicalRootIdentity||!location.physicalRoot)throw new UmiError('NOT_FOUND','要打开的文件不存在');
  return {root:location.physicalRoot,rootIdentity:location.physicalRootIdentity,path:location.relativePath,hash:location.beforeHash,identity:location.beforeIdentity};
 }
-// 与旧交付打开复用同一个窄端口和主进程核验；不创建脱离Job的命令入口。
+// 使用窄端口和主进程核验；不创建脱离Job的命令入口。
 export function registerDirectOpen(registry:ToolRegistry,files:ResourceFiles,open:DocumentOpener){
  registry.register({
   name:'open_file',available:env=>files.repo.direct.enabled(env.id),
   description:'按用户要求用系统默认应用打开已授权真实目录中的文档、HTML或图片。传真实mountId和相对文件路径，仍需本次具体批准，不需要交付。打开请求通过桌面通道交给系统，不属于运行命令的子进程，任务结束不会主动关闭该应用；不要用run_shell或Start-Process代替普通打开。系统接收不证明窗口、页面渲染或交互成功。不可指定程序、参数、URL或启动持续服务。',
   schema,effect:'host-code',
   prepare:(input,env)=>{
-   const a=schema.parse(input);if(!files.repo.mount(a.mountId,env.id).direct)throw new UmiError('PERMISSION_DENIED','旧副本保持原交付打开规则');
+   const a=schema.parse(input);if(!files.repo.mount(a.mountId,env.id).direct)throw new UmiError('PERMISSION_DENIED','旧副本不再提供执行能力');
    const context=files.mountContext(input,env,a.mountId,a.path);
    verifiedDocumentPath(targetOf(context));return context;
   },
@@ -29,7 +29,7 @@ export function registerDirectOpen(registry:ToolRegistry,files:ResourceFiles,ope
    const a=schema.parse(input);let target:DocumentTarget;
    try{
     const env=files.repo.store.environment(context.environmentId);
-    if(!files.repo.mount(a.mountId,env.id).direct)throw new UmiError('PERMISSION_DENIED','旧副本保持原交付打开规则');
+    if(!files.repo.mount(a.mountId,env.id).direct)throw new UmiError('PERMISSION_DENIED','旧副本不再提供执行能力');
     const current=files.mountContext(input,env,a.mountId,a.path);target=targetOf(current);
     const planned=targetOf(context);
     if(target.hash!==planned.hash||target.identity!==planned.identity||target.rootIdentity!==planned.rootIdentity||target.root!==planned.root||current.directoryGrant?.id!==context.directoryGrant?.id||current.directoryGrant?.revision!==context.directoryGrant?.revision)

@@ -57,7 +57,8 @@ jobs:
           dist/tests/interaction.test.js
           dist/tests/outputs.test.js
           dist/tests/outputs-ui.test.js
-          dist/tests/single-file-resources.test.js
+          dist/tests/retired-workflow.test.js
+          dist/tests/build-output-cleanup.test.js
           dist/tests/text-edit.test.js
           dist/tests/text-write.test.js
           dist/tests/tool-modules.test.js

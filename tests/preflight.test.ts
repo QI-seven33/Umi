@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import { ExecutionInspection } from '../packages/adapters/src/host-process/preflight.js';
 import {
   inspectionSchema,
@@ -202,7 +202,9 @@ for (const kind of ['junction', 'hardlink'])
         symlinkSync(f.workspace, join(f.mount.root, 'node_modules'), 'junction');
       else {
         unlinkSync(join(f.mount.root, 'package.json'));
-        linkSync(join(f.workspace, 'package.json'), join(f.mount.root, 'package.json'));
+        const original = join(f.root, 'hardlink-source.json');
+        writeFileSync(original, '{}');
+        linkSync(original, join(f.mount.root, 'package.json'));
       }
       const report = f.inspect();
       assert(
@@ -381,7 +383,7 @@ test(
       );
       assert(!('NODE_OPTIONS' in snapshot.env));
       assert.equal(readFileSync(join(f.mount.root, 'prepared.txt'), 'utf8'), '就绪');
-      assert(!existsSync(join(f.workspace, 'prepared.txt')));
+      assert.equal(readFileSync(join(f.workspace, 'prepared.txt'), 'utf8'), '就绪');
       assert.equal(f.app.commands.repo.readOutput(tools[2]!.id, 'stdout'), '就绪');
     } finally {
       await f.close();
@@ -560,7 +562,7 @@ test('准备观察：单文件权限不能扩展到相邻项目清单', async ()
     f.steps.push(
       call('discover_resource', { path: join(external, 'one.txt'), query: 'one' }),
       (r) =>
-        call('request_resource', {
+        call('request_directory_access', {
           candidateId: data(r).candidates[0].id,
           access: 'read',
           purpose: '只读单文件',

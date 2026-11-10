@@ -4,7 +4,8 @@ import {fileReferenceCandidates} from '../../../../packages/protocol/src/file-re
 import {FileLinksProvider,FileLinkView,ChatFileAnchor,ChatFileCode} from './FileReference.js';
 import { MessageActions } from './components/ui/MessageActions.js';
 import { InspectionSummary } from './OutputsPanel.js';
-import { resourceFailureLabel } from './recovery.js';
+
+
 import { userFacingError } from './ui-error.js';
 import {Children,isValidElement,memo,useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { ChevronDown, FileText, Atom, Terminal, Search, Sparkles } from 'lucide-react';
@@ -17,10 +18,10 @@ import type { Snapshot } from './transport.js';
 import { processItems, activityLabel, toolNames, elapsedTime } from './activity.js';
 import type { ActivityItem } from './activity.js';
 
-export type FileTarget = { mountId: string; path: string; changeSetId?: string; attachmentId?: string };
-// 展示名称不是身份：同名附件和不同交付快照必须拥有独立预览。
+export type FileTarget = { mountId: string; path: string; attachmentId?: string };
+// 展示名称不是身份：同名附件和工作文件必须拥有独立预览。
 export function fileTargetKey(target: FileTarget): string {
-  return JSON.stringify(target.attachmentId ? ['attachment', target.attachmentId] : target.changeSetId ? ['changeset', target.changeSetId, target.path] : ['working', target.mountId, target.path]);
+  return JSON.stringify(target.attachmentId ? ['attachment', target.attachmentId] : ['working', target.mountId, target.path]);
 }
 export const Markdown = memo(function Markdown({ text, mounts, onPreview }: { text: string; mounts: any[]; onPreview: (f: FileTarget) => void }) {
   useUiLanguage();
@@ -36,10 +37,6 @@ export const Markdown = memo(function Markdown({ text, mounts, onPreview }: { te
     }, code: ChatFileCode
   }}>{formatted.text}</ReactMarkdown></FileLinkView>;
 });
-function Changes({ id, conversationId, onPreview }: { id: string; conversationId: string; onPreview: (f: FileTarget) => void }) {
-  const [data, setData] = useState<any>(null), [error, setError] = useState('');
-  return <details className="umi-changes" onToggle={e => { if (e.currentTarget.open && !data) void window.umi.request({ type: 'preview_changeset', conversationId, changeSetId: id }).then(setData).catch(e => setError(userFacingError(e) || uiText("信息暂未返回，请重试。"))); }}><summary><ChevronDown size={14} />{uiText("文件变化与交付范围")}</summary>{error && <p role="alert">{error}</p>}{data?.changeSet?.changes?.map((item: any) => <button className="umi-file-row" key={item.path} onClick={() => onPreview({ mountId: data.changeSet.mountId, path: item.path, changeSetId: id })}><FileText size={14} /><span>{item.path}</span></button>)}{data && !data.changeSet?.changes?.length && <p>{uiText("没有文件变化。")}</p>}</details>;
-}
 function Tool({ id, state, onPreview }: { id: string; state: ConversationState; onPreview: (f: FileTarget) => void }) {
   const outcome: Record<string, string> = { prepared: uiText("等待派发"), running: uiText("正在执行"), succeeded: uiText("已完成"), failed: uiText("失败"), denied: uiText("已拒绝"), cancelled: uiText("已取消"), unknown: uiText("结果未知") };
   const t = state.tools[id]!, [summary, setSummary] = useState<any>(null), [detail, setDetail] = useState<any>(null), [error, setError] = useState(''), [open, setOpen] = useState(false), [paging, setPaging] = useState(false);
@@ -91,12 +88,12 @@ function Run({ id, snapshot, onPreview, onError, from, to, last, onDraft }: { id
       {(!complete || expanded) && <div className="umi-process-content">{process.map(item => item.kind === 'text' ? renderBlock(item.block) : <Activity key={item.id} items={item.items} state={state} onPreview={onPreview} />)}{running && !blocks.length && !Object.values(state.questions ?? {}).some(q => q.runId === id && q.status === 'pending') && <GenerationLoader compact label={uiText("正在准备")} />}</div>}
     </div>}
 
-    {last && snapshot.resources?.resourceFailures?.length>0 && <details className="umi-changes"><summary><ChevronDown size={14}/>{uiText("资源物化结果")}</summary>{snapshot.resources.resourceFailures.map((f:any)=><p key={f.resourceId}>{resourceFailureLabel(f)}</p>)}</details>}
-    {last && Object.entries(state.tools).filter(([,t])=>t.runId===id&&t.name==='request_resource'&&t.verification).map(([callId,t])=><p className="umi-recovery" role="status" key={callId}>{t.status==='succeeded'?uiText("原资源挂载已核验，没有重新复制。"):t.status==='failed'?uiText("原资源物化未完成，保留原副本，没有重新复制。"):uiText("原资源效果仍未知，需要继续检查。")}</p>)}
+
+
     {last && r.budgetBlock && <section className="umi-budget" role="status"><strong>{uiText("上下文预算阻塞")}</strong><p>{r.reason}</p><p>{uiText("保守估算")}{r.budgetBlock.estimatedInputTokens.toLocaleString()}{uiText("，输入预算")}{r.budgetBlock.inputCeiling.toLocaleString()}{uiText("。用户原文仍完整保存。")}</p><small>{uiText("直接恢复不会减少上下文。可在设置中调整有效预算；达到模型上限后仍不能容纳时，需要后续有预算的原文投影。")}</small></section>}
     {last && r.status === 'interrupted' && !r.budgetBlock && !hasNotice && r.reason && <p className="umi-recovery" role="status">{r.reason}</p>}
     {last && !hasNotice && ['interrupted', 'stopped', 'recovery_required'].includes(r.status) && <p className="umi-recovery">{uiText("可以直接发消息继续、修改要求或开始其他任务。")}</p>}
-    {last && Object.keys(state.changesets).filter(cs => state.changesets[cs]?.runId === id).map(cs => <Changes key={cs} id={cs} conversationId={state.cursor.streamId} onPreview={onPreview} />)}
+
     {last && budget?.limit != null && <p className="umi-recovery" role="status">{uiText("本轮输出预算：")}{budget.used.toLocaleString()} / {budget.limit.toLocaleString()} token{budget.missing > 0 ? uiText("，另有用量未返回") : ""}{uiText("（含思考与上下文维护，恢复不清零）")}</p>}
     {notices.map(n => <div key={n.messageId} className="message-body" data-run-notice={n.messageId}><small>{uiText("Umi 执行说明")}</small><Markdown text={n.text} mounts={mounts} onPreview={onPreview} /></div>)}
     {final.map(renderBlock)}

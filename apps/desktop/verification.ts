@@ -172,7 +172,7 @@ export async function verifyDesktop(
     pass('网页与Windows图标共用当前单图标，ICO七种尺寸逐项匹配PNG来源');
     const workspace = dataRoot + '-workspace';
     mkdirSync(workspace, { recursive: true });
-    // 来源样本在创建工作副本前准备；后续交付必须真的改变这个文件。
+    // 来源样本在授权前准备；直改验收必须真的改变这个文件。
     writeFileSync(join(workspace, 'delivery-preview.txt'), '交付前原文', 'utf8');
     const c = (await broker.request({
       internal: 'create_internal',
@@ -940,7 +940,7 @@ export async function verifyDesktop(
     })) as { text: string };
     assert.equal(typedPreview.text, longTyped);
     pass('手写长消息发送前转原文附件，20 次连点仍只提交一次');
-    const directRun = (await broker.request({type:'send',conversationId:ui.conversationId,commandId:randomUUID(),text:'交付卡片验证',attachmentIds:[]})) as {runId:string};
+    const directRun = (await broker.request({type:'send',conversationId:ui.conversationId,commandId:randomUUID(),text:'直改文件验证',attachmentIds:[]})) as {runId:string};
     const edited=await until(uiSnapshot,s=>s.state.runs[directRun.runId]?.status==='completed');
     assert(Object.values(edited.state.tools).some(t=>t.runId===directRun.runId&&t.name==='write_file'&&t.status==='succeeded'));
     assert(!Object.values(edited.state.tools).some(t=>t.runId===directRun.runId&&['build_changeset','deliver_changeset','request_resource'].includes(t.name)));

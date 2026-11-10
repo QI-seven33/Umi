@@ -63,7 +63,7 @@ export class DesktopVerificationModel implements ModelPort {
       const args=name==='restore_file_version'?{changeId:result.data.versions[0].restoreChangeId}:{mountId,path:'delivery-preview.txt'};
       message=name?{role:'assistant',content:'我先定位上一版再恢复。',tool_calls:[{id:'natural-restore',type:'function',function:{name,arguments:JSON.stringify(args)}}]}:
         {role:'assistant',content:result?.outcome==='succeeded'?'**已回退：**文件恢复到上一轮修改前，历史记录保留。\n\n[delivery-preview.txt](@working/'+mountId+'/delivery-preview.txt)':'恢复没有完成，请按实际冲突处理。'};
-    } else if (raw.includes('交付卡片验证')) {
+    } else if (raw.includes('直改文件验证')) {
       const last = messages.filter((m) => m.role === 'tool').at(-1),
         result = last ? JSON.parse(last.content) : null,
         data = result?.data;
@@ -91,29 +91,8 @@ export class DesktopVerificationModel implements ModelPort {
           };
           break;
         case 'write_file':
-          name = domains['runtime.resources'].mounts[0].direct ? null : 'build_changeset';
-          args = { mountId };
-          break;
-        case 'build_changeset':
-          if (data) {
-            name = 'deliver_changeset';
-            args = { changeSetId: data.changeSetId };
-          } else {
-            name = 'read_history';
-            args = { messageId: result.messageId, byteLength: 512 };
-          }
-          break;
-        case 'read_history':
-          name = 'deliver_changeset';
-          // 长变更集在活跃窗口中截断；从真实 read_history 片段取回头部定位。
-          args = {
-            changeSetId: data.text
-              ?.replace(/\\"/g, '"')
-              .match(/"changeSetId":"([a-f0-9-]+)"/)?.[1],
-          };
-          break;
-        case 'deliver_changeset':
           name = null;
+          args = { mountId };
           break;
         default:
           name = 'read_file';
@@ -122,7 +101,7 @@ export class DesktopVerificationModel implements ModelPort {
       message = name
         ? {
             role: 'assistant',
-            content: '批准后将写回这份文件。',
+            content: '直接修改已授权目录中的文件。',
             tool_calls: [
               {
                 id: 'delivery-call',

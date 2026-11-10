@@ -6,9 +6,7 @@ import { LocalSkillLibrary } from '../../../packages/adapters/src/skills/library
 import { registerSkills } from '../../../packages/agent/src/tools/skills.js';
 import { registerImageObservation } from '../../../packages/adapters/src/host-files/image-observation.js';
 import { runDiagnostics } from '../../../packages/agent/src/loop/run-diagnostics.js';
-import { FrozenPreview } from '../../../packages/adapters/src/host-files/frozen-preview.js';
 import {registerDirectOpen} from '../../../packages/adapters/src/host-files/direct-open.js';
-import { registerDeliveredOpen } from '../../../packages/adapters/src/host-files/delivered-open.js';
 import type { DocumentOpener } from '../../../packages/protocol/src/native-open.js';
 import { UserQuestions, registerQuestions } from '../../../packages/agent/src/tools/questions.js';
 import type { ConversationState } from '../../../packages/protocol/src/reducer.js';
@@ -52,8 +50,6 @@ import { ResourceRepository } from '../../../packages/adapters/src/sqlite/resour
 import { ResourceFiles } from '../../../packages/adapters/src/host-files/resources.js';
 import { registerFiles } from '../../../packages/adapters/src/host-files/tools.js';
 import { registerRecycle } from '../../../packages/adapters/src/host-files/recycle.js';
-import { DeliveryFiles } from '../../../packages/adapters/src/host-files/delivery.js';
-import type { DeliveryBoundary } from '../../../packages/adapters/src/host-files/delivery.js';
 import {
   CommandTools,
   registerCommands,
@@ -77,7 +73,6 @@ export class UmiApplication {
   readonly skills: LocalSkillLibrary;
   readonly skillImports: SkillImports;
   readonly questions: UserQuestions;
-  readonly frozenPreview: FrozenPreview;
   readonly store: SqliteStore;
   readonly registry: ToolRegistry;
   readonly engine: AgentEngine;
@@ -104,7 +99,6 @@ export class UmiApplication {
       clock?: () => string;
       openDocument?: DocumentOpener;
       search?: { key: () => string; baseUrl: string; transport?: typeof fetch };
-      deliveryBoundary?: (point: DeliveryBoundary, path: string) => void | Promise<void>;
       processRunner?: LegacyWindowsProcessPort;
       toolModules?: readonly ToolModule[];
       providerModules?: readonly ProviderToolModule[];
@@ -134,7 +128,6 @@ export class UmiApplication {
       currentTaskEvidence(this.files, this.outputs),
     );
     this.questions = new UserQuestions(this.store);
-    this.frozenPreview = new FrozenPreview(this.files);
     const webPages = new WebPageRepository(this.store);
     const modules: ToolModule[] = [
       toolModule('umi.skills', '1.0.0', [], r => registerSkills(r, this.skills, hostContext)),
@@ -160,7 +153,6 @@ export class UmiApplication {
         registerFiles(
           r,
           this.files,
-          new DeliveryFiles(this.files, options.deliveryBoundary),
         ),
       ),
       fileEditModule(this.files, fileReadEvidencePort(this.store)),
@@ -173,8 +165,7 @@ export class UmiApplication {
     ];
     if (options.openDocument) {
       const open = options.openDocument;
-      modules.push(toolModule('umi.open-delivered', '1.0.0', ['umi.files'], r => registerDeliveredOpen(r, this.files, open)),
-        toolModule('umi.open-file', '1.0.0', ['umi.files'], r => registerDirectOpen(r,this.files,open)));
+      modules.push(toolModule('umi.open-file', '1.0.0', ['umi.files'], r => registerDirectOpen(r,this.files,open)));
     }
     if (options.search) {
       const search = options.search;
@@ -284,23 +275,6 @@ export class UmiApplication {
       expectedHash,
     );
   }
-  previewChangeSet(conversationId: string, changeSetId: string) {
-    const c = this.store.conversation(conversationId),
-      cs = this.files.repo.changeSet(changeSetId, c.environment_id as string);
-    const env = this.store.environment(c.environment_id as string),
-      m = this.files.repo.mount(cs.mountId, env.id);
-    return {
-      changeSet: cs,
-      preview: new DeliveryFiles(this.files).preview(cs, m, env),
-      receipts: this.files.repo
-        .items(cs.id)
-        .map((i) =>
-          i.receipt_ref
-            ? this.store.readArtifact(i.receipt_ref as string)
-            : { path: i.path, outcome: 'unknown' },
-        ),
-    };
-  }
   previewProcess(
     conversationId: string,
     executionId: string,
@@ -344,6 +318,8 @@ export class UmiApplication {
     text: string,
     attachmentIds: string[] = [],
   ) {
+    this.assertDirectConversation(conversationId);
+
     const existed = this.store.get('SELECT id FROM commands WHERE conversation_id=? AND id=?', conversationId, commandId);
     const receipt = this.store.acceptInput(
       conversationId,
@@ -364,7 +340,13 @@ export class UmiApplication {
       this.start(receipt.runId, true);
     return receipt;
   }
+  private assertDirectConversation(conversationId: string) {
+    const conversation = this.store.conversation(conversationId);
+    if (!this.files.repo.direct.enabled(String(conversation.environment_id)))
+      throw new UmiError('LEGACY_WORKFLOW_RETIRED', '旧副本会话已停止执行，请选择目录创建新会话；旧权限不会自动升级');
+  }
   private start(runId: string, recovery: boolean, approvedExecutionId?: string, inspectOnly = false) {
+    this.assertDirectConversation(this.store.getRun(runId).conversation_id);
     if (this.running.has(runId)) return;
     const controller = new AbortController();
     const done = Promise.resolve()
@@ -385,6 +367,7 @@ export class UmiApplication {
     return this.store.getRun(runId);
   }
   approve(conversationId: string, approvalId: string, decision: 'allow' | 'deny',scope:'once'|'task'='once') {
+    this.assertDirectConversation(conversationId);
     this.store.decideApproval(conversationId, approvalId, decision,scope);
     const a = this.store.approval(approvalId);
     const run = this.store.getRun(a.run_id),
@@ -438,6 +421,8 @@ export class UmiApplication {
     await this.wait(runId);
   }
   resume(conversationId: string, runId: string) {
+    this.assertDirectConversation(conversationId);
+
     const r = this.store.getRun(runId);
     if (r.conversation_id !== conversationId)
       throw new UmiError('PROTOCOL_INVALID', '运行不属于当前会话');

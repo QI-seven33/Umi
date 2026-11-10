@@ -10,6 +10,8 @@
 
 ## 文件、来源与交付
 
+- [旧复制/交付执行链退役（2026-11-10，未发布）](20261110-retire-copy-delivery.zh-CN.md)
+
 - [文件引用核验与直改文档打开修复（2026-10-24，纳入0.3.1）](20261024-file-links-and-document-opening.zh-CN.md)
 
 - [自然语言文件恢复与回复可读性（2026-10-23，未发布）](20261023-natural-restore-and-readable-responses.zh-CN.md)

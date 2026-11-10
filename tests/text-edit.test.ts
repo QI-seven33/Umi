@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import { replaceUniqueUtf8 } from '../packages/adapters/src/host-files/text-edit.js';
 import { fileIdentity } from '../packages/adapters/src/host-files/paths.js';
 import { uid } from '../packages/agent/src/identity.js';
@@ -112,7 +112,7 @@ test('局部编辑：BOM/CRLF/中文和学习注释的无关字节保持', async
       readFileSync(f.file),
       Buffer.from(original.toString('utf8').replace('唯一目标', '替换内容')),
     );
-    assert.deepEqual(readFileSync(join(f.workspace, 'a.txt')), original);
+    assert.deepEqual(readFileSync(join(f.workspace, 'a.txt')), Buffer.from(original.toString('utf8').replace('唯一目标','替换内容')));
     assert.equal(
       Object.keys(f.app.store.snapshot(f.c.conversationId).approvals).length,
       0,
@@ -320,29 +320,8 @@ test('局部编辑：写后再出现第三方字节，恢复保持 unknown', asy
   }
 });
 
-test('局部编辑：冻结变更集独立批准后才交付来源', async () => {
-  const f = fixture('唯一目标', undefined, {}, (f) => [
-    () => call('build_changeset', { mountId: f.m.id }),
-    (r) => call('deliver_changeset', { changeSetId: lastData(r).changeSetId }),
-    text('已检查交付'),
-    text('结束'),
-  ]);
-  try {
-    const r = f.app.send(f.c.conversationId, uid(), '修改后交付');
-    const a = await eventually(
-      () =>
-        Object.entries(f.app.store.snapshot(f.c.conversationId).approvals).find(
-          ([, a]) => a.status === 'pending',
-        )?.[0],
-    );
-    assert.equal(readFileSync(join(f.workspace, 'a.txt'), 'utf8'), '唯一目标');
-    assert.equal(readFileSync(f.file, 'utf8'), '替换内容');
-    f.app.approve(f.c.conversationId, a, 'allow');
-    assert.equal((await f.app.wait(r.runId)).status, 'completed');
-    assert.equal(readFileSync(join(f.workspace, 'a.txt'), 'utf8'), '替换内容');
-  } finally {
-    await f.close();
-  }
+test('局部编辑：已授权源文件即时修改并保留恢复内容，不再等待交付批准',async()=>{
+ const f=fixture('唯一目标');try{const r=await f.run();assert.equal(f.app.store.getRun(r.runId).status,'completed');assert.equal(readFileSync(join(f.workspace,'a.txt'),'utf8'),'替换内容');assert.equal(f.app.store.all('SELECT id FROM approval_requests').length,0);assert.equal(f.app.files.repo.direct.changes(f.c.conversationId).length,1);}finally{await f.close();}
 });
 
 test('局部编辑：不同会话的成功读取不能授予本会话编辑', async () => {
@@ -367,7 +346,7 @@ test('局部编辑：不同会话的成功读取不能授予本会话编辑', as
           .prepare(args, f.app.store.environment(other.environmentId), uid()),
       /当前会话成功/,
     );
-    assert.equal(readFileSync(join(otherMount.root, 'a.txt'), 'utf8'), '唯一目标');
+    assert.equal(readFileSync(join(otherMount.root, 'a.txt'), 'utf8'), '替换内容');
   } finally {
     await f.close();
   }

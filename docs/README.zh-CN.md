@@ -13,6 +13,8 @@
 
 ## 变化与历史
 
+- [旧复制/交付执行链退役（2026-11-10，未发布）](records/20261110-retire-copy-delivery.zh-CN.md)：移除旧工具、应用/桌面/CLI入口与专用测试，保留直改、恢复及历史解码。
+
 - [桌面界面与设备偏好（2026-10-25，纳入0.3.1）](records/20261025-desktop-interface-and-preferences.zh-CN.md)：简化权限卡片、统一设置控件、界面语言、标题管理与窗口关闭行为。
 
 - [文件引用核验与直改文档打开修复（2026-10-24，纳入0.3.1）](records/20261024-file-links-and-document-opening.zh-CN.md)：修复虚假蓝色链接、补齐系统打开通道与Windows安装目录变量。

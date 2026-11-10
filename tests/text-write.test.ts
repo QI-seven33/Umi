@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import { ScriptModel, call, text, removeTestRoot, eventually } from './fixtures.js';
 import type { Step } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';
@@ -80,7 +80,7 @@ const args = (f: ReturnType<typeof fixture>, read: any, content = '新文本') =
   expectedReadHash: read.hash,
 });
 
-test('创建：默认 create 可新建父目录，成功回执前不改源目录；重复创建不覆盖', async () => {
+test('创建：默认 create 可新建父目录，即时写入真实目录；重复创建不覆盖', async () => {
   const f = fixture();
   try {
     f.steps.push(
@@ -97,7 +97,7 @@ test('创建：默认 create 可新建父目录，成功回执前不改源目录
     assert.equal(tools[0]!.state, 'succeeded');
     assert.equal(tools[1]!.state, 'failed');
     assert.equal(readFileSync(join(f.m.root, '新目录/新文件.txt'), 'utf8'), '中文\r\n');
-    assert(!existsSync(join(f.workspace, '新目录')));
+    assert.equal(f.m.root, f.workspace);
     const events = f.app.store.events(f.c.conversationId);
     assert(
       events.findIndex((e) => e.type === 'tool.dispatch_intent') <
@@ -196,7 +196,7 @@ test('替换：真实完整读取绑定 BOM/CRLF/中文字节，无变化保留�
     assert(readFileSync(f.file).equals(Buffer.from('\uFEFF新中文\r\n// 学习注释\r\n')));
     assert.equal(
       readFileSync(join(f.workspace, 'a.txt'), 'utf8'),
-      '\uFEFF中文\r\n// 学习注释\r\n',
+      '\uFEFF新中文\r\n// 学习注释\r\n',
     );
   } finally {
     await f.close();
@@ -366,7 +366,7 @@ test('恢复：部分创建/第三方字节保持 unknown；旧冻结上下文�
   }
 });
 
-test('桌面验收模型：交付卡片沿真实读取与显式替换，批准前来源不变', async () => {
+test('桌面验收模型：真实读取后显式替换源文件，不再生成交付卡片', async () => {
   const root = mkdtempSync(join(tmpdir(), 'umi-text-write-desktop-'));
   const workspace = join(root, 'workspace');
   mkdirSync(workspace);
@@ -375,28 +375,17 @@ test('桌面验收模型：交付卡片沿真实读取与显式替换，批准�
   const app = new UmiApplication(join(root, 'data'), new DesktopVerificationModel());
   try {
     const c = app.createConversation(workspace);
-    const run = app.send(c.conversationId, uid(), '交付卡片验证');
-    const approvalId = await eventually(
-      () =>
-        Object.entries(app.store.snapshot(c.conversationId).approvals).find(
-          ([, approval]) => approval.status === 'pending',
-        )?.[0],
-    );
-    assert.equal(readFileSync(target, 'utf8'), '旧正文');
-    const tools = app.store.tools(run.runId);
-    assert.deepEqual(
-      tools.map((tool) => tool.name),
-      ['read_file', 'write_file', 'build_changeset', 'deliver_changeset'],
-    );
-    assert.equal(tools[0]!.state, 'succeeded');
-    assert.equal(tools[1]!.state, 'succeeded');
-    const write = JSON.parse(tools[1]!.args);
-    assert.equal(write.mode, 'replace');
-    assert.equal(write.readExecutionId, tools[0]!.id);
-    app.approve(c.conversationId, approvalId, 'allow');
+    const run = app.send(c.conversationId, uid(), '直改文件验证');
     assert.equal((await app.wait(run.runId)).status, 'completed');
+    const tools = app.store.tools(run.runId);
+    assert.deepEqual(tools.map(t => t.name), ['read_file', 'write_file']);
+    const [read, write] = tools;
+    assert(read && write);
+    assert.equal(JSON.parse(write.args).mode, 'replace');
+    assert.equal(JSON.parse(write.args).readExecutionId, read.id);
     assert.equal(readFileSync(target, 'utf8'), '冻结预览正文。'.repeat(300));
-    assert.equal(app.store.tools(run.runId).at(-1)!.state, 'succeeded');
+    assert.equal(app.store.all('SELECT id FROM approval_requests').length, 0);
+    assert.equal(app.files.repo.direct.changes(c.conversationId).length, 1);
   } finally {
     await app.close();
     removeTestRoot(root);

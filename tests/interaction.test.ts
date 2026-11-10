@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import {DesktopService} from '../apps/desktop/service.js';
 import {desktopCommandSchema} from '../packages/protocol/src/desktop.js';
 import {CommandGate} from '../apps/desktop/renderer/src/features/work/CommandGate.js';
@@ -58,21 +58,9 @@ test('I05：归档恢复只修改会话视图，重启后原事件、工作环�
     await f.app.close();const reopened=new UmiApplication(join(f.root,'data'),new ScriptModel([]));try{const service=new DesktopService(reopened);await service.handle(desktopCommandSchema.parse({type:'restore',conversationId:f.c.conversationId}));assert.equal(reopened.store.listConversations().length,1);assert.deepEqual(reopened.store.events(f.c.conversationId),events);assert.deepEqual(reopened.store.snapshot(f.c.conversationId),state);assert.equal(reopened.store.conversation(f.c.conversationId).environment_id,f.c.environmentId);}finally{await reopened.close();}
   }finally{await f.close();}
 });
-test('I06：交付卡片读取批准所绑定的冻结范围，旧 JSON 不进入展示，写回仍核验源文件',async()=>{
-  let mountId='';const lastData=(request:PreparedRequest)=>JSON.parse((request.body.messages as {role:string;content:string}[]).filter(m=>m.role==='tool').at(-1)!.content).data;
-  const f=fixture(new ScriptModel([()=>call('write_file',{mountId,path:'result.txt',content:'冻结正文'}),()=>call('build_changeset',{mountId}),request=>call('deliver_changeset',{changeSetId:lastData(request).changeSetId}),text('写回冲突，未覆盖。')]));
-  try{const mount=f.app.files.repo.mounts(f.c.environmentId)[0]!;mountId=mount.id;const receipt=f.app.send(f.c.conversationId,uid(),'写文件并交付');const approval=await eventually(()=>Object.entries(f.app.store.snapshot(f.c.conversationId).approvals).find(([,a])=>a.status==='pending'));
-    const detail=await f.service.handle(desktopCommandSchema.parse({type:'approval_detail',conversationId:f.c.conversationId,approvalId:approval[0]})) as any;
-    assert.equal(detail.preview.changes[0].afterText,'冻结正文');assert.equal(detail.preview.changes[0].path,'result.txt');assert.equal(detail.preview.targetDirectory,f.workspace);
-    const snapshot=f.service.snapshot(f.c.conversationId);snapshot.state=structuredClone(snapshot.state);snapshot.state.approvals[approval[0]]!.description='旧描述：'+JSON.stringify(detail.preview);
-    const html=renderToStaticMarkup(createElement(Timeline,{snapshot,onPreview:()=>{},onError:()=>{}}));assert(!html.includes('冻结正文'));assert(!html.includes('beforeContentHash'));assert(!html.includes('旧描述'));
-    writeFileSync(join(f.workspace,'result.txt'),'外部新文件');f.app.approve(f.c.conversationId,approval[0],'allow');await f.app.wait(receipt.runId);assert.equal(readFileSync(join(f.workspace,'result.txt'),'utf8'),'外部新文件');assert.notEqual(f.app.store.tools(receipt.runId).find(t=>t.name==='deliver_changeset')!.state,'succeeded');
-    await assert.rejects(()=>f.service.handle(desktopCommandSchema.parse({type:'approval_detail',conversationId:f.c.conversationId,approvalId:'foreign'})),/不属于/);
-  }finally{await f.close();}
-});
 test('I07：长输入转换为文本载体，短代码不转换，提示指向完整原文而非摘要',()=>{
   assert.notEqual(fileTargetKey({mountId:'attachment',path:'已粘贴的文本.txt',attachmentId:'a'}),fileTargetKey({mountId:'attachment',path:'已粘贴的文本.txt',attachmentId:'b'}));
-  assert.notEqual(fileTargetKey({mountId:'m',path:'config.json',changeSetId:'old'}),fileTargetKey({mountId:'m',path:'config.json',changeSetId:'new'}));
+  assert.notEqual(fileTargetKey({mountId:'m1',path:'config.json'}),fileTargetKey({mountId:'m2',path:'config.json'}));
     assert.equal(asTextDocument('<span>{mode === "chat" ? "Chat" : "Work"}</span>'),false);
     assert.equal(asTextDocument('中文'.repeat(3000)),true);
     assert.equal(asTextDocument(Array.from({length:120},()=>'<div/>').join('\n')),true);

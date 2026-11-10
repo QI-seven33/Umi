@@ -1,4 +1,4 @@
-import {frozenDiff} from './frozen-preview.js';
+import {fileDiff} from './text-diff.js';
 import {byteExcerpt} from '../../../agent/src/context/bounded.js';
 import {readFileSync,unlinkSync} from 'node:fs';
 import {dirname,resolve,relative,sep} from 'node:path';
@@ -16,7 +16,7 @@ export class DirectFileAccess {
     if([this.repo.store.dataRoot,...this.protectedRoots].some(root=>this.contains(root,target))) throw new UmiError('PERMISSION_DENIED','Umi 控制数据不属于普通文件授权范围');
   }
   check(m:Mount,edit=false,path?:string,ignoreChange?:string) {
-    if(!m.direct) return;
+    if(!m.direct) throw new UmiError('LEGACY_WORKFLOW_RETIRED','旧副本不再提供执行能力');
     this.repo.direct.assert(m,edit);safeRoot(m.root,m.rootIdentity);
     if(path) this.protect(safeFile(m.root,path,m.rootIdentity)); else this.protect(m.root);
     if(edit && path) {
@@ -26,7 +26,7 @@ export class DirectFileAccess {
   }
   // 原未知效果只能观察被冻结的位置；新授权可允许观察，不能让旧批准重新写入。
   checkObservation(m:Mount,path:string) {
-    if(!m.direct) return;
+    if(!m.direct) throw new UmiError('LEGACY_WORKFLOW_RETIRED','旧副本不再提供执行能力');
     try {this.check(m,false,path);return;} catch(e) {if(!(e instanceof UmiError)||e.code!=='ACCESS_REVOKED')throw e;}
     const target=safeFile(m.root,path,m.rootIdentity);this.protect(target);
     const allowed=this.repo.direct.grants(m.environmentId).some(g=>{
@@ -85,7 +85,7 @@ export class DirectFileAccess {
     this.repo.direct.settle(id,m.environmentId,after);return id;
   }
   reconcile(m:Mount,executionId:string,applied:boolean) {
-    if(!m.direct) return;
+    if(!m.direct) throw new UmiError('LEGACY_WORKFLOW_RETIRED','旧副本不再提供执行能力');
     const c=this.repo.store.get('SELECT id,path,state FROM file_changes WHERE execution_id=? AND mount_id=?',executionId,m.id);
     if(c?.state==='intent') this.repo.direct.settle(String(c.id),m.environmentId,observe(m.root,String(c.path),m.rootIdentity),applied?'settled':'not_applied');
   }
@@ -101,7 +101,7 @@ export class DirectFileAccess {
   preview(conversationId:string,id:string,startByte=0,byteLength=64000) {
     const c=this.repo.direct.change(id,conversationId);
     const before=this.repo.direct.bytes(c.before_ref===null?null:String(c.before_ref)),after=this.repo.direct.bytes(c.after_ref===null?null:String(c.after_ref));
-    const diff=frozenDiff(before?.toString('utf8')??'',after?.toString('utf8')??''),page=byteExcerpt(diff,startByte,byteLength);
+    const diff=fileDiff(before?.toString('utf8')??'',after?.toString('utf8')??''),page=byteExcerpt(diff,startByte,byteLength);
     return {id,path:c.path,state:c.state,diff:page.text,truncated:page.endByte<Buffer.byteLength(diff),nextStartByte:page.endByte<Buffer.byteLength(diff)?page.endByte:null};
   }
   // 恢复产生新文件身份；旧入口沿恢复关系，自然语言入口沿已核验写入链，不放宽外部替换检查。

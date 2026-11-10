@@ -18,7 +18,7 @@ function filesUnder(root, relative, accept) {
 }
 export function sourceFingerprint(root) {
   const files = ['apps', 'packages', 'assets/brand'].flatMap(dir => filesUnder(root, dir, path => /\.(?:ts|tsx|css|png|ico|svg|ttf|txt)$/.test(path)));
-  files.push('package.json', 'package-lock.json', 'scripts/build-desktop.mjs', 'scripts/build-info.mjs', 'scripts/package-desktop.mjs', 'scripts/build-icons.cjs', 'scripts/build-windows.mjs', 'electron-builder.yml');
+  files.push('package.json', 'package-lock.json', 'scripts/build-desktop.mjs', 'scripts/build-info.mjs', 'scripts/prune-dist.mjs', 'scripts/package-desktop.mjs', 'scripts/build-icons.cjs', 'scripts/build-windows.mjs', 'electron-builder.yml');
   return digest(files.sort().map(path => `${path}\0${digest(readFileSync(join(root, path)))}`).join('\n'));
 }
 export function writeBuildInfo(root) {

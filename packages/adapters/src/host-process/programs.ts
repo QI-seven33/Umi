@@ -17,7 +17,7 @@ type Location = {
 function pathEntry(name: string, runtime: ProgramRuntime, check: () => void) {
   for (const directory of runtime.path.split(';')) {
     check();
-    // 不从 Umi 自己的 cwd 解释相对 PATH；那不是本次任务工作副本。
+    // 不从 Umi 自己的 cwd 解释相对 PATH；那不是本次任务的获准执行目录。
     // 这里只观察明确的绝对 PATH 项，不模拟 Shell 的别名、PATHEXT 或 App Paths。
     if (!isAbsolute(directory) || /^[/\\](?![/\\])/.test(directory)) continue;
     const candidate = join(directory, name);

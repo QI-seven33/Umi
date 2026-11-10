@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import { ScriptModel, call, text, eventually, removeTestRoot } from './fixtures.js';
 import { uid } from '../packages/agent/src/identity.js';
 import { executionContextSchema } from '../packages/protocol/src/model.js';
@@ -92,7 +92,7 @@ test(
         ),
         '副本',
       );
-      assert.equal(readFileSync(join(f.workspace, 'a.txt'), 'utf8'), '原文');
+      assert.equal(readFileSync(join(f.workspace, 'a.txt'), 'utf8'), '副本');
       const out = f.app.previewProcess(f.c.conversationId, t.id, 'stdout');
       assert.equal(out.text, '中文输出😀');
       assert.equal(out.receipt!.exitCode, 0);
@@ -336,7 +336,7 @@ test(
       assert(
         existsSync(join(app.files.repo.mount(mountId, c.environmentId).root, '.git')),
       );
-      assert(!existsSync(join(workspace, '.git')));
+      assert(existsSync(join(workspace, '.git')));
     } finally {
       await app.close();
       removeTestRoot(root);
@@ -492,7 +492,7 @@ for (const action of ['stop', 'timeout'] as const) {
         assert.equal(out.receipt!.reason, action === 'stop' ? 'stopped' : 'timeout');
         assert.equal(t.state, action === 'stop' ? 'cancelled' : 'failed');
         assert.throws(() => process.kill(pid, 0));
-        assert(!existsSync(join(f.workspace, 'pid.txt')));
+        assert.equal(Number(readFileSync(join(f.workspace, 'pid.txt'), 'utf8')), pid);
         assert(out.text.startsWith('运行中'));
       } finally {
         await f.close();
@@ -581,7 +581,7 @@ for (const shell of ['powershell', 'cmd'] as const) {
           join(app.files.repo.mount(mountId, c.environmentId).root, 'result.txt'),
         ),
       );
-      assert(!existsSync(join(workspace, 'result.txt')));
+      assert.equal(readFileSync(join(workspace, 'result.txt'), 'utf8').trim(), shell === 'powershell' ? '中文' : 'cmd-output');
     } finally {
       await app.close();
       removeTestRoot(root);

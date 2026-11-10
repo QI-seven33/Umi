@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import { DesktopService } from '../apps/desktop/service.js';
 import { Timeline } from '../apps/desktop/renderer/src/Timeline.js';
 import { activityLabel } from '../apps/desktop/renderer/src/activity.js';
-import { deliveredTarget, verifiedDocumentPath } from '../packages/adapters/src/host-files/delivered-open.js';
+import { verifiedDocumentPath } from '../packages/adapters/src/host-files/document-open.js';
 import { UmiError, validatePairs } from '../packages/protocol/src/model.js';
 import { reduceConversation, initialState } from '../packages/protocol/src/reducer.js';
 import { uid } from '../packages/agent/src/identity.js';
@@ -35,132 +35,11 @@ function setup(openError?: string) {
   const approve = async (name: string) => app.approve(c.conversationId, await pending(name), 'allow');
   return { root, workspace, external, source: join(external, 'report.html'), app, c, model, steps, opened, pending, approve,
     get mountId() { return mountId; }, get candidateId() { return candidateId; }, get csId() { return csId; }, get openAttempts() { return openAttempts; },
-    async deliver() {
-      steps.push(call('discover_resource', { path: join(external, 'report.html') }), r => {
-        candidateId = data(r).candidates[0].id;
-        return call('request_resource', { candidateId, access: 'edit', purpose: '跨轮打开验收' });
-      }, r => { mountId = data(r).mountId; return call('read_file', { mountId, path: 'report.html' }); }, r => {
-        const d = data(r); return call('edit_file', { mountId, path: 'report.html', readExecutionId: d.readExecutionId,
-          expectedReadHash: d.hash, oldText: 'OLD', newText: 'NEW' });
-      }, () => call('build_changeset', { mountId }), r => {
-        csId = data(r).changeSetId; return call('deliver_changeset', { changeSetId: csId });
-      }, text('已交付'));
-      const run = app.send(c.conversationId, uid(), '修改并交付');
-      await approve('request_resource'); await approve('deliver_changeset'); await app.wait(run.runId);
-      assert.equal(app.store.getRun(run.runId).status, 'completed');
-      assert.equal(app.files.repo.authorized(candidateId, c.environmentId), false);
-      assert.equal(readFileSync(join(external, 'report.html'), 'utf8'), '<p>NEW</p>');
-    },
-    openSteps() { steps.push(call('open_delivered_file', { changeSetId: csId, path: 'report.html' }), text('已请求打开')); },
     async close() { await app.close(); removeTestRoot(root); } };
 }
 function html(f: ReturnType<typeof setup>) {
   return renderToStaticMarkup(createElement(Timeline, { snapshot: new DesktopService(f.app).snapshot(f.c.conversationId), onPreview: () => {}, onError: () => {} }));
 }
-
-test('跨轮打开：旧临时权限失效后仅批准打开，不新建副本、不重新写回', async () => {
-  const f = setup();
-  try {
-    await f.deliver(); const oldHash = readFileSync(f.source);
-    f.openSteps(); const run = f.app.send(f.c.conversationId, uid(), '打开它');
-    const approval = await f.pending('open_delivered_file'); assert.equal(f.opened.length, 0);
-    assert.equal(f.app.files.repo.authorized(f.candidateId, f.c.environmentId), false);
-    f.app.approve(f.c.conversationId, approval, 'allow'); await f.app.wait(run.runId);
-    assert.equal(f.opened.length, 1); assert.equal(f.app.store.getRun(run.runId).status, 'completed');
-    assert.deepEqual(readFileSync(f.source), oldHash);
-    assert.deepEqual(f.app.store.tools(run.runId).map(t => t.name), ['open_delivered_file']);
-    const context = f.app.store.readArtifact<any>(f.app.store.tools(run.runId)[0]!.context_ref!);
-    assert.equal(context.locations[0].physicalRoot, f.external);
-    assert.equal(f.app.files.repo.authorized(f.candidateId, f.c.environmentId), false);
-    const service = new DesktopService(f.app);
-    const target = await service.handle({ type: 'open_delivered', conversationId: f.c.conversationId, changeSetId: f.csId, path: 'report.html' });
-    assert.equal((target as DocumentTarget).hash, f.opened[0]!.hash);
-  } finally { await f.close(); }
-});
-
-test('跨轮打开：重启和重新发现得到的新资源不必接回旧挂载', async () => {
-  const f = setup();
-  try {
-    await f.deliver(); await f.app.close();
-    const steps: Step[] = [call('discover_resource', { path: f.source }), r => {
-      assert.notEqual(data(r).candidates[0].id, f.candidateId);
-      return call('open_delivered_file', { changeSetId: f.csId, path: 'report.html' });
-    }, text('已请求打开')];
-    const opened: DocumentTarget[] = [], app = new UmiApplication(join(f.root, 'data'), new ScriptModel(steps), {
-      openDocument: async target => { verifiedDocumentPath(target); opened.push(target); } });
-    try {
-      const run = app.send(f.c.conversationId, uid(), '继续打开');
-      const id = await eventually(() => Object.entries(app.store.snapshot(f.c.conversationId).approvals).find(([, a]) => a.status === 'pending')?.[0]);
-      app.approve(f.c.conversationId, id, 'allow'); await app.wait(run.runId);
-      assert.equal(opened.length, 1); assert.equal(app.files.repo.authorized(f.candidateId, f.c.environmentId), false);
-    } finally { await app.close(); }
-  } finally { await f.close(); }
-});
-
-test('跨轮打开：批准前内容变化仍需版本核验，失败不转为未知、不重新交付', async () => {
-  const f = setup();
-  try {
-    await f.deliver(); writeFileSync(f.source, '<p>EXTERNAL</p>'); f.openSteps();
-    const run = f.app.send(f.c.conversationId, uid(), '打开'); await f.approve('open_delivered_file'); await f.app.wait(run.runId);
-    const t = f.app.store.tools(run.runId)[0]!;
-    assert.equal(t.state, 'failed'); assert.equal(f.opened.length, 0);
-    assert.equal(f.app.store.readArtifact<any>(t.result_ref!).data.code, 'RESOURCE_CHANGED');
-    assert.equal(f.app.store.unresolvedEnvironment(f.c.environmentId).length, 0);
-    assert.equal(readFileSync(f.source, 'utf8'), '<p>EXTERNAL</p>');
-  } finally { await f.close(); }
-});
-
-test('跨轮打开：等待中同字节替换文件必须重新批准当前对象', async () => {
-  const f = setup();
-  try {
-    await f.deliver(); f.openSteps(); const run = f.app.send(f.c.conversationId, uid(), '打开');
-    const old = await f.pending('open_delivered_file');
-    const replacement = join(f.external, 'replacement.html'); writeFileSync(replacement, readFileSync(f.source)); renameSync(replacement, f.source);
-    const fresh = await f.pending('open_delivered_file', old);
-    assert.equal(f.app.store.snapshot(f.c.conversationId).approvals[old]!.status, 'invalidated');
-    assert.equal(f.opened.length, 0); f.app.approve(f.c.conversationId, fresh, 'allow'); await f.app.wait(run.runId);
-    assert.equal(f.opened.length, 1);
-  } finally { await f.close(); }
-});
-
-test('跨轮打开：跨会话、未交付、根替换和硬链接不能冒充原对象', async () => {
-  const f = setup();
-  try {
-    await f.deliver(); const other = f.app.createConversation(f.workspace);
-    assert.throws(() => deliveredTarget(f.app.files, other.conversationId, f.csId, 'report.html'), /不属于|不存在/);
-    assert.throws(() => deliveredTarget(f.app.files, f.c.conversationId, f.csId, 'neighbor.html'));
-    linkSync(f.source, join(f.external, 'hardlink.html'));
-    assert.throws(() => deliveredTarget(f.app.files, f.c.conversationId, f.csId, 'report.html'), /链接/);
-    renameSync(f.external, f.external + '-old'); mkdirSync(f.external); writeFileSync(f.source, '<p>NEW</p>');
-    assert.throws(() => deliveredTarget(f.app.files, f.c.conversationId, f.csId, 'report.html'), /目录身份/);
-  } finally { await f.close(); }
-});
-
-test('跨轮打开：用户拒绝不发系统请求，系统明确拒绝保持已知失败', async () => {
-  for (const mode of ['deny', 'OPEN_REJECTED']) {
-    const f = setup(mode === 'deny' ? undefined : mode);
-    try {
-      await f.deliver(); f.openSteps(); const run = f.app.send(f.c.conversationId, uid(), '打开');
-      f.app.approve(f.c.conversationId, await f.pending('open_delivered_file'), mode === 'deny' ? 'deny' : 'allow'); await f.app.wait(run.runId);
-      assert.equal(f.opened.length, 0); assert.equal(f.app.store.tools(run.runId)[0]!.state, mode === 'deny' ? 'denied' : 'failed');
-      assert.equal(f.app.store.unresolvedEnvironment(f.c.environmentId).length, 0);
-    } finally { await f.close(); }
-  }
-});
-
-test('跨轮打开：回执丢失保持未知，新消息和恢复不会自动重放打开', async () => {
-  const f = setup('OPEN_UNKNOWN');
-  try {
-    await f.deliver(); f.openSteps(); const run = f.app.send(f.c.conversationId, uid(), '打开'); await f.approve('open_delivered_file'); await f.app.wait(run.runId);
-    assert.equal(f.app.store.getRun(run.runId).status, 'recovery_required'); assert.equal(f.app.store.tools(run.runId)[0]!.state, 'unknown');
-    f.steps.length = 0; f.steps.push(text('原打开回执未知，先保留结果等待核验'));
-    assert.equal(f.openAttempts, 1);
-    const next = f.app.send(f.c.conversationId, uid(), '解释状态，先不打开'); await f.app.wait(next.runId);
-    assert.equal(f.openAttempts, 1);
-    assert.equal(f.app.store.tools(next.runId).filter(t => t.name === 'open_delivered_file').length, 1);
-    assert.equal(f.app.store.unresolvedEnvironment(f.c.environmentId).length, 1);
-  } finally { await f.close(); }
-});
 
 function repeatMissing(f: ReturnType<typeof setup>) {
   const mount = f.app.files.repo.mounts(f.c.environmentId)[0]!;
@@ -306,50 +185,5 @@ test('停滞收尾：编码后超预算直接保存本地说明，不发额外�
     assert.equal(f.model.requests.length, 5);
     assert(f.app.store.snapshot(f.c.conversationId).runs[run.runId]!.failureSummary);
     assert.equal(f.app.store.getRun(run.runId).status, 'failed');
-  } finally { await f.close(); }
-});
-
-test('跨轮副本事实：先说明未获准，旧句柄仍拒绝，重新批准后可读取且不泄露其它环境', async () => {
-  const f = setup();
-  try {
-    await f.deliver();
-    const other = f.app.createConversation(f.workspace);
-    assert.deepEqual((f.app.store.runtimeFacts(other.environmentId) as any).unavailableMounts, []);
-    f.steps.push(r => {
-      const resources = projectedFacts(r.body.messages as any)['runtime.resources'];
-      const unavailable = resources.unavailableMounts.find((m: any) => m.mountId === f.mountId);
-      assert.equal(unavailable.candidateId, f.candidateId);
-      assert.equal(unavailable.sourceRoot, f.external);
-      assert.equal(unavailable.access, 'unavailable');
-      assert.match(unavailable.nextStep, /request_resource/);
-      assert(!resources.mounts.some((m: any) => m.mountId === f.mountId));
-      return call('read_file', { mountId: f.mountId, path: 'report.html' });
-    }, r => {
-      assert.equal(data(r).code, 'PERMISSION_DENIED');
-      return call('discover_resource', { path: f.source });
-    }, r => call('request_resource', { candidateId: data(r).candidates[0].id, access: 'read', purpose: '继续读取' }),
-    r => {
-      const mountId = data(r).mountId;
-      const resources = projectedFacts(r.body.messages as any)['runtime.resources'];
-      assert(resources.mounts.some((m: any) => m.mountId === mountId));
-      assert(!resources.unavailableMounts.some((m: any) => m.mountId === mountId));
-      return call('read_file', { mountId, path: 'report.html' });
-    }, r => { assert.equal(data(r).text, '<p>NEW</p>'); return text('已读取'); });
-    const run = f.app.send(f.c.conversationId, uid(), '继续读文件');
-    await f.approve('request_resource'); await f.app.wait(run.runId);
-    assert.equal(f.app.store.getRun(run.runId).status, 'completed');
-    assert.equal(f.app.store.tools(run.runId)[0]!.state, 'failed');
-    assert.equal(readFileSync(f.source, 'utf8'), '<p>NEW</p>');
-    // 长会话只给最近的不可用元数据；更早挂载及原历史没有删除。
-    const original = f.app.files.repo.mount(f.mountId, f.c.environmentId);
-    const historicalIds: string[] = [];
-    for (let i = 0; i < 18; i++) {
-      const id = uid(); historicalIds.push(id);
-      f.app.files.repo.addMount({ ...original, id, root: join(f.root, id) }, f.app.files.repo.baseline(original), []);
-    }
-    const facts = f.app.store.runtimeFacts(f.c.environmentId) as any;
-    assert.deepEqual(facts.unavailableMounts.map((m: any) => m.mountId), historicalIds.slice(-16).reverse());
-    assert.equal(f.app.files.repo.mount(f.mountId, f.c.environmentId).id, f.mountId);
-    assert.equal(f.app.files.repo.authorized(f.candidateId, f.c.environmentId), false);
   } finally { await f.close(); }
 });

@@ -5,7 +5,7 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {UmiApplication} from '../apps/headless/src/application.js';
 import {DesktopService} from '../apps/desktop/service.js';
-import {LegacyFileApplication} from './legacy-file-fixture.js';
+
 import {ScriptModel,call,text,eventually,removeTestRoot} from './fixtures.js';
 import type {Step} from './fixtures.js';
 import {uid} from '../packages/agent/src/identity.js';
@@ -67,10 +67,10 @@ test('目录根身份替换、穿越、控制数据、只读授权拒绝实际�
   renameSync(f.workspace,f.workspace+'-old');mkdirSync(f.workspace);writeFileSync(join(f.workspace,'a.txt'),'同名新目录');assert.throws(()=>f.app.previewFile(f.c.conversationId,f.m.id,'a.txt'),/身份/);
  }finally{await f.close();}
 });
-test('旧副本升级保持原位置和旧批准语义，不自动写回或变成直改权',async()=>{
+test('旧会话退役：重启后拒绝旧副本执行，迁移事实和源文件不变，新会话须明确选择目录',async()=>{
  const root=mkdtempSync(join(tmpdir(),'umi-direct-legacy-')),workspace=join(root,'workspace'),data=join(root,'data');mkdirSync(workspace);writeFileSync(join(workspace,'a.txt'),'源文');
- const old=new LegacyFileApplication(data,new ScriptModel([])),c=old.createConversation(workspace),m=old.files.repo.mounts(c.environmentId)[0]!;writeFileSync(join(m.root,'a.txt'),'未交付成果');const events=old.store.events(c.conversationId),fingerprints=old.store.all('SELECT * FROM schema_migrations WHERE version<=7');old.store.db.exec('DROP TABLE file_changes;DROP TABLE direct_file_mounts;DROP TABLE direct_file_environments;DROP TABLE workspace_file_grants;DELETE FROM schema_migrations WHERE version=8');await old.close();
- const app=new UmiApplication(data,new ScriptModel([]));try{app.files.initialize(c.environmentId);assert.equal(app.files.repo.mount(m.id,c.environmentId).root,m.root);assert.equal(readFileSync(join(workspace,'a.txt'),'utf8'),'源文');assert.equal(readFileSync(join(m.root,'a.txt'),'utf8'),'未交付成果');assert.deepEqual(app.store.events(c.conversationId),events);assert.deepEqual(app.store.all('SELECT * FROM schema_migrations WHERE version<=7'),fingerprints);assert.equal(app.store.databaseVersion,12);assert(!app.files.repo.direct.enabled(c.environmentId));}finally{await app.close();removeTestRoot(root);}
+ const old=new UmiApplication(data,new ScriptModel([])),c=old.store.createConversation(workspace,{},false),events=old.store.events(c.conversationId),fingerprints=old.store.all('SELECT * FROM schema_migrations');await old.close();
+ const app=new UmiApplication(data,new ScriptModel([]));try{assert.throws(()=>app.files.initialize(c.environmentId),/旧副本/);assert.throws(()=>app.send(c.conversationId,uid(),'继续'),/旧副本/);assert.equal(readFileSync(join(workspace,'a.txt'),'utf8'),'源文');assert.deepEqual(app.store.events(c.conversationId),events);assert.deepEqual(app.store.all('SELECT * FROM schema_migrations'),fingerprints);assert(!app.files.repo.direct.enabled(c.environmentId));const fresh=app.createConversation(workspace);assert(app.files.repo.direct.enabled(fresh.environmentId));assert(!app.files.repo.direct.enabled(c.environmentId));}finally{await app.close();removeTestRoot(root);}
 });
 test('外部目录需独立明确授权，后续run复用；普通编辑不批准宿主命令',async()=>{
  const f=fixture(),external=join(f.root,'external');mkdirSync(external);try{

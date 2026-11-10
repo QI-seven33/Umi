@@ -8,7 +8,7 @@ import {ScriptModel,call,text,eventually,removeTestRoot} from './fixtures.js';
 import {uid} from '../packages/agent/src/identity.js';
 import {UmiError} from '../packages/protocol/src/model.js';
 import type {DocumentTarget} from '../packages/protocol/src/native-open.js';
-import {verifiedDocumentPath} from '../packages/adapters/src/host-files/delivered-open.js';
+import {verifiedDocumentPath} from '../packages/adapters/src/host-files/document-open.js';
 
 function fixture(openError?:boolean){
  const root=mkdtempSync(join(tmpdir(),'umi-direct-open-')),workspace=join(root,'workspace');mkdirSync(workspace);writeFileSync(join(workspace,'index.html'),'<title>实际文档</title>');writeFileSync(join(workspace,'fake.exe'),'不可执行的测试文本');
@@ -57,4 +57,31 @@ test('文档打开不能变成程序/URL/argv入口；不确定回执保持unkno
   const again=new UmiApplication(join(f.root,'data'),new ScriptModel([]),{openDocument:async()=>{throw new Error('不应重放');}});
   try{assert.equal(again.store.tools(run.runId)[0]!.state,'unknown');assert.equal(f.opened.length,1);}finally{await again.close();}
  }finally{await f.close();}
+});
+
+test('直改打开的任务证据绑定实际文档版本，后续变化退回待审且不重新打开', async () => {
+  const f = fixture();
+  try {
+    f.steps.push(call('open_file', { mountId: f.mount.id, path: 'index.html' }), () => {
+      const source = f.app.store.messages(f.c.conversationId).findLast(m => m.role === 'user' && m.applied)!;
+      const opened = Object.values(f.app.store.snapshot(f.c.conversationId).tools).findLast(t => t.name === 'open_file')!;
+      return call('record_task_checkpoint', {
+        goal: '打开文档并记录系统接收结果',
+        source: { messageId: source.id, quote: '打开文档' },
+        acknowledgedInputId: source.id,
+        criteria: [{ id: 'open', description: '系统接收当前文档版本', check: { kind: 'document_open', mountId: f.mount.id, path: 'index.html' } }],
+        progress: [{ criterionId: 'open', status: 'verified', evidenceExecutionId: opened.executionId }],
+      });
+    }, text('系统已接收；未验证页面渲染。'));
+    const run = f.app.send(f.c.conversationId, uid(), '请打开文档并记录系统接收结果');
+    f.app.approve(f.c.conversationId, await f.pending(), 'allow');
+    assert.equal((await f.app.wait(run.runId)).status, 'completed');
+    assert.equal(f.app.tasks.assess(f.c.conversationId).status, 'criteria_verified');
+    assert.equal(f.opened.length, 1);
+    writeFileSync(join(f.workspace, 'index.html'), '<title>外部新版本</title>');
+    assert.equal(f.app.tasks.assess(f.c.conversationId).status, 'needs_review');
+    assert.equal(f.opened.length, 1);
+  } finally {
+    await f.close();
+  }
 });

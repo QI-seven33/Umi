@@ -21,7 +21,7 @@ export function registerTasks(
   registry.register({
     name: 'record_task_checkpoint',
     description:
-      '按需保存多项任务的原话来源、验收、进度和下一步；不是操作、继续或交付的前置步骤。创建后目标、来源和验收项不可删除或降低；更新传 taskId/baseVersion。verified 必须引用匹配的真实工具证据，文件哈希、指定命令退出、源交付、export_receipt 具体成果导出和 document_open 系统打开请求分别核验，review 保持待审。每次状态实质变化才记录；不授予权限。',
+      '按需保存多项任务的原话来源、验收、进度和下一步；不是操作、继续或交付的前置步骤。创建后目标、来源和验收项不可删除或降低；更新传 taskId/baseVersion。verified 必须引用匹配的真实工具证据，文件哈希、指定命令退出、export_receipt 具体成果导出和 document_open 系统打开请求分别核验，review 保持待审。每次状态实质变化才记录；不授予权限。',
     schema: taskCheckpointInputSchema,
     effect: 'memory', inspect,
     prepare(args, env, executionId) {

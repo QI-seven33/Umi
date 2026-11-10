@@ -1,104 +1,30 @@
+import {filePath} from '../../../protocol/src/file-path.js';
+import {hash} from '../../../agent/src/identity.js';
 import {DirectFileAccess} from './direct-access.js';
-import { existsSync, lstatSync, readFileSync, mkdirSync, statSync } from 'node:fs';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import {lstatSync,readFileSync,statSync} from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 import { metadataInventory, metadataPage, discoveryRoots } from './metadata.js';
 import type { MetadataCoverage, MetadataEntry } from './metadata.js';
 import { homedir } from 'node:os';
 import { TextDecoder } from 'node:util';
-import { setImmediate as yieldIO } from 'node:timers/promises';
+
 import { hostContext } from './scratch.js';
-import {
-  atomicWrite,
-  bytesHash,
-  fileIdentity,
-  observe,
-  rootIdentity,
-  safeFile,
-  safeRoot,
-  scan,
-  sameEntry,
-} from './paths.js';
+import {bytesHash,fileIdentity,observe,rootIdentity,safeFile,safeRoot} from './paths.js';
 import { ResourceRepository } from '../sqlite/resources.js';
 import type { Environment } from '../../../agent/src/persistence.js';
-import type { Candidate, Mount, Manifest } from '../../../protocol/src/resources.js';
+import type {Candidate,Mount} from '../../../protocol/src/resources.js';
 import type { ExecutionContext } from '../../../protocol/src/model.js';
 import { UmiError } from '../../../protocol/src/model.js';
-import { hash } from '../../../agent/src/identity.js';
-import { filePath } from '../../../protocol/src/resources.js';
-import type { ToolResult } from '../../../agent/src/persistence.js';
-import type {
-  ResourceScope,
-  MaterializationFailure,
-} from '../../../protocol/src/resource-scope.js';
+
+import type {ResourceScope} from '../../../protocol/src/resource-scope.js';
 
 export class ResourceFiles {
   readonly direct: DirectFileAccess;
   constructor(readonly repo: ResourceRepository,protectedRoots:readonly string[]=[]) { this.direct=new DirectFileAccess(repo,protectedRoots); }
   initialize(environmentId: string): void {
-    if(this.repo.direct.enabled(environmentId)) {this.direct.initialize(environmentId);return;}
-    const c = this.repo.store.get(
-        'SELECT id FROM conversations WHERE environment_id=?',
-        environmentId,
-      )!,
-      conversationId = c.id as string;
-    const candidates = this.repo.store.all(
-      'SELECT id FROM resource_candidates WHERE environment_id=? AND initial=1',
-      environmentId,
-    );
-    if (
-      candidates.some(
-        (r) =>
-          this.repo.mounts(environmentId).some((m) => m.resourceId === r.id) ||
-          this.repo.store.snapshot(conversationId).resources[r.id as string]
-            ?.materializationError,
-      )
-    )
-      return;
-    try {
-      this.bindInitial(conversationId);
-    } catch (e) {
-      const resource = this.repo.store.get(
-        'SELECT id FROM resource_candidates WHERE environment_id=? AND initial=1',
-        environmentId,
-      );
-      if (!resource) throw e;
-      const record = this.repo.store.get(
-        'SELECT id FROM materializations WHERE environment_id=? AND resource_id=?',
-        environmentId,
-        resource.id as string,
-      );
-      const failure: MaterializationFailure = record
-        ? { stage: 'copy', effects: 'partial-or-unknown', mountId: record.id as string }
-        : { stage: 'scan', effects: 'not-started' };
-      this.repo.store.commit(this.repo.scope(environmentId), {
-        type: 'resource.materialization_failed',
-        payload: {
-          resourceId: resource.id as string,
-          code: e instanceof UmiError ? e.code : 'MATERIALIZATION_FAILED',
-          reason:
-            e instanceof Error
-              ? e.message
-              : '初始工作区未完成物化；其他已获准工具仍可使用',
-          failure,
-        },
-      });
-    }
-  }
-  bindInitial(conversationId: string): Mount {
-    const c = this.repo.store.conversation(conversationId),
-      env = this.repo.store.environment(c.environment_id as string);
-    const path = this.repo.store.get(
-      'SELECT source_root FROM workspaces WHERE id=?',
-      c.workspace_id as string,
-    )!.source_root as string;
-    const candidate = this.repo.candidate(
-      env.id,
-      safeRoot(path),
-      rootIdentity(path),
-      true,
-    );
-    this.repo.grant(candidate, 'edit');
-    return this.materialize(candidate);
+    if (!this.repo.direct.enabled(environmentId))
+      throw new UmiError('LEGACY_WORKFLOW_RETIRED', '旧副本会话已停止支持，请选择目录创建新会话；不会自动升级旧权限或写回文件');
+    this.direct.initialize(environmentId);
   }
   discover(
     env: Environment,
@@ -301,7 +227,7 @@ export class ResourceFiles {
       notice:
         page.status === 'restart_required'
           ? '目录元数据已变化，请去掉 cursor 重新搜索'
-          : '只观察已声明范围内的元数据；空结果不代表文件不存在。cursor 只翻页本次覆盖结果，达到遍历预算请缩小 root/depth。query 只筛选结果，不缩小遍历范围。正文读取仍需 '+(this.repo.direct.enabled(env.id)?'request_directory_access':'request_resource')+'。',
+          : '只观察已声明范围内的元数据；空结果不代表文件不存在。cursor 只翻页本次覆盖结果，达到遍历预算请缩小 root/depth。query 只筛选结果，不缩小遍历范围。正文读取仍需 request_directory_access。',
       nextCursor: page.nextCursor,
     };
   }
@@ -354,55 +280,24 @@ export class ResourceFiles {
       nextCursor: page.nextCursor,
     };
   }
-
-  resourceContext(
-    input: unknown,
-    env: Environment,
-    candidateId: string,
-    access: 'read' | 'edit',
-    executionId?: string,
-  ): ExecutionContext {
-    const c = this.repo.getCandidate(candidateId, env.id);
-    if (this.repo.denied(c, access))
-      throw new UmiError(
-        'RESOURCE_DENIED',
-        '这个来源的等价资源权限已被拒绝；请改用获准资源',
-      );
-    this.checkCandidate(c);
-    const sourceRoot = this.sourceRoot(c),
-      sourceIdentity = this.sourceIdentity(c),
-      ctx = hostContext(input, env);
-    const old = this.repo.mounts(env.id).find((m) => m.resourceId === c.id),
-      mountId =
-        old?.id ??
-        `mount-${hash({ environmentId: env.id, resourceId: c.id, executionId: executionId ?? 'initial' }).slice(0, 40)}`;
-    const root = join(env.root, 'working', mountId);
+  resourceContext(input: unknown, env: Environment, candidateId: string, access: 'read' | 'edit'): ExecutionContext {
+    const candidate = this.repo.getCandidate(candidateId, env.id);
+    if (this.repo.denied(candidate, access))
+      throw new UmiError('RESOURCE_DENIED', '这个来源的等价权限已被拒绝，请使用获准目录');
+    this.checkCandidate(candidate);
+    this.direct.protect(candidate.path);
     return {
-      ...ctx,
-      ...(c.scope.kind === 'file' ? { resourceScope: c.scope } : {}),
-      locations: [
-        {
-          schemaVersion: 1,
-          environmentId: env.id,
-          rootRef: { kind: 'source', resourceId: c.id, bindingVersion: 1 },
-          relativePath: c.scope.kind === 'file' ? c.scope.path : 'resource',
-          beforeHash: null,
-          desiredHash: null,
-          physicalRoot: sourceRoot,
-          physicalRootIdentity: sourceIdentity,
-          ...(c.scope.kind === 'file' ? { beforeIdentity: c.scope.identity } : {}),
-        },
-        {
-          schemaVersion: 1,
-          environmentId: env.id,
-          rootRef: { kind: 'mount', mountId, area: 'working', bindingVersion: 1 },
-          relativePath: c.scope.kind === 'file' ? c.scope.path : 'resource',
-          beforeHash: null,
-          desiredHash: null,
-          physicalRoot: root,
-          ...(old ? { physicalRootIdentity: old.rootIdentity } : {}),
-        },
-      ],
+      ...hostContext(input, env),
+      ...(candidate.scope.kind === 'file' ? { resourceScope: candidate.scope } : {}),
+      locations: [{
+        schemaVersion: 1, environmentId: env.id,
+        rootRef: { kind: 'source', resourceId: candidate.id, bindingVersion: 1 },
+        relativePath: candidate.scope.kind === 'file' ? candidate.scope.path : 'resource',
+        beforeHash: null, desiredHash: null,
+        physicalRoot: this.sourceRoot(candidate),
+        physicalRootIdentity: this.sourceIdentity(candidate),
+        ...(candidate.scope.kind === 'file' ? { beforeIdentity: candidate.scope.identity } : {}),
+      }],
     };
   }
   mountContext(
@@ -415,7 +310,7 @@ export class ResourceFiles {
   ): ExecutionContext {
     const m = this.repo.mount(mountId, env.id);
     if (!this.repo.authorized(m.resourceId, env.id, edit))
-      throw new UmiError('PERMISSION_DENIED', '当前任务没有该工作副本所需权限');
+      throw new UmiError('PERMISSION_DENIED', '当前工作区没有该目录所需权限');
     safeRoot(m.root, m.rootIdentity);
     this.direct.check(m,edit,path);
     const ctx = {
@@ -448,160 +343,6 @@ export class ResourceFiles {
       ],
     };
   }
-  materialize(c: Candidate, plannedMountId?: string): Mount {
-    const steps = this.materializationSteps(c, plannedMountId);
-    while (true) {
-      const step = steps.next();
-      if (step.done) return step.value;
-    }
-  }
-  async materializeAsync(
-    c: Candidate,
-    plannedMountId: string,
-    signal: AbortSignal,
-  ): Promise<Mount> {
-    const steps = this.materializationSteps(c, plannedMountId, signal),
-      start = Date.now();
-    let count = 0;
-    while (true) {
-      signal.throwIfAborted();
-      if (Date.now() - start > 30000)
-        throw new UmiError(
-          'RESOURCE_LIMIT',
-          '物化超过本次时间限额；已保存计划，可核验部分副本',
-        );
-      const step = steps.next();
-      if (step.done) return step.value;
-      if (++count % 16 === 0) await yieldIO(undefined, { signal });
-    }
-  }
-  private *materializationSteps(
-    c: Candidate,
-    plannedMountId?: string,
-    signal?: AbortSignal,
-  ): Generator<void, Mount> {
-    if (!this.repo.authorized(c.id, c.environmentId))
-      throw new UmiError('PERMISSION_DENIED', '来源尚未授权，未读取正文');
-    const old = this.repo.mounts(c.environmentId).find((m) => m.resourceId === c.id);
-    if (old) {
-      safeRoot(old.root, old.rootIdentity);
-      this.checkCandidate(c);
-      return old;
-    }
-    const env = this.repo.store.environment(c.environmentId);
-    hostContext({}, env);
-    this.checkCandidate(c);
-    // 托管数据不能递归成为自身的来源。运行数据库与环境目录也不作为用户资料物化。
-    const excluded = [
-      this.repo.store.dataRoot,
-      join(this.repo.store.dataRoot, 'environments'),
-      join(this.repo.store.dataRoot, 'umi.sqlite'),
-      join(this.repo.store.dataRoot, 'umi.sqlite-wal'),
-      join(this.repo.store.dataRoot, 'umi.sqlite-shm'),
-      join(this.repo.store.dataRoot, 'writer.lock'),
-    ];
-    const sourceRoot = this.sourceRoot(c),
-      sourceIdentity = this.sourceIdentity(c),
-      scanned = this.scanSource(c, excluded),
-      mountId =
-        plannedMountId ??
-        `mount-${hash({ environmentId: env.id, resourceId: c.id, executionId: 'initial' }).slice(0, 40)}`,
-      root = join(env.root, 'working', mountId);
-    if (existsSync(root))
-      throw new UmiError(
-        'RESOURCE_CHANGED',
-        '计划物化位置已经存在，不能覆盖旧副本；请核验原执行',
-      );
-    this.repo.beginMaterialization(c, mountId, root, scanned.manifest, scanned.excluded);
-    mkdirSync(root, { recursive: true });
-    this.repo.bindMaterializationRoot(mountId, env.id, rootIdentity(root));
-    const manifest: Manifest = {};
-    for (const [path, entry] of Object.entries(scanned.manifest)) {
-      signal?.throwIfAborted();
-      const file = safeFile(sourceRoot, path, sourceIdentity),
-        bytes = readFileSync(file);
-      if (
-        !sameEntry(observe(sourceRoot, path, sourceIdentity), entry) ||
-        bytesHash(bytes) !== entry.hash
-      )
-        throw new UmiError('RESOURCE_CHANGED', '物化时来源文件已变化');
-      this.saveBlob(env, bytes);
-      atomicWrite(root, path, bytes);
-      manifest[path] = entry;
-      yield;
-    }
-    const after = this.scanSource(c, excluded).manifest;
-    if (
-      Object.keys(after).length !== Object.keys(manifest).length ||
-      Object.entries(manifest).some(([p, e]) => !sameEntry(after[p] ?? null, e))
-    )
-      throw new UmiError('RESOURCE_CHANGED', '物化期间来源目录变化，未发布挂载');
-    this.repo.addMount(
-      {
-        id: mountId,
-        environmentId: env.id,
-        resourceId: c.id,
-        root,
-        rootIdentity: rootIdentity(root),
-        bindingVersion: 1,
-        sourceRoot,
-        sourceIdentity,
-        scope: c.scope,
-      },
-      manifest,
-      scanned.excluded,
-    );
-    return this.repo.mount(mountId, env.id);
-  }
-  reconcileMaterialization(c: Candidate, ctx: ExecutionContext): Mount | undefined {
-    const location = ctx.locations.find((l) => l.rootRef.kind === 'mount');
-    if (!location || location.rootRef.kind !== 'mount') return undefined;
-    const record = this.repo.materialization(location.rootRef.mountId, c.environmentId);
-    if (!record?.rootIdentity) return undefined;
-    const env = this.repo.store.environment(c.environmentId);
-    hostContext({}, env);
-    if (
-      record.resourceId !== c.id ||
-      record.plan.sourceRoot !== this.sourceRoot(c) ||
-      record.plan.sourceIdentity !== this.sourceIdentity(c) ||
-      hash(record.plan.resourceScope ?? { kind: 'directory' }) !== hash(c.scope) ||
-      hash(ctx.resourceScope ?? { kind: 'directory' }) !== hash(c.scope) ||
-      record.plan.root !== location.physicalRoot
-    )
-      return undefined;
-    safeRoot(record.plan.root, record.rootIdentity);
-    const current = scan(record.plan.root).manifest;
-    if (
-      Object.keys(current).length !== Object.keys(record.plan.manifest).length ||
-      Object.entries(record.plan.manifest).some(
-        ([p, e]) => !sameEntry(current[p] ?? null, e, false),
-      )
-    )
-      return undefined;
-    for (const e of Object.values(record.plan.manifest)) this.blob(env, e.hash);
-    this.repo.addMount(
-      {
-        id: record.id,
-        environmentId: env.id,
-        resourceId: c.id,
-        root: record.plan.root,
-        rootIdentity: record.rootIdentity,
-        bindingVersion: 1,
-        sourceRoot: this.sourceRoot(c),
-        sourceIdentity: this.sourceIdentity(c),
-        scope: c.scope,
-      },
-      record.plan.manifest,
-      record.plan.excluded,
-    );
-    return this.repo.mount(record.id, env.id);
-  }
-  scanMount(m: Mount): Manifest {
-    safeRoot(m.root, m.rootIdentity);
-    if (m.scope.kind === 'directory') return scan(m.root).manifest;
-    const entry = observe(m.root, m.scope.path, m.rootIdentity);
-    return entry ? { [m.scope.path]: entry } : {};
-  }
   sourceRoot(c: Candidate): string {
     return c.scope.kind === 'file' ? dirname(c.path) : c.path;
   }
@@ -630,85 +371,12 @@ export class ResourceFiles {
         );
     }
   }
-  private scanSource(c: Candidate, excluded: string[]) {
-    if (c.scope.kind === 'directory') return scan(c.path, excluded);
-    this.checkCandidate(c);
-    const target = resolve(c.path),
-      within = (p: string) => {
-        const a = resolve(p),
-          t = process.platform === 'win32' ? target.toLowerCase() : target,
-          r = process.platform === 'win32' ? a.toLowerCase() : a;
-        return t === r || t.startsWith(r + sep);
-      };
-    if (excluded.some(within))
-      throw new UmiError('PERMISSION_DENIED', '托管运行数据不能作为来源物化');
-    const entry = observe(this.sourceRoot(c), c.scope.path, c.scope.rootIdentity);
-    if (!entry) throw new UmiError('RESOURCE_CHANGED', '所选文件已消失');
-    this.checkCandidate(c);
-    return { manifest: { [c.scope.path]: entry }, excluded: [] };
-  }
-  materializationFailure(
-    c: Candidate,
-    ctx: ExecutionContext,
-    error: unknown,
-  ): ToolResult {
-    const location = ctx.locations.find((l) => l.rootRef.kind === 'mount'),
-      mountId = location?.rootRef.kind === 'mount' ? location.rootRef.mountId : undefined;
-    const record = mountId
-      ? this.repo.materialization(mountId, c.environmentId)
-      : undefined;
-    const failure: MaterializationFailure = {
-      stage: record ? 'copy' : 'scan',
-      effects: record ? 'partial-or-unknown' : 'not-started',
-      ...(mountId ? { mountId } : {}),
-    };
-    const code = error instanceof UmiError ? error.code : 'MATERIALIZATION_FAILED',
-      reason = error instanceof Error ? error.message : '资源物化失败';
-    this.repo.store.commit(this.repo.scope(c.environmentId), {
-      type: 'resource.materialization_failed',
-      payload: { resourceId: c.id, code, reason, failure },
-    });
-    return {
-      outcome: record ? 'unknown' : 'failed',
-      content:
-        reason +
-        (record
-          ? '；已保留原物化计划，恢复将核验副本，不重新复制。'
-          : '；尚未开始复制，没有发布挂载。'),
-      data: { code, reason, failure },
-      verification: record ? 'unknown' : 'not-started',
-    };
-  }
-  saveBlob(env: Environment, bytes: Uint8Array): string {
-    hostContext({}, env);
-    const digest = bytesHash(bytes),
-      root = join(env.root, 'task', 'artifacts', 'content');
-    mkdirSync(root, { recursive: true });
-    safeRoot(root);
-    const path = `${digest}.bin`,
-      file = safeFile(root, path);
-    if (!existsSync(file)) atomicWrite(root, path, bytes);
-    else if (bytesHash(readFileSync(file)) !== digest)
-      throw new UmiError('PROTOCOL_INVALID', '内容资料指纹不一致');
-    return digest;
-  }
-  blob(env: Environment, digest: string): Buffer {
-    if (!/^[a-f0-9]{64}$/.test(digest))
-      throw new UmiError('PROTOCOL_INVALID', '内容资料标识无效');
-    hostContext({}, env);
-    const data = readFileSync(
-      safeFile(join(env.root, 'task', 'artifacts', 'content'), `${digest}.bin`),
-    );
-    if (bytesHash(data) !== digest)
-      throw new UmiError('PROTOCOL_INVALID', '内容资料被修改');
-    return data;
-  }
   read(m: Mount, path: string, startByte = 0, byteLength = 8192, expectedHash?: string, lines?: { startLine: number; lineCount: number }) {
     this.assertPath(m.scope, path);
     this.direct.check(m,false,path);
     const entry = observe(m.root, path, m.rootIdentity);
-    if (!entry) throw new UmiError('NOT_FOUND', '工作副本文件不存在');
-    if (expectedHash && entry.hash !== expectedHash) throw new UmiError('RESOURCE_CHANGED', '工作副本版本已改变，请从头读取预览');
+    if (!entry) throw new UmiError('NOT_FOUND', '文件不存在');
+    if (expectedHash && entry.hash !== expectedHash) throw new UmiError('RESOURCE_CHANGED', '文件版本已改变，请从头读取预览');
     const bytes = readFileSync(safeFile(m.root, path, m.rootIdentity));
     if (
       bytesHash(bytes) !== entry.hash ||

@@ -103,22 +103,15 @@ export class TaskRepository implements TaskPort {
         )
           return false;
       } else if (check.kind === 'document_open') {
-        if (tool.name !== 'open_delivered_file' || args.path !== check.path || data.path !== check.path ||
-          data.changeSetId !== args.changeSetId || data.systemAccepted !== true) return false;
+        if (tool.name !== 'open_file' || args.path !== check.path || data.path !== check.path ||
+          args.mountId !== check.mountId || data.mountId !== check.mountId || data.systemAccepted !== true) return false;
       } else if (check.kind === 'export_receipt') {
         if (tool.name === 'export_outputs') {
           if (data.exportExecutionId !== tool.id) return false;
         } else if (tool.name === 'inspect_export') {
           if (args.executionId !== data.exportExecutionId) return false;
         } else return false;
-      } else {
-        if (
-          tool.name !== 'deliver_changeset' ||
-          args.changeSetId !== check.changeSetId ||
-          data.changeSetId !== check.changeSetId
-        )
-          return false;
-      }
+      } else { return false; }
       // 原话更正和环境变化使旧证据退回待审；恢复同一运行不会重新派发副作用。
       const events = this.store.events(conversationId);
       const settled = events.findLastIndex(
@@ -132,7 +125,7 @@ export class TaskRepository implements TaskPort {
         (event) => event.type === 'input.applied' && event.payload.messageId === latestId,
       );
       if (inputIndex > settled) return false;
-      // 全局修订用于执行批准；验收按对应对象重新观察，正常交付不能使不变的副本测试失效。
+      // 全局修订用于执行批准；验收按对应对象重新观察，无关文件修改不能使不变的命令回执失效。
       return this.currentEvidence(check, tool, result);
     } catch {
       return false;

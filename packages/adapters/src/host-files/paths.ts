@@ -9,7 +9,7 @@ import {
   mkdirSync,
   renameSync,
   unlinkSync,
-  readdirSync,
+
   openSync,
   closeSync,
   fsyncSync,
@@ -104,48 +104,6 @@ export function sameEntry(
     ? a === b
     : a.hash === b.hash && a.size === b.size && (!identity || a.identity === b.identity);
 }
-// 枚举必须完整覆盖配置范围；达到上限即失败，不能把不完整清单交给交付器。
-export function scan(
-  root: string,
-  excluded: string[] = [],
-): { manifest: Manifest; excluded: string[] } {
-  safeRoot(root);
-  const manifest: Manifest = {},
-    skipped: string[] = [];
-  let count = 0,
-    total = 0;
-  const start = Date.now();
-  const ignore = new Set(['.git', 'node_modules', '.venv', '__pycache__']);
-  function walk(dir: string, base: string, depth: number) {
-    if (depth > 16 || Date.now() - start > 10000)
-      throw new UmiError('RESOURCE_LIMIT', '资源清单超过深度或时间上限');
-    for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    )) {
-      if (++count > 5000)
-        throw new UmiError('RESOURCE_LIMIT', '资源清单超过 5000 个目录项');
-      const p = join(dir, e.name),
-        rel = base ? `${base}/${e.name}` : e.name;
-      if (ignore.has(e.name) || excluded.some((x) => resolve(p) === resolve(x))) {
-        skipped.push(rel);
-        continue;
-      }
-      if (e.isSymbolicLink())
-        throw new UmiError('PERMISSION_DENIED', `资源含链接，未物化：${rel}`);
-      if (e.isDirectory()) walk(p, rel, depth + 1);
-      else {
-        const entry = observe(root, rel);
-        if (!entry) throw new UmiError('RESOURCE_CHANGED', '枚举时目标消失');
-        total += entry.size;
-        if (total > 32 * 1024 * 1024)
-          throw new UmiError('RESOURCE_LIMIT', '资源内容超过 32 MiB 物化上限');
-        manifest[rel] = entry;
-      }
-    }
-  }
-  walk(root, '', 0);
-  return { manifest, excluded: skipped };
-}
 //原子写
 export function atomicWrite(
   root: string,
@@ -162,7 +120,7 @@ export function atomicWrite(
     ? safeFile(root, temporaryPath, expectedRoot)
     : join(dirname(file), `.umi-${uid()}.tmp`);
   if (dirname(temp) !== dirname(file))
-    throw new UmiError('PROTOCOL_INVALID', '交付暂存文件必须位于目标同目录');
+    throw new UmiError('PROTOCOL_INVALID', '写入暂存文件必须位于目标同目录');
   try {
     const fd = openSync(temp, 'wx');
     try {

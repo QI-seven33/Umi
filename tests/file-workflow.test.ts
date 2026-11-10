@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, renameSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import { ScriptModel, call, text, removeTestRoot, eventually, projectedFacts } from './fixtures.js';
 import type { Step } from './fixtures.js';
 import type { PreparedRequest } from '../packages/agent/src/ports.js';
@@ -21,7 +21,7 @@ function fixture(sources: Record<string, string | Buffer>) {
   for (const [path, content] of Object.entries(sources)) { mkdirSync(dirname(join(source, path)), { recursive: true }); writeFileSync(join(source, path), content); }
   const steps: Step[] = [], model = new ScriptModel(steps), app = new UmiApplication(join(root, 'data'), model), c = app.createConversation(source);
   const mount = app.files.repo.mounts(c.environmentId)[0]!;
-  return { root, source, steps, model, app, c, mount,
+  return { root, source, steps, model, app, c, mount, initialRevision: app.store.environment(c.environmentId).revision,
     async invoke(name: string, args: Record<string, unknown>) {
       const input = { mountId: mount.id, ...args }, definition = app.registry.get(name);
       return definition.execute(input, definition.prepare(input, app.store.environment(c.environmentId), uid()), c.conversationId, new AbortController().signal);
@@ -78,7 +78,7 @@ test('读取：1-based 行选择保留 BOM/CRLF，长行原文两页连续，过
   } finally { await f.close(); }
 });
 
-function batchFixture(mode = 'success', deliver = false) {
+function batchFixture(mode = 'success') {
   const f = fixture({ 'report.html': html }); let first: any, second: any;
   f.steps.push(call('read_file', { mountId: f.mount.id, path: 'report.html', startLine: 1, lineCount: 100 }),
     r => { first = lastData(r); return call('read_file', { mountId: f.mount.id, path: 'report.html', startByte: first.nextStartByte, expectedHash: first.hash, byteLength: 64000 }); },
@@ -93,34 +93,9 @@ function batchFixture(mode = 'success', deliver = false) {
       return call('edit_file', { mountId: f.mount.id, path: 'report.html', expectedReadHash: first.hash,
         readExecutionIds: mode === 'hidden' ? [first.readExecutionId] : [first.readExecutionId, second.readExecutionId], edits });
     });
-  if (deliver) f.steps.push(call('build_changeset', { mountId: f.mount.id }), r => call('deliver_changeset', { changeSetId: lastData(r).changeSetId }));
   f.steps.push(text('依据实际回执答复'));
   return f;
 }
-
-test('批量：约93KB中文HTML两页读取、六处一次修改和一次批准交付，原文/前缀完整', async () => {
-  const f = batchFixture('success', true);
-  try {
-    assert(Buffer.byteLength(html) > 92000 && Buffer.byteLength(html) < 94000);
-    const result = f.app.send(f.c.conversationId, uid(), '修复六处结构并交付');
-    const approval = await eventually(() => Object.entries(f.app.store.snapshot(f.c.conversationId).approvals).find(([, a]) => a.status === 'pending')?.[0]);
-    assert.equal(readFileSync(join(f.source, 'report.html'), 'utf8'), html);
-    assert.equal(readFileSync(join(f.mount.root, 'report.html'), 'utf8'), expected);
-    assert.equal(f.app.store.environment(f.c.environmentId).revision, 1); // 六处副本修改只推进一次。
-    const edit = f.app.store.tools(result.runId).find(t => t.name === 'edit_file')!;
-    const context: any = f.app.store.readArtifact(edit.context_ref!); assert.equal(context.fileEdit.schemaVersion, 2); assert.equal(context.fileEdit.edits.length, 6);
-    f.app.approve(f.c.conversationId, approval, 'allow'); assert.equal((await f.app.wait(result.runId)).status, 'completed');
-    assert.equal(readFileSync(join(f.source, 'report.html'), 'utf8'), expected);
-    assert.equal(Object.keys(f.app.store.snapshot(f.c.conversationId).approvals).length, 1);
-    for (let i = 1; i < f.model.requests.length; i++) {
-      const previous = f.model.requests[i - 1]!.body.messages as WireMessage[], current = f.model.requests[i]!.body.messages as WireMessage[];
-      assert.deepEqual(current.slice(0, previous.length), previous);
-    }
-    const state = f.app.store.snapshot(f.c.conversationId);
-    assert.deepEqual(f.app.store.events(f.c.conversationId).reduce(reduceConversation, initialState(f.c.conversationId, state.cursor.logEpoch)), state);
-    console.log(JSON.stringify({ sample: 'six-html-edits', bytes: Buffer.byteLength(html), requests: f.model.requests.length, reads: 2, edits: 6, approvals: 1, realAPI: false }));
-  } finally { await f.close(); }
-});
 
 for (const mode of ['invalid', 'overlap', 'ambiguous', 'stale', 'identity', 'hidden']) test(`批量：${mode} 整批不写入，源文件和无关字节保持`, async () => {
   const f = batchFixture(mode);
@@ -128,7 +103,7 @@ for (const mode of ['invalid', 'overlap', 'ambiguous', 'stale', 'identity', 'hid
     const result = await f.send(), edit = f.app.store.tools(result.runId).find(t => t.name === 'edit_file')!;
     assert.equal(edit.state, 'failed');
     assert.equal(readFileSync(join(f.mount.root, 'report.html'), 'utf8'), mode === 'stale' ? html + '第三方字节' : html);
-    assert.equal(readFileSync(join(f.source, 'report.html'), 'utf8'), html); assert.equal(f.app.store.environment(f.c.environmentId).revision, 0);
+    assert.equal(readFileSync(join(f.source, 'report.html'), 'utf8'), mode==='stale'?html+'第三方字节':html); assert.equal(f.app.store.environment(f.c.environmentId).revision, f.initialRevision);
     const receipt: any = f.app.store.readArtifact(edit.result_ref!);
     if (['invalid', 'overlap', 'ambiguous', 'hidden'].includes(mode)) assert(receipt.data.diagnostics.length > 0);
     if (mode === 'invalid') assert.equal(receipt.data.diagnostics[0].index, 2);
@@ -142,7 +117,7 @@ test('批量：no-op 保留对象与mtime；取消在落盘前保持原字节', 
       if (mode === 'cancel') { const tool = f.app.registry.get('edit_file'), execute = tool.execute; tool.execute = (a, ctx, c) => execute(a, ctx, c, AbortSignal.abort()); }
       const result = await f.send(), edit = f.app.store.tools(result.runId).find(t => t.name === 'edit_file')!;
       assert.equal(edit.state, mode === 'noop' ? 'succeeded' : 'cancelled'); assert.equal(readFileSync(file, 'utf8'), html);
-      assert.equal(statSync(file, { bigint: true }).mtimeNs, before.mtimeNs); assert.equal(f.app.store.environment(f.c.environmentId).revision, 0);
+      assert.equal(statSync(file, { bigint: true }).mtimeNs, before.mtimeNs); assert.equal(f.app.store.environment(f.c.environmentId).revision, f.initialRevision);
     } finally { await f.close(); }
   }
 });
@@ -209,17 +184,17 @@ test('请求诊断：关联真实原话，计费usage与本地估算分开，流
   } finally { await f.close(); }
 });
 
-test('日常文件：17KB中文待办一次修改两项，行读取回读准确且来源不变', async () => {
+test('日常文件：17KB中文待办一次修改两项，行读取回读准确且真实源文件即时更新', async () => {
   const original = '# 待办\r\n会议：星期一\r\n资料状态：待整理\r\n' + '备注🙂\r\n'.repeat(1400), f = fixture({ '日常.txt': original });
   try {
     f.steps.push(call('read_file', { mountId: f.mount.id, path: '日常.txt', startLine: 1, lineCount: 3 }), r => { const d = lastData(r); return call('edit_file', { mountId: f.mount.id, path: '日常.txt', expectedReadHash: d.hash, readExecutionIds: [d.readExecutionId], edits: [{ oldText: '会议：星期一', newText: '会议：星期二' }, { oldText: '资料状态：待整理', newText: '资料状态：已整理' }] }); },
       call('read_file', { mountId: f.mount.id, path: '日常.txt', startLine: 1, lineCount: 3 }), r => { assert.equal(lastData(r).text, '# 待办\r\n会议：星期二\r\n资料状态：已整理\r\n'); return text('已核验两项更正'); });
     const result = await f.send('修改会议日期和资料状态'); assert.equal(f.app.store.getRun(result.runId).status, 'completed');
-    assert.equal(readFileSync(join(f.source, '日常.txt'), 'utf8'), original);
+    assert.equal(readFileSync(join(f.source, '日常.txt'), 'utf8'), original.replace('会议：星期一','会议：星期二').replace('资料状态：待整理','资料状态：已整理'));
   } finally { await f.close(); }
 });
 
-test('小项目：读改两处后真实Node测试通过，仅一项命令批准，源项目未改', { timeout: 30000 }, async () => {
+test('小项目：读改两处后真实Node测试通过，仅一项命令批准，源项目直接修改', { timeout: 30000 }, async () => {
   const original = 'exports.sum=(a,b)=>a-b;\nexports.product=(a,b)=>a+b;\n';
   const f = fixture({ 'math.cjs': original, 'math.test.cjs': "const {test}=require('node:test');const assert=require('node:assert/strict');const m=require('./math.cjs');test('sum',()=>assert.equal(m.sum(2,3),5));test('product',()=>assert.equal(m.product(2,3),6));" });
   try {
@@ -230,7 +205,7 @@ test('小项目：读改两处后真实Node测试通过，仅一项命令批准�
     f.app.approve(f.c.conversationId, approval, 'allow'); assert.equal((await f.app.wait(result.runId)).status, 'completed');
     const tool = f.app.store.tools(result.runId).find(t => t.name === 'run_command')!; assert.equal(tool.state, 'succeeded');
     const receipt: any = f.app.store.readArtifact(tool.result_ref!); assert.equal(JSON.parse(receipt.content).exitCode, 0);
-    assert.equal(readFileSync(join(f.source, 'math.cjs'), 'utf8'), original);
+    assert.equal(readFileSync(join(f.source, 'math.cjs'), 'utf8'), original.replace('exports.sum=(a,b)=>a-b;','exports.sum=(a,b)=>a+b;').replace('exports.product=(a,b)=>a+b;','exports.product=(a,b)=>a*b;'));
     const timing = f.app.store.events(f.c.conversationId).find(e => e.type === 'tool.measured' && e.executionId === tool.id);
     assert(timing?.type === 'tool.measured' && timing.payload.executeMs > 0);
   } finally { await f.close(); }

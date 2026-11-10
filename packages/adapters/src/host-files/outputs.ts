@@ -633,7 +633,7 @@ export function registerOutputs(registry: ToolRegistry, files: OutputFiles) {
   registry.register({
     name: 'export_outputs',
     description:
-      '申请导出本会话具体冻结成果到具体绝对文件路径。只新建，重名不覆盖；父目录必须存在。最多20项/16MiB。逐项回执，部分失败/恢复不重导；源修改仍用 deliver_changeset。',
+      '申请导出本会话具体冻结成果到具体绝对文件路径。只新建，重名不覆盖；父目录必须存在。最多20项/16MiB。逐项回执，部分失败/恢复不重导；源文件修改使用已授权目录的直接编辑工具。',
     schema: exportOutputsSchema,
     effect: 'source-write',
     prepare: (a, env, id) => files.prepareExport(a, env, id),

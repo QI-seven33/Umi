@@ -3,11 +3,10 @@ import { registerTextSearch } from './text-search.js';
 import { registerTextWrite } from './text-write.js';
 import { fileReadEvidencePort } from './read-evidence.js';
 import { hash } from '../../../agent/src/identity.js';
-import { unlinkSync } from 'node:fs';
+
 import { z } from 'zod';
 import { isAbsolute } from 'node:path';
 import { ResourceFiles } from './resources.js';
-import { DeliveryFiles } from './delivery.js';
 import { hostContext } from './scratch.js';
 import { observe, safeFile, safeRoot } from './paths.js';
 import { filePath } from '../../../protocol/src/resources.js';
@@ -35,7 +34,6 @@ function dataResult(data: unknown, content = '') {
 export function registerFiles(
   registry: ToolRegistry,
   files: ResourceFiles,
-  delivery = new DeliveryFiles(files),
 ) {
   const repo = files.repo;
   registerFileVersions(registry,files);
@@ -95,109 +93,9 @@ export function registerFiles(
     })
     .strict();
   registry.register({
-    name: 'request_resource',
-    available:env=>!repo.direct.enabled(env.id),
-    description:
-      '申请具体外部来源的读取或工作副本编辑权限，批准后物化到托管副本。一次资源批准可支持多个副本文件连续编辑；不包含源目录交付权限。被拒绝的等价权限不能换名重复申请。',
-    schema: request,
-    effect: 'resource',
-    prepare(input, env, executionId) {
-      const a = request.parse(input);
-      return files.resourceContext(input, env, a.candidateId, a.access, executionId);
-    },
-    approvalRequired(input, ctx) {
-      const a = request.parse(input);
-      return !repo.authorized(a.candidateId, ctx.environmentId, a.access === 'edit');
-    },
-    approvalDescription(input, ctx) {
-      const a = request.parse(input),
-        c = repo.getCandidate(a.candidateId, ctx.environmentId);
-      return `我需要${a.access === 'edit' ? '读取并在工作副本中修改' : '读取'} ${c.path}，用于${a.purpose}。批准仅限本次任务${c.scope.kind === 'file' ? '的这一个文件，不包含同目录其他文件' : '的该目录范围'}；真实来源写回仍需单独交付确认。`;
-    },
-    denied(input, ctx) {
-      const a = request.parse(input);
-      repo.recordDenial(repo.getCandidate(a.candidateId, ctx.environmentId), a.access);
-    },
-    async execute(input, ctx, _conversation, signal) {
-      signal.throwIfAborted();
-      const a = request.parse(input),
-        c = repo.getCandidate(a.candidateId, ctx.environmentId);
-      if (!repo.authorized(c.id, c.environmentId, a.access === 'edit'))
-        repo.grant(c, a.access);
-      const location = ctx.locations.find((l) => l.rootRef.kind === 'mount');
-      if (!location || location.rootRef.kind !== 'mount')
-        throw new UmiError('PROTOCOL_INVALID', '资源派发缺少物化目标');
-      let m;
-      try {
-        m = await files.materializeAsync(c, location.rootRef.mountId, signal);
-      } catch (e) {
-        return files.materializationFailure(c, ctx, e);
-      }
-      return dataResult(
-        {
-          mountId: m.id,
-          resourceId: m.resourceId,
-          sourceDirectory: m.sourceRoot,
-          resourceScope: m.scope,
-          excluded:
-            repo.store.snapshot(repo.scope(ctx.environmentId).conversationId).resources[
-              c.id
-            ]?.excluded ?? [],
-        },
-        '资源已获准并物化。后续使用 mountId 和相对路径操作副本；源目录未修改。',
-      );
-    },
-    async reconcile(input, ctx) {
-      const a = request.parse(input),
-        c = repo.getCandidate(a.candidateId, ctx.environmentId),
-        location = ctx.locations.find((l) => l.rootRef.kind === 'mount');
-      if (hash(ctx.resourceScope ?? { kind: 'directory' }) !== hash(c.scope))
-        throw new UmiError('RESOURCE_CHANGED', '原执行的资源范围无法对应候选');
-      const m =
-        repo
-          .mounts(ctx.environmentId)
-          .find(
-            (m) =>
-              m.resourceId === c.id &&
-              location?.rootRef.kind === 'mount' &&
-              m.id === location.rootRef.mountId &&
-              m.root === location.physicalRoot,
-          ) ?? files.reconcileMaterialization(c, ctx);
-      if (m && repo.authorized(c.id, ctx.environmentId, a.access === 'edit')) {
-        safeRoot(m.root, m.rootIdentity);
-        return {
-          ...dataResult(
-            { mountId: m.id, resourceId: c.id, resourceScope: m.scope },
-            '原资源权限与挂载已核验；没有重新读取或复制来源。',
-          ),
-          verification: 'materialized-plan-verified',
-        };
-      }
-      const prior = repo.store.snapshot(repo.scope(ctx.environmentId).conversationId)
-        .resources[c.id]?.materializationError;
-      repo.store.commit(repo.scope(ctx.environmentId), {
-        type: 'resource.materialization_failed',
-        payload: {
-          resourceId: c.id,
-          code: prior?.code ?? 'MATERIALIZATION_INCOMPLETE',
-          reason:
-            (prior ? prior.reason + '；' : '') +
-            '原物化未完成；部分托管资料保留，不重新复制',
-          failure: { stage: 'reconcile', effects: 'partial-or-unknown' },
-        },
-      });
-      return {
-        outcome: 'failed',
-        content: '资源物化未完成；已保存批准事实和原目标，没有自动重新复制。',
-        data: { candidateId: c.id },
-        verification: 'not-materialized',
-      };
-    },
-  });
-  registry.register({
     name: 'list_resources',
     description:
-      '列出当前获准目录、mountId及direct标记。direct=true直接读改真实文件；旧副本仍按原权限处理。directAccess提供当前工作区授权及撤销状态，不授予其他能力。',
+      '列出当前获准目录与mountId，直接读改真实文件。directAccess提供当前工作区授权及撤销状态，不授予其他能力。',
     schema: z.object({}).strict(),
     effect: 'read',
     prepare: hostContext,
@@ -210,7 +108,7 @@ export function registerFiles(
     },
   });
   registry.register({
-    name:'request_directory_access', available:env=>repo.direct.enabled(env.id), schema:request,effect:'resource',
+    name:'request_directory_access', schema:request,effect:'resource',
     description:'申请明确来源的读取或直接编辑权限。获准后真实文件立即可改；授权按当前工作区保存，跨run和重启可复用，可由用户撤销。不授予命令执行、安装、外发或发布权限。被拒绝/撤销不能换用途绕过。',
     prepare(input,env) {
       const a=request.parse(input),c=repo.getCandidate(a.candidateId,env.id);
@@ -323,10 +221,10 @@ export function registerFiles(
   registry.register({
     name: 'delete_file',
     description:
-      '删除获准范围内的一个文件。direct=true时需具体批准并保存恢复内容；旧副本删除仍不影响来源。移入系统回收站使用recycle_file。',
+      '删除获准范围内的一个文件。需具体批准并保存恢复内容。移入系统回收站使用recycle_file。',
     schema: fileSchema,
     effect: 'file-write',
-    approvalRequired(input,ctx){return Boolean(repo.mount(fileSchema.parse(input).mountId,ctx.environmentId).direct);},
+    approvalRequired(){return true;},
     approvalDescription(input,ctx){const a=fileSchema.parse(input),m=repo.mount(a.mountId,ctx.environmentId);return '永久删除真实文件 '+m.root+'/'+a.path+'，保存原字节以供恢复；此批准仅限当前文件版本。是否允许？';},
     prepare(input, env) {
       const a = fileSchema.parse(input),
@@ -346,17 +244,16 @@ export function registerFiles(
       )
         return {
           outcome: 'failed',
-          content: '副本目标在派发后变化，未修改。',
+          content: '文件目标在派发后变化，未修改。',
           data: null,
         };
-      if(m.direct) files.direct.write(m,a.path,ctx,null,s,repo.scope(ctx.environmentId).executionId);
-      else if (before) unlinkSync(safeFile(m.root, a.path, m.rootIdentity));
+      files.direct.write(m,a.path,ctx,null,s,repo.scope(ctx.environmentId).executionId);
       const after = observe(m.root, a.path, m.rootIdentity);
       if ((after?.hash ?? null) !== loc.desiredHash)
-        throw new UmiError('RESOURCE_CHANGED', '副本操作后核验失败');
+        throw new UmiError('RESOURCE_CHANGED', '文件操作后核验失败');
       return dataResult(
         { mountId: m.id, path: a.path, observed: after },
-        m.direct ? '真实文件已删除，恢复内容已保存。' : '工作副本已修改并回读核验；真实来源未改变。',
+        '真实文件已删除，恢复内容已保存。',
       );
     },
     async reconcile(input, ctx) {
@@ -366,118 +263,21 @@ export function registerFiles(
       files.assertPath(m.scope, a.path);
       files.direct.checkObservation(m,a.path);
       const after = observe(m.root, a.path, m.rootIdentity);
-      if(m.direct && (after?.hash??null)===loc.desiredHash) files.direct.reconcile(m,repo.scope(ctx.environmentId).executionId!,true);
+      if((after?.hash??null)===loc.desiredHash) files.direct.reconcile(m,repo.scope(ctx.environmentId).executionId!,true);
       return (after?.hash ?? null) === loc.desiredHash
         ? {
             ...dataResult(
               { mountId: m.id, path: a.path, observed: after },
-              '副本目标已满足预期状态；未再次写入，不断言原执行来源。',
+              '文件目标已满足预期状态；未再次写入，不断言原执行来源。',
             ),
             verification: 'desired-state-verified',
           }
         : {
             outcome: 'unknown',
-            content: '原副本目标不符合预期，未重复操作。',
+            content: '原文件目标不符合预期，未重复操作。',
             data: { observed: after },
             verification: 'unknown',
           };
-    },
-  });
-  const build = z
-    .object({
-      mountId,
-      paths: z
-        .array(filePath)
-        .min(1)
-        .max(200)
-        .refine((p) => new Set(p).size === p.length, '不能重复选取同一文件')
-        .optional(),
-    })
-    .strict();
-  registry.register({
-    name: 'build_changeset',
-    available:env=>!repo.direct.enabled(env.id),
-    description:
-      '将选定工作副本当前字节冻结为交付变更集，返回真实目录、文件操作和前后内容；不会编译、构建或写回。若修了源码，先更新实际要交付的成品；paths由你选择，不要求额外验证流水线。',
-    schema: build,
-    effect: 'read',
-    prepare(input, env) {
-      const a = build.parse(input);
-      return files.mountContext(input, env, a.mountId, undefined, undefined, true);
-    },
-    async execute(input, ctx, _c, s) {
-      s.throwIfAborted();
-      const a = build.parse(input);
-      return dataResult(
-        delivery.build(repo.store.environment(ctx.environmentId), a.mountId, a.paths),
-      );
-    },
-    async inspect(_input, ctx, _c, signal, executionId) {
-      signal.throwIfAborted();
-      const saved = repo.store.get('SELECT id FROM changesets WHERE execution_id=?', executionId);
-      if (!saved) return { outcome: 'failed', content: '原变更集未保存，没有重新扫描/冻结；按最新要求创建新快照。', data: null, verification: 'not-saved' };
-      const cs = repo.changeSet(saved.id as string, ctx.environmentId), m = repo.mount(cs.mountId, ctx.environmentId);
-      return { ...dataResult(delivery.preview(cs, m, repo.store.environment(ctx.environmentId))), verification: 'original-snapshot-reused' };
-    },
-    async reconcile(input, ctx, c, s) {
-      const scope = repo.scope(ctx.environmentId),
-        saved = scope.executionId
-          ? repo.store.get(
-              'SELECT id FROM changesets WHERE execution_id=?',
-              scope.executionId,
-            )
-          : undefined;
-      if (saved) {
-        const cs = repo.changeSet(saved.id as string, ctx.environmentId),
-          m = repo.mount(cs.mountId, ctx.environmentId);
-        return {
-          ...dataResult(
-            delivery.preview(cs, m, repo.store.environment(ctx.environmentId)),
-          ),
-          verification: 'original-snapshot-reused',
-        };
-      }
-      return {
-        ...(await this.execute(input, ctx, c, s)),
-        verification: 'recomputed-read',
-      };
-    },
-  });
-  const deliver = z.object({ changeSetId: z.string().min(1) }).strict();
-  registry.register({
-    name: 'deliver_changeset',
-    available:env=>!repo.direct.enabled(env.id),
-    description:
-      '申请一次固定变更集交付批准。系统逐项核验源文件和副本、记录写回回执；等待批准时阻塞，不再请求模型。批准不覆盖之后的新变化。',
-    schema: deliver,
-    effect: 'source-write',
-    prepare(input, env) {
-      return delivery.prepare(env, deliver.parse(input).changeSetId);
-    },
-    approvalDescription(input, ctx) {
-      const cs = repo.changeSet(deliver.parse(input).changeSetId, ctx.environmentId),
-        m = repo.mount(cs.mountId, ctx.environmentId);
-      return `以下 ${cs.changes.length} 项修改将写回 ${m.sourceRoot}。\n${cs.changes
-        .slice(0, 12)
-        .map((c) => c.path)
-        .join(
-          '、',
-        )}${cs.changes.length > 12 ? '等文件，完整范围见批准卡片' : ''}\n是否交付？delete 项会永久删除源文件，不移入回收站；需要回收时应使用系统回收站工具。本批准仅绑定此变更集。`;
-    },
-    async execute(input, ctx, _c, s) {
-      return delivery.apply(
-        repo.store.environment(ctx.environmentId),
-        deliver.parse(input).changeSetId,
-        ctx,
-        s,
-      );
-    },
-    async reconcile(input, ctx) {
-      return delivery.reconcile(
-        repo.store.environment(ctx.environmentId),
-        deliver.parse(input).changeSetId,
-        ctx,
-      );
     },
   });
 }

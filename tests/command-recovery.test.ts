@@ -5,7 +5,7 @@ import {once} from 'node:events';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import { LegacyFileApplication as UmiApplication } from './legacy-file-fixture.js';
+import { UmiApplication } from '../apps/headless/src/application.js';
 import {ScriptModel,text,removeTestRoot} from './fixtures.js';
 
 for(const mode of ['planned','ready','released','started','output','receipt']){
@@ -17,7 +17,7 @@ for(const mode of ['planned','ready','released','started','output','receipt']){
       assert.equal(app.store.tool(message.executionId).state,'unknown');const mount=app.files.repo.mount(message.mountId,message.environmentId),file=join(mount.root,'count.txt');
       app.resume(message.conversationId,message.runId);const result=await app.wait(message.runId);assert.equal(result.status,'completed');assert.equal(app.store.tool(message.executionId).state,mode==='receipt'?'succeeded':'failed');
       if(['planned','ready','released'].includes(mode))assert(!existsSync(file));else if(existsSync(file))assert.equal(readFileSync(file,'utf8'),'1');
-      if(mode==='output'||mode==='receipt')assert.equal(readFileSync(file,'utf8'),'1');assert(!existsSync(join(workspace,'count.txt')));
+      if(mode==='output'||mode==='receipt')assert.equal(readFileSync(file,'utf8'),'1');assert.equal(mount.root,workspace);
       const receipt=app.commands.repo.receipt(message.executionId)!;assert(receipt.jobInactive);assert.equal(receipt.reason,mode==='receipt'?'exited':['planned','ready'].includes(mode)?'not_started':'interrupted');
       assert.equal(app.store.events(message.conversationId).filter(e=>e.type==='tool.dispatch_intent'&&e.executionId===message.executionId).length,1);
       assert.equal(app.store.events(message.conversationId).filter(e=>e.type==='process.planned'&&e.executionId===message.executionId).length,1);

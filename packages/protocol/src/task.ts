@@ -25,7 +25,6 @@ export const taskCheckSchema = z.discriminatedUnion('kind', [
       ]),
     })
     .strict(),
-  z.object({ kind: z.literal('delivery'), changeSetId: ref }).strict(),
   z
     .object({
       kind: z.literal('export_receipt'),

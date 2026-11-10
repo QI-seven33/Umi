@@ -674,38 +674,10 @@ details[open]>summary>.umi-disclosure-icon,
     font-size: 14px;
 }
 
-.delivery-target {
-    font-family: ui-monospace, Consolas, monospace;
-    overflow-wrap: anywhere;
-    color: var(--text-secondary);
-}
 
-.delivery-file-list {
-    max-height: 224px;
-    overflow: auto;
-    overscroll-behavior: contain;
-    list-style: none;
-    padding: 4px 0;
-    margin: 10px 0;
-}
 
-.delivery-file-list .umi-file-row {
-    padding: 7px 8px;
-    font-size: 13px;
-    background: none;
-    color: var(--text-primary);
-    border: 0;
-}
 
-.delivery-file-list .umi-file-row span {
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
 
-.delivery-file-list .umi-file-row small {
-    flex: none;
-    color: var(--text-muted);
-}
 
 .umi-approval>small {
     display: block;
@@ -714,9 +686,6 @@ details[open]>summary>.umi-disclosure-icon,
     color: var(--text-muted);
 }
 
-.delivery-warning {
-    color: var(--danger);
-}
 
 .operation-description {
     max-height: 220px;

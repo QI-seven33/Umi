@@ -430,7 +430,7 @@ export class SqliteStore {
     const value = JSON.parse(r.content as string);
     return (['provider-response', 'maintenance-response'].includes(r.kind as string) ? expandProviderRaw(value) : value) as T;
   }
-  createConversation(sourceRoot: string, settings: Partial<Settings> = {}, directFiles = false) {
+  createConversation(sourceRoot: string, settings: Partial<Settings> = {}, directFiles = true) {
     const root = realpathSync(sourceRoot);
     if (!statSync(root).isDirectory())
       throw new UmiError('PROTOCOL_INVALID', '工作区必须为目录');
@@ -963,65 +963,29 @@ export class SqliteStore {
     );
     return r ? this.historyRow(r) : undefined;
   }
-  runtimeFacts(environmentId: string, projection?: ConversationState): unknown {
-    const env = this.environment(environmentId);
-    const conversationId = this.get(
-      'SELECT id FROM conversations WHERE environment_id=?',
-      environmentId,
-    )!.id as string;
-    const state = projection ?? this.snapshot(conversationId);
-    const direct=new DirectFileRepository(this);
+  runtimeFacts(environmentId: string, _projection?: ConversationState): unknown {
+    const direct = new DirectFileRepository(this);
     return {
       directAccess: {
         enabled: direct.enabled(environmentId),
-        grants: direct.grants(environmentId).map(g=>({id:g.id,root:g.root,access:g.access,revoked:g.revoked===1,revision:g.revision,scope:JSON.parse(String(g.scope))})),
+        grants: direct.grants(environmentId).map(g => ({
+          id: g.id, root: g.root, access: g.access,
+          revoked: g.revoked === 1, revision: g.revision,
+          scope: JSON.parse(String(g.scope)),
+        })),
       },
       initialResources: this.all(
         'SELECT id candidateId,path FROM resource_candidates WHERE environment_id=? AND initial=1',
         environmentId,
-      ).map((r) => ({
-        ...r,
-        materializationError:
-          state.resources[r.candidateId as string]?.materializationError ?? null,
-      })),
-      resourceFailures: Object.entries(state.resources)
-        .filter(([, r]) => r.materializationError)
-        .map(([resourceId, r]) => ({
-          resourceId,
-          path: state.candidates[resourceId]?.path,
-          ...r.materializationError,
+      ),
+      mounts: direct.mounts(environmentId)
+        .filter(m => direct.grant(m.direct!.grantId, environmentId).revoked === 0)
+        .map(m => ({
+          mountId: m.id, resourceId: m.resourceId, sourceRoot: m.root,
+          resourceScope: m.scope,
+          canEdit: direct.grant(m.direct!.grantId, environmentId).access === 'edit',
+          direct: true, grantId: m.direct!.grantId,
         })),
-      // 历史副本仍存在不代表本轮可读改。提前告知失效句柄，避免模型先生成长补丁再撞权限。
-      // 这里只提供同环境历史位置；不授予访问，也不重新物化或检查源目录。
-      unavailableMounts: this.all(
-        `SELECT m.id mountId,m.resource_id candidateId,m.source_root sourceRoot
-         FROM mounts m WHERE m.environment_id=? AND NOT EXISTS(
-           SELECT 1 FROM capabilities c WHERE c.resource_id=m.resource_id
-           AND c.environment_id=m.environment_id AND (c.run_id IS NULL OR c.run_id=?))
-         ORDER BY m.rowid DESC LIMIT 16`,
-        env.id, env.active_run_id,
-      ).map(r => ({ ...r, access: 'unavailable',
-        reason: '当前运行没有此副本的访问授权；历史副本仍保留，旧mountId不能用于读改。',
-        nextStep: '需要继续使用时，通过request_resource申请candidateId的本轮访问；批准前不要生成或派发该副本的编辑。',
-      })),
-      incompleteMaterializations: Object.entries(state.materializations)
-        .filter(([, m]) => m.status !== 'ready')
-        .map(([mountId, m]) => ({ mountId, ...m })),
-      mounts: [...direct.mounts(environmentId).filter(m=>direct.grant(m.direct!.grantId,environmentId).revoked===0).map(m=>({mountId:m.id,resourceId:m.resourceId,sourceRoot:m.root,resourceScope:m.scope,canEdit:direct.grant(m.direct!.grantId,environmentId).access==='edit',direct:true,grantId:m.direct!.grantId})), ...this.all(
-        `SELECT m.id mountId,m.resource_id resourceId,m.source_root sourceRoot,m.baseline_ref baselineRef,rs.scope resourceScope,
-      EXISTS(SELECT 1 FROM capabilities c WHERE c.resource_id=m.resource_id AND c.environment_id=m.environment_id AND (c.run_id IS NULL OR c.run_id=?) AND c.access='edit') canEdit
-      FROM mounts m LEFT JOIN resource_scopes rs ON rs.resource_id=m.resource_id WHERE m.environment_id=? AND EXISTS(SELECT 1 FROM capabilities c WHERE c.resource_id=m.resource_id AND c.environment_id=m.environment_id AND (c.run_id IS NULL OR c.run_id=?))`,
-        env.active_run_id,
-        env.id,
-        env.active_run_id,
-      ).map((r) => ({
-        ...r,
-        resourceScope: r.resourceScope
-          ? JSON.parse(r.resourceScope as string)
-          : { kind: 'directory' },
-        canEdit: r.canEdit === 1,
-        excluded: state.resources[r.resourceId as string]?.excluded ?? [],
-      }))],
     };
   }
   contextMemory(conversationId: string) {
