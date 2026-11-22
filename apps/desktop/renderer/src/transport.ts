@@ -1,3 +1,4 @@
+import { currentSequence } from '../../../../packages/protocol/src/conversation-view.js';
 import {reduceConversation,projectConversation} from '../../../../packages/protocol/src/reducer.js';
 import type {ConversationState} from '../../../../packages/protocol/src/reducer.js';
 import {eventSchema} from '../../../../packages/protocol/src/events.js';
@@ -15,6 +16,6 @@ export function applyBatch(snapshot:Snapshot,batch:Batch):Snapshot{
   let state=snapshot.state;for(const event of events)state=reduceConversation(state,event);
   const messages=new Map(snapshot.messages.map(m=>[m.id,m]));for(const m of batch.messages)messages.set(m.id,m);
   for(const e of events){if(e.type==='input.applied'){const m=messages.get(e.payload.messageId);if(m)messages.set(m.id,{...m,applied:true});}}
-  return {...snapshot,state,messages:batch.messages.length||events.some(e=>e.type==='input.applied')?[...messages.values()]:snapshot.messages,settings:batch.settings??snapshot.settings,context:batch.context??snapshot.context,resources:batch.resources??snapshot.resources};
+  return {...snapshot,state,messages:batch.messages.length||events.some(e=>e.type==='input.applied'||e.type==='input.revised')?[...messages.values()].filter(m=>currentSequence(state,m.projectionSequence,'user')):snapshot.messages,settings:batch.settings??snapshot.settings,context:batch.context??snapshot.context,resources:batch.resources??snapshot.resources};
 }
 export {projectConversation};

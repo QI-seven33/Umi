@@ -1,3 +1,4 @@
+import { currentSequence } from '../../../../packages/protocol/src/conversation-view.js';
 import { t as uiText, getUiLanguage } from './ui-language.js';
 import type {
   Block,
@@ -15,6 +16,7 @@ export const toolNames: Record<string, string> = {
   set_task_state: '调整任务状态',
   read_task_checkpoints: '读取任务进度',
   inspect_tool_execution: '核验原操作',
+  list_revision_executions: '查看修订前操作',
   delete_file: '删除文件',
   inspect_execution: '检查执行准备',
   create_output: '生成成果',
@@ -72,7 +74,7 @@ export function processItems(
   to: string | null = null,
 ): ProcessItem[] {
   const within = (sequence: string) =>
-    BigInt(sequence) > BigInt(from) && (to === null || BigInt(sequence) < BigInt(to));
+    currentSequence(state, sequence) && BigInt(sequence) > BigInt(from) && (to === null || BigInt(sequence) < BigInt(to));
   const events: ({ kind: 'text'; block: Block; sequence: string } | ActivityItem)[] = [
     ...state.blocks
       .filter(
@@ -126,6 +128,7 @@ const verbs: Record<string, string> = {
   set_task_state: '调整任务状态',
   read_task_checkpoints: '读取任务进度',
   inspect_tool_execution: '核验原操作',
+  list_revision_executions: '查看修订前操作',
   delete_file: '删除文件',
   inspect_execution: '检查执行准备',
   create_output: '生成成果',

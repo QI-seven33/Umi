@@ -32,7 +32,12 @@ export async function verifyWorkspaceDeletion(broker:AgentBroker,win:BrowserWind
  assert.equal(await win.webContents.executeJavaScript("getComputedStyle(document.querySelector('.workspace-access-dialog')).boxShadow"),'none');
  await win.webContents.executeJavaScript("Array.from(document.querySelectorAll('.workspace-access-dialog button')).find(n=>n.textContent==='撤销').click()");
  await until(()=>broker.request({type:'list_directory_access',conversationId:second.conversationId}),grants=>(grants as any[]).some(g=>g.revoked));
- await win.webContents.executeJavaScript("document.querySelector('.workspace-access-dialog .umi-confirm-actions button').click()");
+ await until(()=>win.webContents.executeJavaScript("document.querySelectorAll('.workspace-access-dialog .current-grants .workspace-grant-row').length"),count=>count===0);
+ assert.equal(await win.webContents.executeJavaScript("document.querySelector('.workspace-access-dialog .access-history').open"),false);
+ await win.webContents.executeJavaScript("document.querySelector('.workspace-access-dialog .access-history summary').click()");
+ assert(await win.webContents.executeJavaScript("document.querySelector('.workspace-access-dialog .access-history').innerText.includes('已撤销')"));
+ names.push('撤销后条目离开当前授权列表，历史默认折叠且可查看原记录');
+ await win.webContents.executeJavaScript("document.querySelector('.workspace-access-dialog .umi-confirm-actions .ui-primary').click()");
  await until(()=>win.webContents.executeJavaScript("!document.querySelector('.workspace-access-dialog')"),Boolean);
  names.push('目录权限从工作区菜单管理，实际撤销后同工作区授权事实更新，旧顶部卡片无需保留');
  await win.webContents.executeJavaScript("document.querySelector('.workspace-group.active [data-menu-trigger=workspace]').click()");

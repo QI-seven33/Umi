@@ -1,3 +1,5 @@
+import { currentSequence } from '../../../../packages/protocol/src/conversation-view.js';
+import { EditableUserMessage } from './components/ui/EditableUserMessage.js';
 import { t as uiText, useUiLanguage } from './ui-language.js';
 import {remarkCjkEmphasis,prepareChatMarkdown} from './remark-cjk-emphasis.js';
 import {fileReferenceCandidates} from '../../../../packages/protocol/src/file-reference.js';
@@ -73,11 +75,11 @@ function Activity({ items, state, onPreview }: { items: ActivityItem[]; state: C
 }
 function Run({ id, snapshot, onPreview, onError, from, to, last, onDraft }: { id: string; snapshot: Snapshot; onPreview: (f: FileTarget) => void; onError: (e: string) => void; from: string; to: string | null; last: boolean; onDraft?: ((text: string) => void) | undefined }) {
   const state = snapshot.state, r = state.runs[id]!, [expanded, setExpanded] = useState(false);
-  const within = (sequence: string) => BigInt(sequence) > BigInt(from) && (to === null || BigInt(sequence) < BigInt(to));
+  const within = (sequence: string) => currentSequence(state, sequence) && BigInt(sequence) > BigInt(from) && (to === null || BigInt(sequence) < BigInt(to));
   const blocks = state.blocks.filter(b => b.runId === id && within(b.sequence)), final = blocks.filter(b => b.kind === 'text' && b.displayRole === 'final'), process = processItems(state, id, from, to);
   const tools = Object.entries(state.tools).filter(([, t]) => t.runId === id && within(t.sequence));
   const pending = last ? Object.entries(state.approvals).filter(([, a]) => a.status === 'pending' && state.tools[a.callId]?.runId === id) : [];
-  const running = ['queued', 'running', 'recovering', 'stopping'].includes(r.status), complete = r.status === 'completed', mounts = snapshot.resources?.mounts ?? [];
+  const running = !r.superseded && ['queued', 'running', 'recovering', 'stopping'].includes(r.status), complete = r.status === 'completed' || r.superseded, mounts = snapshot.resources?.mounts ?? [];
   const notices = (r.failureSummaries ?? (r.failureSummary ? [r.failureSummary] : [])).filter(n => within(n.sequence));
   const hasNotice = notices.length > 0;
   const budget = snapshot.context.latestRun?.runId === id ? snapshot.context.latestRun.outputBudget : undefined;
@@ -90,15 +92,15 @@ function Run({ id, snapshot, onPreview, onError, from, to, last, onDraft }: { id
 
 
 
-    {last && r.budgetBlock && <section className="umi-budget" role="status"><strong>{uiText("上下文预算阻塞")}</strong><p>{r.reason}</p><p>{uiText("保守估算")}{r.budgetBlock.estimatedInputTokens.toLocaleString()}{uiText("，输入预算")}{r.budgetBlock.inputCeiling.toLocaleString()}{uiText("。用户原文仍完整保存。")}</p><small>{uiText("直接恢复不会减少上下文。可在设置中调整有效预算；达到模型上限后仍不能容纳时，需要后续有预算的原文投影。")}</small></section>}
-    {last && r.status === 'interrupted' && !r.budgetBlock && !hasNotice && r.reason && <p className="umi-recovery" role="status">{r.reason}</p>}
-    {last && !hasNotice && ['interrupted', 'stopped', 'recovery_required'].includes(r.status) && <p className="umi-recovery">{uiText("可以直接发消息继续、修改要求或开始其他任务。")}</p>}
+    {last && !r.superseded && r.budgetBlock && <section className="umi-budget" role="status"><strong>{uiText("上下文预算阻塞")}</strong><p>{r.reason}</p><p>{uiText("保守估算")}{r.budgetBlock.estimatedInputTokens.toLocaleString()}{uiText("，输入预算")}{r.budgetBlock.inputCeiling.toLocaleString()}{uiText("。用户原文仍完整保存。")}</p><small>{uiText("直接恢复不会减少上下文。可在设置中调整有效预算；达到模型上限后仍不能容纳时，需要后续有预算的原文投影。")}</small></section>}
+    {last && !r.superseded && r.status === 'interrupted' && !r.budgetBlock && !hasNotice && r.reason && <p className="umi-recovery" role="status">{r.reason}</p>}
+    {last && !r.superseded && !hasNotice && ['interrupted', 'stopped', 'recovery_required'].includes(r.status) && <p className="umi-recovery">{uiText("可以直接发消息继续、修改要求或开始其他任务。")}</p>}
 
-    {last && budget?.limit != null && <p className="umi-recovery" role="status">{uiText("本轮输出预算：")}{budget.used.toLocaleString()} / {budget.limit.toLocaleString()} token{budget.missing > 0 ? uiText("，另有用量未返回") : ""}{uiText("（含思考与上下文维护，恢复不清零）")}</p>}
+    {last && !r.superseded && budget?.limit != null && <p className="umi-recovery" role="status">{uiText("本轮输出预算：")}{budget.used.toLocaleString()} / {budget.limit.toLocaleString()} token{budget.missing > 0 ? uiText("，另有用量未返回") : ""}{uiText("（含思考与上下文维护，恢复不清零）")}</p>}
     {notices.map(n => <div key={n.messageId} className="message-body" data-run-notice={n.messageId}><small>{uiText("Umi 执行说明")}</small><Markdown text={n.text} mounts={mounts} onPreview={onPreview} /></div>)}
     {final.map(renderBlock)}
     {complete && final.length > 0 && <MessageActions assistant onDraft={onDraft} storageKey={`umi.feedback.${state.cursor.streamId}.${r.finalMessageId ?? id}`} text={final.map(b => b.text).join('\n\n')} {...(r.finishedAt ? { time: r.finishedAt } : {})} onError={onError} />}
-    {last && r.status === 'failed' && !hasNotice && final.length === 0 && <p role="alert">{r.reason ?? uiText("任务失败，原始记录仍保留。")}</p>}
+    {last && !r.superseded && r.status === 'failed' && !hasNotice && final.length === 0 && <p role="alert">{r.reason ?? uiText("任务失败，原始记录仍保留。")}</p>}
   </article>;
 }
 function ImageAttachment({ conversationId, attachmentId, name, onPreview }: { conversationId: string; attachmentId: string; name: string; onPreview: () => void }) {
@@ -143,5 +145,5 @@ export function Timeline({ snapshot, onPreview, onError, navigationTarget, onDra
   };
   // 用户原话始终留在时间线上，执行片段按同一日志序号插入；不能把整个 run 挤到第一条消息后。
   const linkRevision=useMemo(()=>JSON.stringify([snapshot.resources?.mounts,snapshot.resources?.directAccess,Object.values(snapshot.state.tools).filter(t=>!['prepared','running'].includes(t.status)).slice(-32).map(t=>[t.executionId,t.status,t.resultRef])]),[snapshot.resources,snapshot.state.tools]);
-  return <FileLinksProvider conversationId={snapshot.state.cursor.streamId} revision={linkRevision}><div className="message-stack">{hiddenCount > 0 && <button type="button" className="umi-history-load" onClick={loadEarlier}>{uiText("查看更早的消息（")}{hiddenCount}）</button>}{messages.map((message, i) => <section className="umi-exchange" key={message.id}><article id={`msg-${message.id}`} className="message user"><div className="message-attachments">{message.attachments.map(a => a.mime.startsWith('image/') ? <ImageAttachment key={a.id} conversationId={snapshot.state.cursor.streamId} attachmentId={a.id} name={a.name} onPreview={() => onPreview({ mountId: 'attachment', path: a.name, attachmentId: a.id })} /> : <button key={a.id} data-attachment-id={a.id} className="attachment-chip done" onClick={() => onPreview({ mountId: 'attachment', path: a.name, attachmentId: a.id })}><FileText size={16} /><span>{a.name}</span><small>{a.byteLength} B</small></button>)}</div><div className="message-body"><p>{message.payload.content}</p></div><MessageActions storageKey={`umi.feedback.${snapshot.state.cursor.streamId}.${message.id}`} text={message.payload.content} time={message.createdAt} onError={onError} /></article>{snapshot.state.runs[message.runId] && <Run id={message.runId} snapshot={snapshot} from={message.projectionSequence} to={messages[i + 1]?.projectionSequence ?? null} last={!messages.slice(i + 1).some(m => m.runId === message.runId)} onDraft={onDraft} onPreview={onPreview} onError={onError} />}</section>)}</div></FileLinksProvider>;
+  return <FileLinksProvider conversationId={snapshot.state.cursor.streamId} revision={linkRevision}><div className="message-stack">{hiddenCount > 0 && <button type="button" className="umi-history-load" onClick={loadEarlier}>{uiText("查看更早的消息（")}{hiddenCount}）</button>}{messages.map((message, i) => <section className="umi-exchange" key={message.id}><article id={`msg-${message.id}`} className="message user"><div className="message-attachments">{message.attachments.map(a => a.mime.startsWith('image/') ? <ImageAttachment key={a.id} conversationId={snapshot.state.cursor.streamId} attachmentId={a.id} name={a.name} onPreview={() => onPreview({ mountId: 'attachment', path: a.name, attachmentId: a.id })} /> : <button key={a.id} data-attachment-id={a.id} className="attachment-chip done" onClick={() => onPreview({ mountId: 'attachment', path: a.name, attachmentId: a.id })}><FileText size={16} /><span>{a.name}</span><small>{a.byteLength} B</small></button>)}</div><EditableUserMessage message={message} conversationId={snapshot.state.cursor.streamId} lastMessageId={snapshot.messages.at(-1)!.id} onError={onError} /></article>{snapshot.state.runs[message.runId] && <Run id={message.runId} snapshot={snapshot} from={message.projectionSequence} to={messages[i + 1]?.projectionSequence ?? null} last={!messages.slice(i + 1).some(m => m.runId === message.runId)} onDraft={onDraft} onPreview={onPreview} onError={onError} />}</section>)}</div></FileLinksProvider>;
 }

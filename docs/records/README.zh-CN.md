@@ -6,6 +6,8 @@
 
 ## 桌面体验
 
+- [已发送消息编辑（2026-11-21，纳入0.3.3）](20261121-message-editing.zh-CN.md)
+
 - [桌面界面与设备偏好（2026-10-25，纳入0.3.1）](20261025-desktop-interface-and-preferences.zh-CN.md)
 
 ## 文件、来源与交付

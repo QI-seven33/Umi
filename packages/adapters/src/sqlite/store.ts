@@ -1,3 +1,5 @@
+import { MessageRevisions, type RevisionInput } from './message-revisions.js';
+import { MESSAGE_REVISIONS_SCHEMA_SQL } from './message-revisions-schema.js';
 import { serialize } from 'node:v8';
 import { HOT_PATH_INDEXES_SQL } from './hot-path-indexes-schema.js';
 import { EventBlocks, streamKeyPrefix, streamMemberKey } from './event-blocks.js';
@@ -7,6 +9,7 @@ import {CommandPermissions} from './command-permissions.js';
 import { WORKSPACE_DELETION_SQL } from './workspace-deletion-schema.js';
 import { DIRECT_FILES_SCHEMA_SQL } from './direct-files-schema.js';
 import { DirectFileRepository } from './direct-files.js';
+import type { DirectoryAccessObserver, DirectoryAccessView } from '../../../protocol/src/resources.js';
 import { ConversationProjectionCache } from './projection-cache.js';
 import { expandProviderRaw } from '../deepseek/chunk-archive.js';
 import { runConclusion } from '../../../agent/src/loop/run-conclusion.js';
@@ -72,6 +75,7 @@ export class SqliteStore {
   private readonly writerLock: WriterLock;
   readonly instanceId = uid();
   private readonly commandPermissions=new CommandPermissions(this);
+  private readonly messageRevisions = new MessageRevisions(this);
   private closed = false;
   private readonly states = new Map<string, ConversationState>();
   private retentionNeeded = false;
@@ -82,6 +86,7 @@ export class SqliteStore {
     directory: string,
     private readonly now = () => new Date().toISOString(),
     private readonly projectionBudget = { maxInactive: 16, maxSerializedBytes: 64 * 1024 * 1024 },
+    private readonly observeDirectoryAccess: DirectoryAccessObserver = () => 'unchecked',
   ) {
     if (!Number.isSafeInteger(projectionBudget.maxInactive) || projectionBudget.maxInactive < 1 ||
         !Number.isSafeInteger(projectionBudget.maxSerializedBytes) || projectionBudget.maxSerializedBytes < 1)
@@ -103,7 +108,7 @@ export class SqliteStore {
         if (
           versions.some(
             (v) =>
-              ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].includes(Number(v.version)) ||
+              ![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].includes(Number(v.version)) ||
               v.checksum !==
                 hash(
                   Number(v.version) === 1
@@ -118,7 +123,7 @@ export class SqliteStore {
                             ? DESKTOP_SCHEMA_SQL
                             : Number(v.version) === 6
                               ? RESOURCE_SCOPE_SCHEMA_SQL
-                              : Number(v.version) === 7 ? CONVERSATION_DELETION_SQL : Number(v.version) === 8 ? DIRECT_FILES_SCHEMA_SQL : Number(v.version) === 9 ? WORKSPACE_DELETION_SQL : Number(v.version) === 10 ? EVENT_BLOCKS_SCHEMA_SQL : Number(v.version) === 11 ? HOT_PATH_INDEXES_SQL : EVENT_RANGES_SCHEMA_SQL,
+                              : Number(v.version) === 7 ? CONVERSATION_DELETION_SQL : Number(v.version) === 8 ? DIRECT_FILES_SCHEMA_SQL : Number(v.version) === 9 ? WORKSPACE_DELETION_SQL : Number(v.version) === 10 ? EVENT_BLOCKS_SCHEMA_SQL : Number(v.version) === 11 ? HOT_PATH_INDEXES_SQL : Number(v.version) === 12 ? EVENT_RANGES_SCHEMA_SQL : MESSAGE_REVISIONS_SCHEMA_SQL,
                 ),
           )
         )
@@ -219,6 +224,10 @@ export class SqliteStore {
         if (!this.get('SELECT version FROM schema_migrations WHERE version=12')) {
           this.db.exec(EVENT_RANGES_SCHEMA_SQL);
           this.run('INSERT INTO schema_migrations VALUES(12,?,?)',hash(EVENT_RANGES_SCHEMA_SQL),this.now());
+        }
+        if (!this.get('SELECT version FROM schema_migrations WHERE version=13')) {
+          this.db.exec(MESSAGE_REVISIONS_SCHEMA_SQL);
+          this.run('INSERT INTO schema_migrations VALUES(13,?,?)',hash(MESSAGE_REVISIONS_SCHEMA_SQL),this.now());
         }
         this.db.exec('COMMIT');
       } catch (e) {
@@ -856,7 +865,7 @@ export class SqliteStore {
   userMessages(conversationId: string): MessageRow[] {
     this.conversation(conversationId);
     return this.all(
-      "SELECT m.*,CAST(e.sequence AS TEXT) AS projection_sequence FROM messages m JOIN events e ON e.event_id=m.commit_event_id WHERE m.conversation_id=? AND m.role='user' ORDER BY e.sequence",
+      `SELECT m.*,CAST(e.sequence AS TEXT) AS projection_sequence FROM messages m JOIN events e ON e.event_id=m.commit_event_id WHERE m.conversation_id=? AND m.role='user' AND ${this.currentMessageSql()} ORDER BY e.sequence`,
       conversationId,
     ).map((r) => this.historyRow(r));
   }
@@ -873,12 +882,22 @@ export class SqliteStore {
       throw new UmiError('PROTOCOL_INVALID', '原始消息内容、角色或指纹不一致');
     return String(row.id);
   }
-  messages(conversationId: string): MessageRow[] {
+  currentMessageSql(alias = 'm') { return this.messageRevisions.visibleSql(alias); }
+  validateRevisionTarget(conversationId: string, input: RevisionInput) { return this.messageRevisions.target(conversationId, input); }
+  revisionExecutions(conversationId: string, offset = 0, limit = 16) { return this.messageRevisions.executions(conversationId, offset, limit); }
+  assertCurrentRun(runId: string) {
+    const run = this.getRun(runId);
+    if (this.snapshot(run.conversation_id).runs[runId]?.superseded)
+      throw new UmiError('RUN_STATE', '此任务已退出当前对话，不能恢复或沿用旧批准');
+  }
+  messages(conversationId: string): MessageRow[] { return this.originalMessages(conversationId, true); }
+  // 原始历史专供内部审计/验收；模型、搜索和当前对话使用 messages 的修订视图。
+  originalMessages(conversationId: string, current = false): MessageRow[] {
     this.conversation(conversationId);
     return this.all(
       `SELECT m.*,CAST(COALESCE((SELECT a.sequence FROM events a WHERE a.conversation_id=m.conversation_id AND
       json_extract(a.payload,'$.type')='input.applied' AND json_extract(a.payload,'$.payload.messageId')=m.id LIMIT 1),e.sequence) AS TEXT) AS projection_sequence
-      FROM messages m JOIN events e ON e.event_id=m.commit_event_id WHERE m.conversation_id=? ORDER BY e.sequence`,
+      FROM messages m JOIN events e ON e.event_id=m.commit_event_id WHERE m.conversation_id=?${current ? ` AND ${this.currentMessageSql()}` : ''} ORDER BY e.sequence`,
       conversationId,
     ).map((r) => {
       const payload = messageSchema.parse(JSON.parse(r.payload as string));
@@ -905,7 +924,7 @@ export class SqliteStore {
     q: { query: string; role: string; from?: string; to?: string; limit: number },
   ): { rows: MessageRow[]; total: number } {
     this.conversation(conversationId);
-    const where = ['conversation_id=?', "instr(json_extract(payload,'$.content'),?)>0"],
+    const where = ['m.conversation_id=?', this.currentMessageSql(), "instr(json_extract(m.payload,'$.content'),?)>0"],
       args: (string | number)[] = [conversationId, q.query];
     if (q.role !== 'all') {
       where.push('role=?');
@@ -920,11 +939,11 @@ export class SqliteStore {
       args.push(q.to);
     }
     const total = Number(
-      this.get(`SELECT count(*) n FROM messages WHERE ${where.join(' AND ')}`, ...args)!
+      this.get(`SELECT count(*) n FROM messages m WHERE ${where.join(' AND ')}`, ...args)!
         .n,
     );
     const rows = this.all(
-      `SELECT * FROM messages WHERE ${where.join(' AND ')} ORDER BY rowid LIMIT ?`,
+      `SELECT m.* FROM messages m WHERE ${where.join(' AND ')} ORDER BY m.rowid LIMIT ?`,
       ...args,
       q.limit,
     ).map((r) => this.historyRow(r));
@@ -957,33 +976,44 @@ export class SqliteStore {
   messageById(conversationId: string, messageId: string): MessageRow | undefined {
     this.conversation(conversationId);
     const r = this.get(
-      'SELECT * FROM messages WHERE conversation_id=? AND id=?',
+      `SELECT m.* FROM messages m WHERE m.conversation_id=? AND m.id=? AND ${this.currentMessageSql()}`,
       conversationId,
       messageId,
     );
     return r ? this.historyRow(r) : undefined;
   }
+  // SQLite supplies authority; the host observer supplies only current path availability.
+  directoryAccess(environmentId: string, refresh = false): DirectoryAccessView[] {
+    return new DirectFileRepository(this).grants(environmentId).map(g => {
+      const scope = JSON.parse(String(g.scope));
+      const root = String(g.root), revoked = g.revoked === 1;
+      return {
+        id: String(g.id), root, path: scope.kind === 'file' ? join(root, scope.path) : root,
+        access: g.access as 'read' | 'edit', revoked, revision: Number(g.revision), scope,
+        status: revoked ? 'revoked' : this.observeDirectoryAccess({ root, rootIdentity: String(g.root_identity), scope }, refresh),
+      };
+    });
+  }
   runtimeFacts(environmentId: string, _projection?: ConversationState): unknown {
     const direct = new DirectFileRepository(this);
+    const grants = this.directoryAccess(environmentId);
+    const available = new Map(grants.filter(g => g.status === 'available').map(g => [g.id, g]));
     return {
       directAccess: {
         enabled: direct.enabled(environmentId),
-        grants: direct.grants(environmentId).map(g => ({
-          id: g.id, root: g.root, access: g.access,
-          revoked: g.revoked === 1, revision: g.revision,
-          scope: JSON.parse(String(g.scope)),
-        })),
+        grants: [...available.values()],
+        unavailableGrants: grants.filter(g => g.status !== 'available').map(g => ({ id: g.id, path: g.path, status: g.status })),
       },
       initialResources: this.all(
         'SELECT id candidateId,path FROM resource_candidates WHERE environment_id=? AND initial=1',
         environmentId,
       ),
       mounts: direct.mounts(environmentId)
-        .filter(m => direct.grant(m.direct!.grantId, environmentId).revoked === 0)
+        .filter(m => available.has(m.direct!.grantId))
         .map(m => ({
           mountId: m.id, resourceId: m.resourceId, sourceRoot: m.root,
           resourceScope: m.scope,
-          canEdit: direct.grant(m.direct!.grantId, environmentId).access === 'edit',
+          canEdit: available.get(m.direct!.grantId)!.access === 'edit',
           direct: true, grantId: m.direct!.grantId,
         })),
     };
@@ -1078,10 +1108,11 @@ export class SqliteStore {
     commandId: string,
     text: string,
     attachmentIds: string[] = [],
+    revision?: RevisionInput,
   ) {
     if (!text.trim() || text.length > 2_000_000)
       throw new UmiError('PROTOCOL_INVALID', '输入为空或过长');
-    const requestHash = hash(attachmentIds.length ? { text, attachmentIds } : { text });
+    const requestHash = hash(revision ? { kind: 'edit_message', text, ...revision } : attachmentIds.length ? { text, attachmentIds } : { text });
     return this.transaction(() => {
       const existing = this.get(
         'SELECT * FROM commands WHERE conversation_id=? AND id=?',
@@ -1106,6 +1137,8 @@ export class SqliteStore {
         )?.archived === 1
       )
         throw new UmiError('RUN_STATE', '会话已归档');
+      const preparedRevision = revision ? this.messageRevisions.prepare(conversationId, revision, text) : null;
+      if (preparedRevision) attachmentIds = preparedRevision.attachmentIds;
       if (
         new Set(attachmentIds).size !== attachmentIds.length ||
         attachmentIds.length > 8
@@ -1149,6 +1182,7 @@ export class SqliteStore {
         );
       for (const id of attachmentIds)
         this.run('INSERT INTO message_attachments VALUES(?,?)', messageId, id);
+      if (preparedRevision) this.messageRevisions.record(conversationId, String(runId), userTurnId, messageId, preparedRevision);
       const receipt = { runId, messageId, userTurnId };
       this.run(
         'INSERT INTO commands VALUES(?,?,?,?)',
@@ -1244,6 +1278,7 @@ export class SqliteStore {
       throw new UmiError('LEASE_LOST', '执行权失效或任务已停止');
   }
   claim(runId: string, recovery = false): number {
+    this.assertCurrentRun(runId);
     return this.transaction(() => {
       const r = this.getRun(runId),
         e = this.environment(r.environment_id);
@@ -1312,7 +1347,7 @@ export class SqliteStore {
     if (!row) return null;
     const value = this.readArtifact<ContextCarry>(row.artifact_id as string);
     // 旧快照保持只读；迁移前缺少来源或窗口身份时建立新视图。
-    return Array.isArray(value.messages) && Array.isArray(value.sources) && value.projection
+    return value.contextVersion === this.snapshot(conversationId).memory.window.version && Array.isArray(value.messages) && Array.isArray(value.sources) && value.projection
       ? value : null;
   }
   fileEvidenceExecutions(environmentId: string, mountId: string, path: string): string[] {
@@ -1330,7 +1365,7 @@ export class SqliteStore {
     if (expected == null) return false;
     const conversationId = this.getRun(tool.run_id).conversation_id;
     const requests = this.all(
-      "SELECT q.artifact_id FROM model_requests q JOIN runs r ON r.id=q.run_id WHERE r.conversation_id=? AND EXISTS(SELECT 1 FROM messages m WHERE m.turn_id=q.turn_id AND m.role='assistant' AND m.applied=1) ORDER BY q.rowid DESC",
+      `SELECT q.artifact_id FROM model_requests q JOIN runs r ON r.id=q.run_id WHERE r.conversation_id=? AND EXISTS(SELECT 1 FROM messages m WHERE m.turn_id=q.turn_id AND m.role='assistant' AND m.applied=1 AND ${this.currentMessageSql()}) ORDER BY q.rowid DESC`,
       conversationId,
     );
     for (const row of requests) {
@@ -1563,6 +1598,7 @@ export class SqliteStore {
         r = this.getRun(a.run_id);
       if (r.conversation_id !== conversationId)
         throw new UmiError('PROTOCOL_INVALID', '批准不属于当前会话');
+      this.assertCurrentRun(r.id);
       if (!a.valid || t.approval_id !== approvalId || r.stop_requested)
         throw new UmiError('APPROVAL_STALE', '批准对象已失效');
       if (a.decision) {

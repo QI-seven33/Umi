@@ -159,3 +159,34 @@ body .composer-approval .approval-allow-task { background:var(--bg-secondary); c
 
 .ui-dialog button.ui-primary:not(.hold-button) { border-color:transparent; background:var(--ui-blue-soft); color:var(--ui-blue-text); }
 .ui-dialog .workspace-grant-row button:not(.hold-button) { border-color:transparent; }
+
+.workspace-access-dialog .current-grants:empty { display:none; }
+.workspace-access-dialog .access-history { margin:14px 0; font-size:11px; color:var(--text-muted); }
+.workspace-access-dialog .access-history > summary { cursor:pointer; padding:7px 0; }
+.workspace-access-dialog .access-history .workspace-grants { margin:8px 0; max-height:180px; }
+.workspace-access-dialog .access-history p { font-size:11px; }
+.workspace-access-dialog .access-refresh { margin-right:auto; border:0; border-radius:9px; background:transparent; color:var(--text-secondary); }
+.workspace-access-dialog .access-refresh:hover { background:var(--bg-hover); }
+
+/* 文字、说明与操作共用同一消息气泡，输入区域不再嵌套独立卡片。 */
+.umi-message-editor { box-sizing: border-box; width: min(100%, 820px); padding: 14px 16px 12px; border: 0; border-radius: 20px; background: #e6f1fc; box-shadow: none; }
+[data-theme=dark] .umi-message-editor { background: var(--ui-blue-soft); }
+.umi-message-editor textarea { display: block; box-sizing: border-box; field-sizing: content; width: 100%; min-height: 56px; max-height: 320px; resize: none; overflow-y: auto; padding: 0; border: 0; border-radius: 0; outline: none; background: transparent; color: var(--text-primary); box-shadow: none; font: inherit; font-size: 14px; line-height: 1.75; }
+.umi-message-editor textarea:focus-visible { outline: none; border: 0; box-shadow: none; }
+.umi-message-edit-footer { display: flex; align-items: flex-end; gap: 12px; margin-top: 12px; }
+.umi-message-edit-note { display: flex; align-items: flex-start; flex: 1; gap: 6px; min-width: 0; margin: 0; color: color-mix(in srgb, var(--ui-blue-text) 65%, var(--text-secondary)); font-size: 12px; line-height: 1.65; }
+.umi-message-edit-note svg { flex-shrink: 0; margin-top: 3px; }
+.umi-message-edit-error { margin: 9px 0 0; font-size: 12px; line-height: 1.6; color: var(--text-primary); }
+.umi-message-edit-actions { display: flex; flex-shrink: 0; justify-content: flex-end; gap: 8px; }
+.umi-message-edit-actions button { min-height: 32px; border: 1px solid color-mix(in srgb, var(--ui-blue) 16%, transparent); border-radius: 11px; padding: 6px 14px; background: transparent; color: var(--ui-blue-text); font: inherit; font-size: 13px; cursor: pointer; }
+.umi-message-edit-actions button:hover { background: color-mix(in srgb, var(--ui-blue) 9%, transparent); }
+.umi-message-edit-actions button.is-primary { border-color: transparent; color: white; background: var(--ui-blue); }
+.umi-message-edit-actions button.is-primary:hover { background: color-mix(in srgb, var(--ui-blue) 88%, var(--text-primary)); }
+.umi-message-edit-actions button.is-primary:active { background: var(--ui-blue-text); }
+.umi-message-edit-actions button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 720px) {
+  .umi-message-editor { padding: 12px 14px; }
+  .umi-message-edit-footer { flex-wrap: wrap; gap: 10px; }
+  .umi-message-edit-note { flex-basis: 100%; }
+  .umi-message-edit-actions { margin-left: auto; }
+}

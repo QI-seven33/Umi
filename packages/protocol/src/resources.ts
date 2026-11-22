@@ -37,3 +37,8 @@ export const mountSchema = z
   })
   .strict();
 export type Mount = z.infer<typeof mountSchema>;
+
+export type DirectoryAccessStatus = 'available' | 'missing' | 'changed' | 'unavailable' | 'unchecked' | 'revoked';
+export type DirectoryAccessProbe = { root: string; rootIdentity: string; scope: import('./resource-scope.js').ResourceScope };
+export type DirectoryAccessObserver = (probe: DirectoryAccessProbe, refresh?: boolean) => DirectoryAccessStatus;
+export type DirectoryAccessView = { id: string; root: string; path: string; access: 'read' | 'edit'; revoked: boolean; revision: number; scope: DirectoryAccessProbe['scope']; status: DirectoryAccessStatus };

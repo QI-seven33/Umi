@@ -24,6 +24,18 @@ export async function verifyDesktop(
   win: BrowserWindow,
   dataRoot: string,
 ) {
+  if (process.argv.includes('--verify-message-edit-only')) {
+    await broker.ready();
+    try {
+      const { verifyMessageEditing } = await import('./verification-message-edit.js');
+      const names = await verifyMessageEditing(broker, win, dataRoot);
+      writeFileSync(join(dataRoot,'desktop-verification.json'), JSON.stringify({name:'Umi',passed:true,evidence:names.map(name=>({name,passed:true}))}));
+    } catch (error) {
+      try { writeFileSync(join(dataRoot,'failure.png'), (await win.webContents.capturePage()).toPNG()); } catch {}
+      writeFileSync(join(dataRoot,'desktop-verification.json'),JSON.stringify({name:'Umi',passed:false,error:error instanceof Error?error.stack:String(error)})); throw error;
+    }
+    return;
+  }
   if (process.argv.includes('--interface-only')) {
     const { verifyInterface } = await import('./verification-interface.js');
     await broker.ready();
@@ -1212,15 +1224,19 @@ export async function verifyDesktop(
     pass('问答翻页、自定义输入与最终提交沿真实持久记录完成');
     await until(()=>win.webContents.executeJavaScript(`!!document.querySelector('.message.assistant .message-actions')`),Boolean);
     const actions=await win.webContents.executeJavaScript(`(()=>{const root=document.querySelector('.message.assistant .message-actions');const up=root.querySelector('[aria-label="有帮助（仅本机）"]'),down=root.querySelector('[aria-label="需要改进（仅本机）"]');up.click();return root.querySelectorAll('button').length;})()`);
-    assert.equal(actions,5);
+    assert.equal(actions,4);
     await until(()=>win.webContents.executeJavaScript(`document.querySelector('.message.assistant [aria-label="有帮助（仅本机）"]').getAttribute('aria-pressed')`),s=>s==='true');
     await win.webContents.executeJavaScript(`document.querySelector('.message.assistant [aria-label="需要改进（仅本机）"]').click();`);
     await until(()=>win.webContents.executeJavaScript(`document.querySelector('.message.assistant [aria-label="有帮助（仅本机）"]').getAttribute('aria-pressed')==='false'&&document.querySelector('.message.assistant [aria-label="需要改进（仅本机）"]').getAttribute('aria-pressed')==='true'`),Boolean);
-    await win.webContents.executeJavaScript(`document.querySelector('.message.assistant [aria-label="重新组织回答"]').click();`);
-    await until(()=>win.webContents.executeJavaScript(`document.querySelector('.composer textarea').value`),text=>text.includes('不重复执行已完成的操作'));
+    const quotedText = questionState.state.blocks.filter(b => b.runId === questionRun.runId && b.kind === 'text' && b.displayRole === 'final').map(b => b.text).join('\n\n');
+    assert(quotedText.length > 0);
+    await win.webContents.executeJavaScript(`document.querySelector('.message.assistant [aria-label="更多消息操作"]').click();`);
+    await until(()=>win.webContents.executeJavaScript(`!!document.querySelector('.message-actions-menu')`),Boolean);
+    await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('.message-actions-menu button')).find(b=>b.textContent==='引用到输入框').click();`);
+    await until(()=>win.webContents.executeJavaScript(`document.querySelector('.composer textarea').value`),text=>text===quotedText.split('\n').map(line=>'> '+line).join('\n')+'\n\n');
     assert.equal((await broker.request({type:'snapshot',conversationId:questionConversation.conversationId}) as Snapshot).messages.length,questionState.messages.length);
     writeFileSync(join(dataRoot,'message-actions-preview.png'),(await captureFrame(true)).toPNG());
-    pass('消息五个操作实际可用，赞踩互斥；重新回答先填草稿，不自动重跑工具');
+    pass('消息保留复制、赞、踩和更多四个入口；引用完整原文到草稿，不创建消息或重跑工具');
     const previewFixtures = filePreviewFixtures();
     await win.webContents.executeJavaScript(`(() => {const files=${JSON.stringify(previewFixtures)};const data=new DataTransfer();for(const f of files)data.items.add(new File([f.text],f.name,{type:'text/plain'}));document.querySelector('.composer').dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:data}));})()`);
     await until(()=>win.webContents.executeJavaScript(`document.querySelectorAll('.attachment-chip.done').length`),n=>n===previewFixtures.length);

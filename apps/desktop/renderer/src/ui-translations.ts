@@ -1,5 +1,12 @@
 // Interface text only. Never translate user content or Agent messages.
 export const english: Record<string, string> = {
+  "编辑消息": "Edit message",
+  "修改消息内容": "Edit message text",
+  "后续对话将被替换；已有文件和命令效果保留。": "Later conversation will be replaced. Existing file and command effects will remain.",
+  "重新发送": "Resend",
+  "重试提交": "Retry submission",
+  "提交失败，请重试": "Submission failed. Please retry.",
+  "查看修订前操作": "View earlier operations",
   "启动失败，请重试。": "Could not start Umi. Please retry.",
   "历史加载失败，请重试。": "Could not load history. Please retry.",
   "工作区已删除，部分托管文件暂未清理；下次启动会重试。": "Workspace deleted. Remaining managed files will be cleaned up on the next start.",
@@ -66,8 +73,6 @@ export const english: Record<string, string> = {
   "有帮助 · 仅保存在本机": "Helpful · Saved on this device",
   "需要改进（仅本机）": "Needs improvement (this device)",
   "需要改进 · 仅保存在本机": "Needs improvement · Saved on this device",
-  "重新组织回答": "Revise response",
-  "在输入框中准备重新回答的要求": "Prepare a revision request in the composer",
   "更多消息操作": "More message actions",
   "更多": "More",
   "复制 Markdown": "Copy Markdown",
@@ -576,5 +581,13 @@ export const english: Record<string, string> = {
   "创建于 {time}": "Created {time}",
   "支持文字、图片与工具调用": "Text, images and tool calls",
   "支持文字、推理与工具调用": "Text, reasoning and tool calls",
-  "{label}；模型窗口 {window}；输出预留 {output}；安全余量 {margin}；已压缩 {count} 条记录，用户原文保留": "{label}; model window {window}; output reserve {output}; headroom {margin}; {count} records compressed, original user text retained"
+  "{label}；模型窗口 {window}；输出预留 {output}；安全余量 {margin}；已压缩 {count} 条记录，用户原文保留": "{label}; model window {window}; output reserve {output}; headroom {margin}; {count} records compressed, original user text retained",
+  "同一工作区的所有会话共享这些目录授权，直到撤销；重启后保留。": "All conversations in this workspace share these directory permissions until revoked, including after restart.",
+  "路径不存在": "Path missing",
+  "路径对象已变化": "Path identity changed",
+  "暂不可用": "Unavailable",
+  "当前没有可用的目录授权。": "No directory permissions are currently available.",
+  "失效与已撤销": "Unavailable and revoked",
+  "历史记录用于保留授权来源，不代表当前仍可访问。": "History preserves the original authorization; it does not grant current access.",
+  "后台模式可从右下角托盘打开或退出 Umi。": "In background mode, open or quit Umi from the system tray."
 };

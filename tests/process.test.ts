@@ -356,7 +356,7 @@ test('C11：版本 2 数据库升级至 3 保留挂载、原文及原会话游�
     await f.app.close();
     const next = new UmiApplication(join(f.root, 'data'), new ScriptModel([]));
     try {
-      assert.equal(next.store.all('SELECT * FROM schema_migrations').length,12);
+      assert.equal(next.store.all('SELECT * FROM schema_migrations').length,13);
       assert.deepEqual(next.store.events(f.c.conversationId), events);
       assert.deepEqual(next.store.snapshot(f.c.conversationId).cursor, cursor);
       assert.deepEqual(next.files.repo.mounts(f.c.environmentId), mounts);

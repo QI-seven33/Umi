@@ -47,7 +47,7 @@ export class DesktopService {
       throw new UmiError('PERMISSION_DENIED', '目录选择证据只能由桌面主进程解析');
     //switch (表达式) —— 拿 c.type 的值匹配下面每个 case
     switch (c.type) {
-      case 'list_directory_access': return a.files.repo.direct.grants(String(s.conversation(c.conversationId).environment_id)).map(g=>({id:g.id,root:g.root,access:g.access,revoked:g.revoked===1}));
+      case 'list_directory_access': return s.directoryAccess(String(s.conversation(c.conversationId).environment_id), true);
       case 'revoke_directory_access': return a.revokeDirectoryAccess(c.conversationId,c.grantId);
       case 'list_file_changes': return a.files.repo.direct.changes(c.conversationId,c.beforeChangeId);
       case 'preview_file_change': return a.files.direct.preview(c.conversationId,c.changeId,c.startByte,c.byteLength);
@@ -185,7 +185,7 @@ export class DesktopService {
             ? { settings: s.settings(c.conversationId) }
             : {}),
           ...(batch.some(
-            (e) => e.type === 'usage.recorded' || e.type.startsWith('context.') ||
+            (e) => e.type === 'usage.recorded' || e.type === 'input.revised' || e.type.startsWith('context.') ||
               ['model.attempt_completed', 'model.attempt_failed', 'tool.measured', 'approval.decided', 'approval.invalidated',
                 'run.completed', 'run.failed', 'run.interrupted', 'run.stopped'].includes(e.type),
           )
@@ -194,6 +194,8 @@ export class DesktopService {
         };
       }
       //发送用户消息
+      case 'edit_message':
+        return a.editMessage(c.conversationId, c.commandId, c.targetMessageId, c.expectedLastMessageId, c.text);
       case 'send':
         return a.send(c.conversationId, c.commandId, c.text, c.attachmentIds);
       //查某个命令的回执，没有就返回 null

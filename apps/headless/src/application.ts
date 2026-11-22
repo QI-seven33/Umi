@@ -1,3 +1,4 @@
+import { createDirectoryAccessObserver } from '../../../packages/adapters/src/host-files/directory-access.js';
 import {rootIdentity} from '../../../packages/adapters/src/host-files/paths.js';
 import { runOutputBudget } from '../../../packages/agent/src/loop/run-output-budget.js';
 import { SkillImports } from '../../../packages/adapters/src/skills/imports.js';
@@ -108,7 +109,7 @@ export class UmiApplication {
       ) => void | Promise<void>;
     } = {},
   ) {
-    this.store = new SqliteStore(dataRoot, options.clock);
+    this.store = new SqliteStore(dataRoot, options.clock, undefined, createDirectoryAccessObserver());
     this.registry = new ToolRegistry();
     this.skills = new LocalSkillLibrary(this.store.dataRoot);
     this.skillImports = new SkillImports(this.store.dataRoot,this.skills,new GithubSkillSource(options.skillFetch));
@@ -340,6 +341,26 @@ export class UmiApplication {
       this.start(receipt.runId, true);
     return receipt;
   }
+  async editMessage(conversationId: string, commandId: string, targetMessageId: string, expectedLastMessageId: string, text: string) {
+    this.assertDirectConversation(conversationId);
+    const revision = { targetMessageId, expectedLastMessageId };
+    const existing = () => this.store.get('SELECT id FROM commands WHERE conversation_id=? AND id=?', conversationId, commandId);
+    if (existing()) return this.store.acceptInput(conversationId, commandId, text, [], revision);
+    const target = this.store.validateRevisionTarget(conversationId, revision);
+    if (!text.trim() || text.length > 2_000_000 || text === target.payload.content)
+      throw new UmiError('PROTOCOL_INVALID', '请输入修改后的有效消息');
+    const environment = this.store.environment(String(this.store.conversation(conversationId).environment_id));
+    if (environment.active_run_id) {
+      // 已排队的原话正在被显式修订；停止后的旧输入续跑不能抢在修订事务前恢复任务。
+      this.queuedInput.delete(environment.active_run_id);
+      await this.stop(conversationId, environment.active_run_id);
+    }
+    // stop 期间可收到其他新消息或同 ID 重试；事务内再校验，幂等回执不重启旧任务。
+    const alreadyAccepted = Boolean(existing());
+    const receipt = this.store.acceptInput(conversationId, commandId, text, [], revision);
+    if (!alreadyAccepted) this.start(receipt.runId, false);
+    return receipt;
+  }
   private assertDirectConversation(conversationId: string) {
     const conversation = this.store.conversation(conversationId);
     if (!this.files.repo.direct.enabled(String(conversation.environment_id)))
@@ -347,6 +368,7 @@ export class UmiApplication {
   }
   private start(runId: string, recovery: boolean, approvedExecutionId?: string, inspectOnly = false) {
     this.assertDirectConversation(this.store.getRun(runId).conversation_id);
+    this.store.assertCurrentRun(runId);
     if (this.running.has(runId)) return;
     const controller = new AbortController();
     const done = Promise.resolve()
@@ -426,6 +448,7 @@ export class UmiApplication {
     const r = this.store.getRun(runId);
     if (r.conversation_id !== conversationId)
       throw new UmiError('PROTOCOL_INVALID', '运行不属于当前会话');
+    this.store.assertCurrentRun(runId);
     if (
       ![
         'queued',

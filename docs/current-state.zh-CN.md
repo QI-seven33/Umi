@@ -1,8 +1,8 @@
 # Umi 当前技术状态
 
-核对日期：2026-11-11。适用Umi0.3.2源码；package版本0.3.2、DATABASE_VERSION=12、PROMPT_VERSION=`umi-persona-26`。已退役旧物化副本与冻结交付执行链，普通文件任务统一走授权目录直改；保留独立成果/导出、备份、冲突核验及恢复，不新增数据库格式迁移。
+核对日期：2026-11-22。当前版本Umi0.3.3；package版本0.3.3、DATABASE_VERSION=13、PROMPT_VERSION=`umi-persona-26`。已退役旧物化副本与冻结交付执行链，普通文件任务统一走授权目录直改；保留独立成果/导出、备份、冲突核验及恢复，消息修订新增DB13格式，DB1–12的历史和迁移指纹不重写。
 
-构建、验证与交付范围见[0.3.2版本说明](releases/0.3.2.zh-CN.md)，此前交付见[0.3.0版本说明](releases/0.3.0.zh-CN.md)。源码、便携包和既有安装目录按版本与构建指纹分别核对；远端资产以GitHub实际Release为准，发布不会自动更新本机安装。
+构建、验证与交付范围见[0.3.3版本说明](releases/0.3.3.zh-CN.md)，此前交付见[0.3.0版本说明](releases/0.3.0.zh-CN.md)。源码、便携包和既有安装目录按版本与构建指纹分别核对；远端资产以GitHub实际Release为准，发布不会自动更新本机安装。
 
 ## 技术与依赖
 
@@ -51,6 +51,8 @@ Chat Completions流式适配保留完整已完成思考和工具配对，发送u
 
 ## 历史、上下文与存储
 
+已发送用户消息支持原位文字编辑并重新发送：从该处替换当前线性对话，不提供版本树；原始历史与实际文件/命令效果保留。运行任务先停止结算，未决效果阻止修订；旧摘要、笔记、任务与许可不带入新任务。首版附件正文不编辑，保留原字节并复制新消息归属。实现与边界见[消息编辑记录](records/20261121-message-editing.zh-CN.md)。
+
 SQLite数据库为umi.sqlite，使用外键/WAL与同步持久化，WriterLock协调单写者。默认桌面数据根由Electron userData下的Umi确定，`--data`可指定隔离目录；核心在其agent子目录。API Key由main通过safeStorage加密保存或由环境提供，数据库与托管文件并非整体静态加密。
 
 业务表覆盖会话/环境/运行、events/messages/artifacts/commands、请求快照、工具/批准、来源/目录绑定、进程、附件、记忆/维护、迁移与永久删除。既有capabilities/materializations/changesets/delivery_items等表仅作为历史格式与删除依赖保留，不再提供旧执行实现。直接编辑保存工作区授权、直改环境/绑定和文件修改记录；整组删除保存最小完成凭据；DB10新增event_blocks压缩正文，DB12新增event_ranges让新批次共用首片身份行；逻辑事件完整还原，旧历史不重写。会话投影是可重建辅助表；任务、问答和成果复用事件与artifact。
@@ -97,6 +99,8 @@ Skill采用SKILL.md/YAML与小目录、按需搜索及分页。read_skill默认8
 | Skill | list_skills、read_skill |
 
 ## 当前验证与分发边界
+
+2026-11-21源码修正目录权限当前/历史分组、失效路径宿主事实和后台托盘；授权仍按工作区跨会话复用，不新增数据库迁移。只读路径观察最多缓存1秒/256项，实际工具权限检查独立。此修复尚未进入0.3.2安装资产，变化见[Unreleased](../CHANGELOG.md#unreleased)。
 
 0.3.2的本轮构建、实际便携exe及安装器载荷验证见[版本说明](releases/0.3.2.zh-CN.md)，实现见[退役记录](records/20261110-retire-copy-delivery.zh-CN.md)。下述0.3.1及更早证据保留原日期，不替代本轮结果。
 

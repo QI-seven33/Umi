@@ -157,6 +157,7 @@ export class ConversationDeletion {
         const byConversation = (table: string): Selection => ({table,where:'conversation_id=?',args:[conversationId]});
         const byEnvironment = (table: string): Selection => ({table,where:'environment_id=?',args:[environmentId]});
         const selections: Selection[] = [
+          byConversation('message_revisions'),
           {table:'message_attachments',where:'message_id IN(SELECT id FROM messages WHERE conversation_id=?) OR attachment_id IN(SELECT id FROM attachments WHERE conversation_id=?)',args:[conversationId,conversationId]},
           byConversation('attachments'), {table:'process_outputs',where:executionWhere,args:[conversationId]},
           {table:'process_executions',where:executionWhere,args:[conversationId]},

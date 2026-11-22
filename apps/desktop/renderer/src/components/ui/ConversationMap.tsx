@@ -1,3 +1,4 @@
+import { currentSequence } from '../../../../../../packages/protocol/src/conversation-view.js';
 import { t as uiText, getUiLanguage } from '../../ui-language.js';
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
@@ -9,7 +10,7 @@ export function projectHistoryPreview(snapshot: Snapshot | null): Message[] {
   if (!snapshot) return [];
   const users = [...snapshot.messages].sort((a, b) =>
     BigInt(a.projectionSequence) < BigInt(b.projectionSequence) ? -1 : 1);
-  const finalBlocks = snapshot.state.blocks.filter(block => block.kind === "text" && block.displayRole === "final")
+  const finalBlocks = snapshot.state.blocks.filter(block => block.kind === "text" && block.displayRole === "final" && currentSequence(snapshot.state, block.sequence))
     .sort((a, b) => BigInt(a.sequence) < BigInt(b.sequence) ? -1 : 1);
   return users.flatMap((user, index): Message[] => {
     const from = BigInt(user.projectionSequence);

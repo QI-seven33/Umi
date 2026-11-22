@@ -45,6 +45,7 @@ jobs:
           dist/tests/conversation-deletion.test.js
           dist/tests/hot-path-indexes.test.js
           dist/tests/direct-files.test.js
+          dist/tests/directory-access.test.js
           dist/tests/natural-history.test.js
           dist/tests/event-blocks.test.js
           dist/tests/workspace-deletion.test.js
@@ -68,4 +69,6 @@ jobs:
           dist/tests/window-chrome.test.js
           dist/tests/web-search.test.js
           dist/tests/web-fetch.test.js
+      - name: Message revisions (offline; native command case checked locally)
+        run: node --test --test-name-pattern="^(?!.*真实任务命令许可)" dist/tests/message-edit.test.js
       - run: node scripts/build-desktop.mjs

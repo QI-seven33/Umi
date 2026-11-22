@@ -102,6 +102,10 @@ export interface PersistencePort {
   environment(id: string): Environment;
   messages(conversationId: string): MessageRow[];
   snapshot(conversationId: string): ConversationState;
+  revisionExecutions(conversationId: string, offset?: number, limit?: number): {
+    entries: { executionId: string; runId: string; name: string; status: string; resultRef: string | null }[];
+    total: number; offset: number; nextOffset: number | null; authority: string;
+  };
   questionRequest(conversationId: string, executionId: string): QuestionRequest | undefined;
   searchMessages(
     conversationId: string,

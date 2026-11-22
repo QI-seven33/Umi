@@ -36,7 +36,7 @@ test('迁移11只加索引，旧事件/资料/迁移指纹不变，内容相同�
   const indexes=s.all("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'hot_%'");
   for(const row of indexes)s.db.exec('DROP INDEX "'+String(row.name)+'"');
   s.db.exec('DELETE FROM schema_migrations WHERE version=11');s.close();s=new SqliteStore(data);
-  assert.equal(s.databaseVersion,12);
+  assert.equal(s.databaseVersion,13);
   assert.deepEqual(s.all('SELECT * FROM events'),events);assert.deepEqual(s.all('SELECT * FROM artifacts'),artifacts);
   assert.deepEqual(s.all('SELECT * FROM schema_migrations WHERE version<=10'),old);
   assert.equal(s.all("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'hot_%'").length,indexes.length);

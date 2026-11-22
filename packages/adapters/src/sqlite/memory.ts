@@ -52,7 +52,7 @@ export class MemoryRepository {
     });
   }
   load(conversationId: string): ContextMemory {
-    const window = this.store.snapshot(conversationId).memory.window;
+    const currentMemory = this.store.snapshot(conversationId).memory, window = currentMemory.window;
     const manifest = window.manifestRef
       ? this.store.readArtifact<Manifest>(window.manifestRef)
       : null;
@@ -100,6 +100,7 @@ export class MemoryRepository {
         'SELECT * FROM memory_entries WHERE conversation_id=? ORDER BY rowid',
         conversationId,
       )
+      .filter(row => Boolean(currentMemory.entries[String(row.id)]))
       .map((row) => ({
         id: row.id as string,
         executionId: row.execution_id as string,
@@ -124,6 +125,16 @@ export class MemoryRepository {
     };
   }
   accessible(conversationId: string, artifactId: string): unknown {
+    const state = this.store.snapshot(conversationId);
+    if (state.revisions?.length) {
+      const owners = this.store.all(
+        `SELECT t.run_id FROM memory_entries m JOIN tool_executions t ON t.id=m.execution_id WHERE m.conversation_id=? AND m.artifact_ref=?
+        UNION ALL SELECT q.run_id FROM context_snapshots c JOIN model_requests q ON q.context_id=c.id WHERE c.conversation_id=? AND c.artifact_id=?
+        UNION ALL SELECT run_id FROM context_maintenance WHERE conversation_id=? AND (plan_ref=? OR summary_ref=? OR manifest_ref=?)`,
+        conversationId, artifactId, conversationId, artifactId, conversationId, artifactId, artifactId, artifactId);
+      if (owners.some(owner => state.runs[String(owner.run_id)]?.superseded))
+        throw new UmiError('PERMISSION_DENIED', '此派生资料已退出当前对话，请依据当前原话和现状重新观察');
+    }
     this.store.conversation(conversationId);
     const owned = this.store.get(
       `SELECT id FROM tool_executions WHERE result_ref=? AND run_id IN(SELECT id FROM runs WHERE conversation_id=?)

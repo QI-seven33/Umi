@@ -124,7 +124,7 @@ test('拒绝选择控制目录不留下可自动物化的会话；普通项目�
 test('授权撤销通过真实事件批次更新界面事实，修改记录有专属刷新序号',async()=>{
  const f=fixture();try{
   const service=new DesktopService(f.app),before=f.app.store.snapshot(f.c.conversationId).cursor;f.app.revokeDirectoryAccess(f.c.conversationId,f.m.direct!.grantId);
-  const batch=await service.handle({type:'events',conversationId:f.c.conversationId,cursor:before}) as {resources:any};assert(batch.resources.directAccess.grants[0].revoked);
+  const batch=await service.handle({type:'events',conversationId:f.c.conversationId,cursor:before}) as {resources:any};assert(!batch.resources.directAccess.grants.some((g:any)=>g.id===f.m.direct!.grantId));assert(batch.resources.directAccess.unavailableGrants.some((g:any)=>g.id===f.m.direct!.grantId&&g.status==='revoked'));assert(!batch.resources.mounts.some((m:any)=>m.grantId===f.m.direct!.grantId));
   f.app.files.direct.select(f.c.conversationId);const m=f.app.files.repo.direct.mounts(f.c.environmentId).find(m=>m.direct!.grantId!==f.m.direct!.grantId)!;
   f.steps.push(call('write_file',{mountId:m.id,path:'refresh.txt',content:'面板刷新'}),text('完成'));await f.run();assert(f.app.store.snapshot(f.c.conversationId).fileChangeRevision);
  }finally{await f.close();}

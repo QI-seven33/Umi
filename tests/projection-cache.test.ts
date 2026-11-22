@@ -43,7 +43,7 @@ test('投影缓存：重启后完整状态相同，无需再次扫描历史正�
     assert.deepEqual(store.snapshot(f.c.conversationId), f.expected);
     assert.equal(reads.length, 0);
     assert.deepEqual(store.events(f.c.conversationId), f.events);
-    assert.equal(store.databaseVersion, 12);
+    assert.equal(store.databaseVersion, 13);
   } finally { f.close(); }
 });
 

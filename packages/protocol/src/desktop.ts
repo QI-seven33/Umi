@@ -54,6 +54,8 @@ export const desktopCommandSchema = z.discriminatedUnion('type', [
       attachmentIds: z.array(id).max(8).default([]),
     })
     .strict(),
+  z.object({ type: z.literal('edit_message'), ...conversation, commandId: id,
+    targetMessageId: id, expectedLastMessageId: id, text: z.string().min(1).max(2_000_000) }).strict(),
   z.object({ type: z.literal('receipt'), ...conversation, commandId: id }).strict(),
   z
     .object({ type: z.literal('settings'), ...conversation, settings: settingsSchema })

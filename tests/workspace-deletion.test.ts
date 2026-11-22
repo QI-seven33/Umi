@@ -102,7 +102,7 @@ test('迁移9只新增删除凭据，旧8库的历史、批准、备份与迁移
  const f=fixture();let reopened:UmiApplication|undefined,closed=false;try{
   const before=f.app.store.events(f.c.conversationId),fingerprints=f.app.store.all('SELECT * FROM schema_migrations WHERE version<=8'),grants=f.app.store.all('SELECT * FROM workspace_file_grants');
   f.app.store.db.exec('DROP TABLE workspace_deletion_receipts;DELETE FROM schema_migrations WHERE version=9');await f.app.close();closed=true;
-  reopened=new UmiApplication(f.data,new ScriptModel([]));assert.equal(reopened.store.databaseVersion,12);assert.deepEqual(reopened.store.events(f.c.conversationId),before);
+  reopened=new UmiApplication(f.data,new ScriptModel([]));assert.equal(reopened.store.databaseVersion,13);assert.deepEqual(reopened.store.events(f.c.conversationId),before);
   assert.deepEqual(reopened.store.all('SELECT * FROM schema_migrations WHERE version<=8'),fingerprints);assert.deepEqual(reopened.store.all('SELECT * FROM workspace_file_grants'),grants);
  }finally{if(reopened)await reopened.close();if(!closed)await f.app.close();removeTestRoot(f.root);}
 });

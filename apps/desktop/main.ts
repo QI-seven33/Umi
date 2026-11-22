@@ -12,6 +12,7 @@ import {
   net,
   safeStorage,
   Menu,
+  Tray,
   nativeTheme,
 } from 'electron';
 import {
@@ -63,6 +64,8 @@ let win: BrowserWindow | null = null,
   quitting = false,
   config: DesktopConfig;
 let startupReady: ReturnType<AgentBroker['ready']> | undefined;
+let tray: Tray | null = null;
+let trayMenu: Menu | null = null;
 
 // 窗口与页面共用不透明纯色背景，避免桌面壁纸或窗口激活状态改变外观。
 function windowBackgroundColor() {
@@ -89,6 +92,41 @@ const userData =
 app.setPath('userData', userData);
 const preferences = new DesktopPreferenceStore(userData);
 const ui = (zh: string, en: string) => preferences.read().language === 'en' ? en : zh;
+function showMainWindow() {
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+function removeTray() {
+  if (tray && !tray.isDestroyed()) tray.destroy();
+  tray = null;
+  trayMenu = null;
+}
+function syncTray(): boolean {
+  if (quitting || preferences.read().closeAction !== 'background') {
+    removeTray();
+    return false;
+  }
+  try {
+    if (!tray || tray.isDestroyed()) {
+      tray = new Tray(join(codeRoot, process.platform === 'win32' ? 'renderer/umi.ico' : 'renderer/umi-logo.png'));
+      tray.on('click', showMainWindow);
+      tray.on('double-click', showMainWindow);
+    }
+    trayMenu = Menu.buildFromTemplate([
+      { id: 'open-umi', label: ui('打开 Umi', 'Open Umi'), click: showMainWindow },
+      { type: 'separator' },
+      { id: 'quit-umi', label: ui('退出 Umi', 'Quit Umi'), click: () => app.quit() },
+    ]);
+    tray.setToolTip('Umi');
+    tray.setContextMenu(trayMenu);
+    return true;
+  } catch {
+    removeTray();
+    return false;
+  }
+}
 function desktopPaths() {
   return { data: userData, agent: join(userData, 'agent'), exports: preferences.read().exportDirectory ?? app.getPath('downloads'), application: dirname(app.getPath('exe')) };
 }
@@ -229,7 +267,11 @@ function titleBarOverlay() {
 
 function installIPC() {
   handle('umi:preferences', () => preferences.read());
-  handle('umi:preferences-update', (_event, raw) => preferences.save(desktopPreferencePatchSchema.parse(raw)));
+  handle('umi:preferences-update', (_event, raw) => {
+    const next = preferences.save(desktopPreferencePatchSchema.parse(raw));
+    syncTray();
+    return next;
+  });
   handle('umi:application-info', () => ({ version: app.getVersion(), development: !app.isPackaged, paths: desktopPaths() }));
   handle('umi:data-location', async (_event, raw) => {
     const location = dataLocationSchema.parse(raw);
@@ -496,8 +538,8 @@ function createWindow() {
   win.on('close', (event) => {
     if (!quitting) {
       event.preventDefault();
-      if (preferences.read().closeAction === 'quit') app.quit();
-      else win!.hide();
+      if (preferences.read().closeAction === 'quit' || !syncTray()) app.quit();
+      else win!.hide(); // Never hide without a working tray object.
     }
   });
 
@@ -511,19 +553,15 @@ function createWindow() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
-    win?.show();
-    win?.focus();
-  });
+  app.on('second-instance', showMainWindow);
 
-  app.on('activate', () => {
-    win?.show();
-  });
+  app.on('activate', showMainWindow);
 
   app.on('before-quit', (event) => {
     if (quitting) return;
     event.preventDefault();
     quitting = true;
+    removeTray();
     void broker?.close().finally(() => app.quit());
   });
 
@@ -567,8 +605,14 @@ if (!app.requestSingleInstanceLock()) {
       void startupReady.catch(() => {});
       installIPC();
       createWindow();
+      syncTray();
 
       if (process.argv.includes('--verify-desktop')) {
+        if (process.argv.includes('--verify-background-only')) {
+          const { verifyBackgroundWindow } = await import('./verification-background.js');
+          await verifyBackgroundWindow(win!, userData, () => ({ tray, menu: trayMenu }));
+          return;
+        }
         if (process.argv.includes('--verify-close-only')) {
           const { verifyCloseWindow } = await import('./verification-close.js');
           await verifyCloseWindow(win!, userData);
@@ -577,6 +621,7 @@ if (!app.requestSingleInstanceLock()) {
         const { verifyDesktop } = await import('./verification.js');
         await verifyDesktop(broker, win!, userData);
         quitting = true;
+        removeTray();
         await broker.close();
         app.exit(0);
       }

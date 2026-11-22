@@ -103,7 +103,7 @@ test('迁移10：只添加格式表，旧9事件字节、身份与迁移指纹�
   const c=s.createConversation(workspace);s.commit({conversationId:c.conversationId},{type:'settings.changed',payload:{version:1}});
   const rows=s.all('SELECT * FROM events'),fingerprints=s.all('SELECT * FROM schema_migrations WHERE version<=9');
   s.db.exec('DROP TABLE event_blocks;DELETE FROM schema_migrations WHERE version=10');s.close();s=new SqliteStore(data);
-  assert.equal(s.databaseVersion,12);assert.deepEqual(s.all('SELECT * FROM events'),rows);assert.deepEqual(s.all('SELECT * FROM schema_migrations WHERE version<=9'),fingerprints);assert.equal(s.all('SELECT id FROM event_blocks').length,0);
+  assert.equal(s.databaseVersion,13);assert.deepEqual(s.all('SELECT * FROM events'),rows);assert.deepEqual(s.all('SELECT * FROM schema_migrations WHERE version<=9'),fingerprints);assert.equal(s.all('SELECT id FROM event_blocks').length,0);
  }finally{s.close();removeTestRoot(root);}
 });
 
@@ -188,7 +188,7 @@ test('迁移12：旧DB11标量、DB10正文块与所有迁移指纹不改写，�
   s.commit({conversationId:f.c.conversationId,runId:f.runId},{type:'run.stopped',payload:{reason:'迁移前停止'}});
   const raw=s.all('SELECT * FROM events'),blocks=s.all('SELECT * FROM event_blocks'),events=s.events(f.c.conversationId),oldLedger=s.all('SELECT * FROM schema_migrations WHERE version<=11');
   s.db.exec('DROP TRIGGER event_scalar_range_insert;DROP TRIGGER event_range_insert;DROP TABLE event_ranges;DELETE FROM schema_migrations WHERE version=12');await f.app.close();
-  next=new SqliteStore(join(f.root,'data'));assert.equal(next.databaseVersion,12);
+  next=new SqliteStore(join(f.root,'data'));assert.equal(next.databaseVersion,13);
   assert.deepEqual(next.all('SELECT * FROM events'),raw);assert.deepEqual(next.all('SELECT * FROM event_blocks'),blocks);
   assert.deepEqual(next.all('SELECT * FROM schema_migrations WHERE version<=11'),oldLedger);assert.deepEqual(next.events(f.c.conversationId),events);
   assert.equal(next.all('SELECT * FROM event_ranges').length,0);

@@ -1,3 +1,4 @@
+import { currentSequence, type ConversationRevision } from './conversation-view.js';
 import type { QuestionRequest } from './question.js';
 import type { ResourceScope, MaterializationFailure } from './resource-scope.js';
 import type { WorkEvent } from './events.js';
@@ -20,6 +21,7 @@ export type Block = {
 };
 export type ConversationState = {
   cursor: Cursor;
+  revisions?: ConversationRevision[];
   environmentRevision?: number;
   fileChangeRevision?: string;
   latestRunId?: string; // 最近创建/启动/显式恢复，不能仅按对象的创建顺序选择。
@@ -27,6 +29,7 @@ export type ConversationState = {
     string,
     {
       status: RunStatus;
+      superseded?: boolean;
       phase: Phase;
       finalMessageId?: string;
       activationSequence?: string;
@@ -342,6 +345,20 @@ export function reduceConversation(
       if (question.runId === e.runId && question.status === 'pending') question.status = 'cancelled';
   }
   switch (e.type) {
+    case 'input.revised': {
+      if (!s.messages.some(m => m.id === e.payload.targetMessageId) ||
+          !s.messages.some(m => m.id === e.payload.messageId && m.runId === e.runId) ||
+          BigInt(e.payload.userCutoff) >= BigInt(e.payload.replacementSequence) ||
+          BigInt(e.payload.contextCutoff) >= BigInt(e.payload.replacementSequence) ||
+          BigInt(e.payload.replacementSequence) >= BigInt(e.sequence))
+        throw new UmiError('PROTOCOL_INVALID', '消息修订来源或边界错误');
+      (s.revisions ??= []).push({ ...e.payload, id: e.eventId, sequence: e.sequence });
+      for (const [id, run] of Object.entries(s.runs)) if (id !== e.runId) run.superseded = true;
+      // 摘要/笔记/任务是旧上下文的派生记录；原 artifact 和事件仍保留。
+      s.memory.window = { version: s.memory.window.version + 1, summaryRef: null, manifestRef: null, resetEntryId: null };
+      s.memory.entries = {}; s.tasks = {}; s.context = {};
+      break;
+    }
     case 'question.requested': {
       const tool = requireTool();
       if (tool.name !== 'ask_user_question' || tool.status !== 'running' || e.payload.questionId !== e.executionId || s.questions?.[e.payload.questionId])
@@ -903,7 +920,7 @@ export function projectConversation(s: ConversationState) {
     ...s,
     activeReasoning: s.blocks.filter(
       (b) =>
-        b.kind === 'reasoning' &&
+        b.kind === 'reasoning' && currentSequence(s, b.sequence) &&
         b.status === 'running' &&
         s.runs[b.runId]?.status === 'running',
     ),
@@ -911,7 +928,7 @@ export function projectConversation(s: ConversationState) {
       runId,
       collapsedByDefault: r.status === 'completed',
       status: r.status,
-      blocks: s.blocks.filter((b) => b.runId === runId),
+      blocks: s.blocks.filter((b) => b.runId === runId && currentSequence(s, b.sequence)),
       finalMessageId: r.finalMessageId ?? null,
     })),
   };

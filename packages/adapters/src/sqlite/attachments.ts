@@ -51,13 +51,13 @@ export class AttachmentRepository{
   sent(conversationId:string,id:string):SentAttachment{
     const row=this.store.get(`SELECT a.id,a.name,a.mime,a.byte_length byteLength,m.id messageId,m.created_at createdAt
       FROM attachments a JOIN message_attachments ma ON ma.attachment_id=a.id JOIN messages m ON m.id=ma.message_id
-      WHERE a.conversation_id=? AND m.conversation_id=? AND a.id=? AND m.applied=1 AND m.role='user'`,conversationId,conversationId,id);
+      WHERE a.conversation_id=? AND m.conversation_id=? AND a.id=? AND m.applied=1 AND m.role='user' AND ${this.store.currentMessageSql()}`,conversationId,conversationId,id);
     if(!row)throw new UmiError('PERMISSION_DENIED','附件尚未由用户发送并应用到当前会话');
     return row as unknown as SentAttachment;
   }
   list(conversationId:string,input:unknown){
     this.store.conversation(conversationId);const a=attachmentListSchema.parse(input);
-    const where="a.conversation_id=? AND m.conversation_id=? AND m.applied=1 AND m.role='user' AND instr(a.name,?)>0",args=[conversationId,conversationId,a.query??''];
+    const where=`a.conversation_id=? AND m.conversation_id=? AND m.applied=1 AND m.role='user' AND instr(a.name,?)>0 AND ${this.store.currentMessageSql()}`,args=[conversationId,conversationId,a.query??''];
     const rows=this.store.all(`SELECT a.id,a.name,a.mime,a.byte_length byteLength,m.id messageId,m.created_at createdAt
       FROM attachments a JOIN message_attachments ma ON ma.attachment_id=a.id JOIN messages m ON m.id=ma.message_id
       WHERE ${where} ORDER BY m.rowid,a.rowid LIMIT ? OFFSET ?`,...args,a.limit,a.offset) as unknown as SentAttachment[];
